@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE, $DRYRUN);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.4.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Spine::Plugin skeleton";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { 'DISCOVERY/populate' => [ { name => 'dryrun',

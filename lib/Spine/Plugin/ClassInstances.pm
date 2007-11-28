@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.1.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "A simple data discovery plugin that finds out how many instances of this class exist in the current product and cluster";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { 'DISCOVERY/populate' => [ { name => 'num_instances',

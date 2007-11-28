@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE, $MARKERS, $QUICK);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.14.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Spine::Plugin skeleton";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { PREPARE => [ { name => 'quick_template',

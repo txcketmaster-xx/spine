@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.4.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "A variety of changes to tweak the boot process for the machine";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { APPLY => [ { name => 'tweak_startup',

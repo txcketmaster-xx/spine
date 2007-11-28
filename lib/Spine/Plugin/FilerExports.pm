@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.4.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Uses the showmount command to present a list of available NFS mounts on the filer";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { 'PARSE/complete' => [ { name => 'filer_exports',

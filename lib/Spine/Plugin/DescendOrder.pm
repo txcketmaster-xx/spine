@@ -33,7 +33,7 @@ $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.5.2.2 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Determines which policies to apply based on the spine-config" .
     " directory hierarchy layout";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { 'DISCOVERY/policy-selection' =>

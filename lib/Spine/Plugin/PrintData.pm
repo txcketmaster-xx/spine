@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE, $PRINTDATA, $WITHAUTH);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.5.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Features for debugging Spine data";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { 'PARSE/complete' => [ { name => 'key_dump',

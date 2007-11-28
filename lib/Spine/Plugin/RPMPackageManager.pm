@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.5.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "RPM package management using the apt-get for RPM utility";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { APPLY => [ { name => 'install_packages',

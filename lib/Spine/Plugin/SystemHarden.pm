@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.2.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Removes setuid and setgid bits from all files not listed in the privfiles key";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { CLEAN => [ { name => 'system_harden',

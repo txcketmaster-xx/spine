@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, $TMPDIR, @ENTRIES);
 $VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.10.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Builds the temporary working copy we emit to";
 
-$MODULE = { author => 'websys@ticketmaster.com',
+$MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { PREPARE => [ { name => 'build_overlay',
