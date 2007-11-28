@@ -1,72 +1,72 @@
-﻿Rbx!
+﻿Spine!
 
-1. WHAT RBX IS
+1. WHAT SPINE IS
 
-Rbx is framework for managing configurations of large numbers of Unix
+Spine is framework for managing configurations of large numbers of Unix
 machines. Currently, only Linux is fully supported, but other Unicies
 shouldn't be hard to make work. Support for different package managers
 will be the biggest hurdle there.
 
 What do we mean by large? At least thousands. Ticketmaster manages their
-world-wide infrastructure of over 3000 systems with Rbx.
+world-wide infrastructure of over 3000 systems with Spine.
 
-What do we mean by a framework? Rbx isn't designed to out of the box allow
+What do we mean by a framework? Spine isn't designed to out of the box allow
 you to say "hey this is a DNS server, go configure it." This would assume we
-know how you want to run your DNS servers. Instead, Rbx allows you to define
+know how you want to run your DNS servers. Instead, Spine allows you to define
 a set of roles, keys, and templates that define what a DNS server is to you,
 and describe what machines in your network play this role.
 
-Rbx handles tasks like package management (ensuring only the expected
+Spine handles tasks like package management (ensuring only the expected
 packages and their dependencies are installed, nothing else), config-file
 management, NFS-mount management, system hardening, restarting services (when
 their config files change), disabling / enabling services (based on the
-configuration), and local user management. Rbx, for some groups, ties
+configuration), and local user management. Spine, for some groups, ties
 into their host IDS, among other things as well.
 
-Rbx excels at allowing administrators to manage a very large number of systems
+Spine excels at allowing administrators to manage a very large number of systems
 where those systems are either fairly homogeneous, or are a heterogeneous group
 of homogeneous systems. In other words, it assumes the fact that you at least
 have groups of similar systems. Maybe application servers, proxy servers,
-cache servers, and DNS servers, for example. While Rbx is designed with
+cache servers, and DNS servers, for example. While Spine is designed with
 flexibility in mind, it's main audience is not shops machines are all unique
 and share little or no configuration with any other machine.
 
-Rbx also assumes a fairly consistent environment. For example, it assumes
+Spine also assumes a fairly consistent environment. For example, it assumes
 some consistent way of pulling information about roughly what sort of groups a
 system belongs to. By default, it pulls this information by parsing the
-host name. Thus, a reasonable naming schema would is required. Rbx could
+host name. Thus, a reasonable naming schema would is required. Spine could
 fairly trivially be adapted to pull this from somewhere else, but again, that
 source would need to be fairly structured and consistent. There are other
-examples of the way in which Rbx assumes a fairly consistent environment such
+examples of the way in which Spine assumes a fairly consistent environment such
 as the way it determines NFS mounts (it expects to have some sort of
 regex-able structure to match mounts to systems).
 
-Rbx is completely pluggable - if it doesn't do something you'd like it to
-do, writing a plugin for it is very easy. And since Rbx, and it's plugins,
+Spine is completely pluggable - if it doesn't do something you'd like it to
+do, writing a plugin for it is very easy. And since Spine, and it's plugins,
 pull nearly all of their configuration from a hierarchical configuration tree,
 you don't need to worry about how to configure the plugin.
 
 
-2. WHAT RBX IS NOT
+2. WHAT SPINE IS NOT
 
-As mentioned before, because Rbx is a management _framework_, it's not out
+As mentioned before, because Spine is a management _framework_, it's not out
 of the box a management system. You must set it up with a lot of knowledge
 about your environment before it will be even remotely useful to you.
 
-Rbx is also not a provisioning system. However, Ticketmaster is releasing
-"provision", a provisioning tool similar to Rbx. It should be available at
-the same time Rbx is.
+Spine is also not a provisioning system. However, Ticketmaster is releasing
+"provision", a provisioning tool similar to Spine. It should be available at
+the same time Spine is.
 
 
-3. WHY RBX?
+3. WHY SPINE?
 
 There are other configuration management system such as cfengine and puppet,
-why release another? Rbx works on a different paradigm from anything else
+why release another? Spine works on a different paradigm from anything else
 out there. As such, we feel it allows you to scale your admin-to-server ratio
 easier. Here are some of the key differences:
 
  - It's hierarchical.  This one is the big one. This means:
-    * You don't need to define all your machines, much less try to keep rbx
+    * You don't need to define all your machines, much less try to keep spine
       in-sync with provisioned and de-provisioned machines
     * You don't need to define a config per-machine. A machine's policy (or
       "descend_order") is discovered via local system info, a dns schema,
@@ -82,7 +82,7 @@ easier. Here are some of the key differences:
 There are others, but these three are the big ones.
 
 
-4. A NOTE ON THE STATE AND QUALITY OF RBX
+4. A NOTE ON THE STATE AND QUALITY OF SPINE
    A. What we did right
       * Hierarchical configs
       * Easily pluggable
@@ -106,7 +106,7 @@ There are others, but these three are the big ones.
       * Support yum for dependency resolution
 
 
-5. HOW TO USE RBX?
+5. HOW TO USE SPINE?
 
    Please see GETTING_STARTED
 

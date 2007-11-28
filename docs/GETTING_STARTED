@@ -1,18 +1,18 @@
 GETTING STARTED
 
-This is the doc you have to read to be able to use Rbx. It's long, so grab
+This is the doc you have to read to be able to use Spine. It's long, so grab
 yourself a cup of coffee.
 
 0. OVERVIEW
 
-  There are three basic pieces to Rbx:
+  There are three basic pieces to Spine:
     1. Your configuration. The rest of this document talks about this in detail,
        but this is stored in subversion, and exported to a "configball" upon
        subversion checkin.
-    2. Config publisher. This converts checkins to config objects for Rbx.
+    2. Config publisher. This converts checkins to config objects for Spine.
        Currently this object is a "configball" (iso gz ball), but that will
        likely change soon.
-    3. Rbx itself. You run Rbx on a host to be configured, it pulls either
+    3. Spine itself. You run Spine on a host to be configured, it pulls either
        a specific release specified on the command line, a specific release
        specified by a machine being "frozen", or the most recent release,
        parses it, and applies the config.
@@ -24,16 +24,16 @@ yourself a cup of coffee.
   on a "config" directory (more on the directory structure later), and values
   are an array of the lines inside.
 
-  Keys can be defined multiple times through Rbx's config tree, and
+  Keys can be defined multiple times through Spine's config tree, and
   by default, values are appended to previous values.
 
-  Templates are template-toolkit-formated files. You get Rbx's core
+  Templates are template-toolkit-formated files. You get Spine's core
   data object exposed to you in template via the "c" variable.
 
 
 2. DESCEND ORDER & INCLUDES
 
-  Using data gathered during the "discovery" phase of Rbx (this can be
+  Using data gathered during the "discovery" phase of Spine (this can be
   anything from the CPU type, to the OS release, to the "class" or "cluster"
   a system is in), you will define a "descend order."
 
@@ -85,7 +85,7 @@ yourself a cup of coffee.
     $business_unit/
     $business_unit/$class
 
-  For example. It's up to you to decide what works best for you. Rbx
+  For example. It's up to you to decide what works best for you. Spine
   is entirely flexible.
 
   Under each one of these descend-order directories can optionally exist one
@@ -123,9 +123,9 @@ yourself a cup of coffee.
   If file ends in .tt, its interpolated as TT before it's placed. If a file
   does not, it's simply placed on the filesystem.
 
-  Permissioning is done via two special subversion proprties: "rbx:ugid"
-  and "rbx:perms". All templates, overlay directories, and class_overlay
-  directories MUST have both of these defined so Rbx can set permissions.
+  Permissioning is done via two special subversion proprties: "spine:ugid"
+  and "spine:perms". All templates, overlay directories, and class_overlay
+  directories MUST have both of these defined so Spine can set permissions.
 
   Overlays placed in more than once place are *overwritten* by the last
   overlay in the descend_order.
@@ -133,7 +133,7 @@ yourself a cup of coffee.
 
 4. COMPLEX KEYS, TT KEYS
 
-  Rbx understands JSON and YAML keys provided you put the appropriate headers
+  Spine understands JSON and YAML keys provided you put the appropriate headers
   at the top.
 
   In addition, you can use TT syntax in your keys so that you can use
@@ -146,10 +146,10 @@ yourself a cup of coffee.
 
 5. SUBVERSION & CONFIGBALLS
 
-  Rbx uses subversion release numbers as it's own release numbers. The post-
+  Spine uses subversion release numbers as it's own release numbers. The post-
   commit hook to subversion does some basic checkins, and then writes
   to a fifo. The configball publisher reads from this fifo, does an export
   of that release, makes a gzip'd ISOFS of it, and dumps it into a configurable
-  location. Rbx then retrieves these via HTTP.
+  location. Spine then retrieves these via HTTP.
 
 

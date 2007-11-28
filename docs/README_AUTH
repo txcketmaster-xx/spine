@@ -1,10 +1,10 @@
- Rbx Auth Module Documentation
+ Spine Auth Module Documentation
 
-    * Rbx Auth Module Documentation
+    * Spine Auth Module Documentation
           I. Overview
           II. Requirements
                 A. Identity Management (Unified People Information)
-                B. User management uses Rbx hierarchy
+                B. User management uses Spine hierarchy
                 C. Unified user management
                 D. Lots of abstraction
                 E. Special Requirements 
@@ -51,9 +51,9 @@ This module was designed painstakingly with all three Systems Engineering groups
     * People don't change based on where they are. Phil Dibowitz is Phil Dibowitz everywhere, and should be definable only in once central person repository.
     * People = Users. There should be no inherit connection between people and users. You define people, and users and you map them. 
 
-  B. User management uses Rbx hierarchy
+  B. User management uses Spine hierarchy
 
-While doing this presents a challenge to coresys, it was important from a design perspective to be able to define users and people->user mappings using the standard Rbx Configuation heirarchy. We need to be able to say "this cluster gets these users" and "this product gets these users regardless of what cluster it's in" and "this class always gets these users only in this product", etc. Just like other configuration data, we rely on the rbx hierarchy to provide us a rich configuration interface.
+While doing this presents a challenge to coresys, it was important from a design perspective to be able to define users and people->user mappings using the standard Spine Configuation heirarchy. We need to be able to say "this cluster gets these users" and "this product gets these users regardless of what cluster it's in" and "this class always gets these users only in this product", etc. Just like other configuration data, we rely on the spine hierarchy to provide us a rich configuration interface.
 
 As a compromise, websys agreed to write a helper application to this module that would take a person and list all places they have access
 
@@ -139,13 +139,13 @@ NOTE: We have still not yet defined any users!
 
     3. User Provisioning and Mapping
 
-User mapping, as previously stated, is done in via the normal rbx config keys to leverage the data hierarchy. We use the allowed_unix_users key for this. The format of each value of this key is "user:mapping" where "user" is a local unix users which will be created (it must match an existing role or person to get metadata), and "mapping" is the person or auth_group that has access to that account. An example of this key might be:
+User mapping, as previously stated, is done in via the normal spine config keys to leverage the data hierarchy. We use the allowed_unix_users key for this. The format of each value of this key is "user:mapping" where "user" is a local unix users which will be created (it must match an existing role or person to get metadata), and "mapping" is the person or auth_group that has access to that account. An example of this key might be:
 
 root:@admin_group_1
 root:admin4
 user1:user1
 
-Note that the @ notation lets rbx know that "admin_group_1" is an auth_group. In this example, root is a local account that has everyone in the admin_group_1 authgroup, plus admin4's key. There is also a local user user1, which has user1's key.
+Note that the @ notation lets spine know that "admin_group_1" is an auth_group. In this example, root is a local account that has everyone in the admin_group_1 authgroup, plus admin4's key. There is also a local user user1, which has user1's key.
 
 NOTE: Now, we have finally defined two users: root and phil.
 
@@ -174,7 +174,7 @@ UID and GID consistency is enforced by putting uid and gid maps in a single plac
 
     6. Home Directory Provisioning
 
-Home directories happen with as little work from you as possible. Rbx will create all homedirectories for you and chown them to the user.
+Home directories happen with as little work from you as possible. Spine will create all homedirectories for you and chown them to the user.
 
 Obviously we have cases where this can't happen. For example, a daemon's home directory may be / - we don't want to chown that away from root. Thus there is a key called auth_system_homedirs. Any directory listed in here will not be created, chowned, or handled by the auth module unless the user in question is root.
 
@@ -233,9 +233,9 @@ In some cases we need to restrict a user to certain commands. This is easy - you
 
 keyopts:"command="/usr/bin/svnserve -r /ops/shared/home/subversion/systems-engineering -t --tunnel-user=@@user@@"
 
-Rbx will automatically replace "@@user@@" in a key_opt with the user in question. This can also be done with people however, for individual accounts.
+Spine will automatically replace "@@user@@" in a key_opt with the user in question. This can also be done with people however, for individual accounts.
 
-NOTE: I realize this kinda sucks. I didn't use <$foo> because rbx already replaces that and since "user" isn't a key, that would (a) be really confusing and (b) potentially get replaced with data we didn't intend. Feel free to suggest something better.
+NOTE: I realize this kinda sucks. I didn't use <$foo> because spine already replaces that and since "user" isn't a key, that would (a) be really confusing and (b) potentially get replaced with data we didn't intend. Feel free to suggest something better.
 
     3. Custom root shadows
 

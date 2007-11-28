@@ -1,9 +1,9 @@
 This document attempts to explain the layout of the example config distributed
-with rbx.
+with spine.
 
 ASSUMED HOST SETUP
 The example uses a slightly more complex host naming scheme than many shops
-probably have in order to demonstarte the flexibility of rbx. While the naming
+probably have in order to demonstarte the flexibility of spine. While the naming
 scheme fairly closely matches Ticketmaster's setup, it was not chosen for that
 reason.
 
@@ -35,7 +35,7 @@ are possible and easy.
 THE BASIC LAYOUT
 
 As one can see from the /local/config/policy_hierarchy file, the descend-order
-rbx will use is:
+spine will use is:
 
 network/<network>
 <group>/
@@ -50,7 +50,7 @@ The network/ directory is obviously where network-specific configs live.
 The group hierarchy is descended, in this case, from the least-specific part
 of the hostname to the most specific part, but that's just the way we chose to
 do it in our policy_hierarchy. The cluster_type is defined by reg-ex's in
-rbx_internals/config/cluster_types - prod cluster match to the "prod"
+spine_internals/config/cluster_types - prod cluster match to the "prod"
 cluster_type, dev to dev, and qa to qa.
 
 The host/ directory is not populated, but directories named after
@@ -86,12 +86,12 @@ group1/config directory a mess.
 
 USING THE CONFIG
 You'll need to use the 'add_sane_permissions' script in the
-example_rbx_config/Utils directory to add some default permissions to your
+example_spine_config/Utils directory to add some default permissions to your
 tree before attempting to use it. The FS permissions on all overlay
 directories are directly translated to the permissions on the resulting file.
-Once you've done that, rbx can be used like this:
+Once you've done that, spine can be used like this:
 
-  rbx --dryrun --croot /path/to/example_rbx_config --host <hostname>
+  spine --dryrun --croot /path/to/example_spine_config --host <hostname>
 
 Note that the hostname MUST resolve using DNS.
 
