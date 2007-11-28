@@ -1,0 +1,16 @@
+[%- DEFAULT header_comment = '#' -%]
+[%+ header_comment +%]
+[%+ header_comment +%]   SSSSSSSS   TTTTTTTTTTTTT       OOOOO       PPPPPPPPP
+[%+ header_comment +%]  SS       S  TT   TTT   TT     OOO   OOO    PPP      PPP
+[%+ header_comment +%] SSS               TTT         OOO     OOO   PPP       PP
+[%+ header_comment +%]  SSS              TTT         OO       OO   PPP      PP
+[%+ header_comment +%]    SSSSSS         TTT        OO         OO  PPPPPPPPP
+[%+ header_comment +%]         SSS       TTT         OO       OO   PPP
+[%+ header_comment +%]          SSS      TTT         OOO     OOO   PPP
+[%+ header_comment +%]  S       SS       TTT          OOO   OOO    PPP
+[%+ header_comment +%]   SSSSSSSS       TTTTT           OOOOO     PPPPP 
+[%+ header_comment +%]                               
+[%+ header_comment +%] managed by rubix, changes WILL be overwritten on the next run.
+[%+ header_comment +%]
+[%+ header_comment +%] consult your friendly neighborhood admin team for updates or additions.
+[%+ header_comment +%]

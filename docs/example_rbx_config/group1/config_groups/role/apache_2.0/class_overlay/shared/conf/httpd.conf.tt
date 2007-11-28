@@ -1,0 +1,82 @@
+#
+# Load modules
+#
+
+LoadModule env_module         modules/mod_env.so
+LoadModule log_config_module  modules/mod_log_config.so
+LoadModule mime_module        modules/mod_mime.so
+LoadModule status_module      modules/mod_status.so
+LoadModule alias_module       modules/mod_alias.so
+LoadModule access_module      modules/mod_access.so
+LoadModule auth_module        modules/mod_auth.so
+LoadModule headers_module     modules/mod_headers.so
+LoadModule setenvif_module    modules/mod_setenvif.so
+LoadModule dir_module         modules/mod_dir.so
+LoadModule rewrite_module     modules/mod_rewrite.so
+LoadModule proxy_module       modules/mod_proxy.so
+LoadModule proxy_http_module  modules/mod_proxy_http.so
+LoadModule cgi_module         modules/mod_cgi.so
+
+#
+# global core directives
+#
+
+ServerRoot        ${APACHE_BASEDIR}
+DocumentRoot      /[% c.getval('c_class') %]/shared/htdocs
+ServerAdmin 	  sysadmin@yourcompany.com
+Timeout           300
+KeepAlive         Off
+Listen            80
+NameVirtualHost   *:80
+User              web
+Group             web
+UseCanonicalName  On
+DefaultType       text/plain
+HostnameLookups   Off
+
+<IfModule prefork.c>
+    StartServers	25
+    MinSpareServers	25
+    MaxSpareServers	25
+    MaxClients		25
+    MaxRequestsPerChild	10000
+</IfModule>
+
+<IfModule worker.c>
+    StartServers        25
+    MaxClients          200
+    MinSpareThreads     200
+    MaxSpareThreads     200
+    ThreadsPerChild     20
+    MaxRequestsPerChild 10000
+</IfModule>
+
+
+#
+# misc files
+#
+
+PidFile   /[% c.getval('c_class') %]/local/logs/httpd.pid
+TypesConfig /[% c.getval('c_class') %]/shared/conf/mime.types
+
+#
+# Directory indexes
+#
+
+DirectoryIndex index.html index.htm
+
+#
+# logging
+#
+
+LogLevel	 error
+ErrorLog	/[% c.getval('c_class') %]/local/logs/error_log
+LogFormat	"%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+
+NameVirtualHost *:80
+
+<VirtualHost _default_:80>
+    DocumentRoot  /[% c.getval('c_class') %]/shared/htdocs
+</VirtualHost>
+
+Include /[% c.getval('c_class') %]/shared/conf/conf.d/*.conf

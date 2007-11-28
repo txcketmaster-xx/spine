@@ -1,0 +1,6 @@
+[% MATCH c_cluster=c1; %]
+5 * * * * root /ops/shared/bin/save_rrds
+[% END %]
+[% MATCH c_cluster=c2; %]
+*/5 * * * * root /usr/lib/nagios/plugins/check_traffic -H -s 60
+[% END %]

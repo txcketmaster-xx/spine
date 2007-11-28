@@ -1,0 +1,278 @@
+ Rbx Auth Module Documentation
+
+    * Rbx Auth Module Documentation
+          I. Overview
+          II. Requirements
+                A. Identity Management (Unified People Information)
+                B. User management uses Rbx hierarchy
+                C. Unified user management
+                D. Lots of abstraction
+                E. Special Requirements 
+          III. The Design
+                A. Definitions and Concepts
+                B. The Data Model
+                      1. Defining People And Roles
+                            a. People
+                            b .Roles 
+                      2. Auth Groups
+                      3. User Provisioning and Mapping
+                      4. Group Provisioning and Mapping
+                      5. UID and GID consistency
+                      6. Home Directory Provisioning
+                      7. Skel files 
+                C. How the Data Model Fits Together
+                D. Special Cases
+                      1. Systems
+                      2. Roles
+                      3. Custom root shadows
+                      4. "local" authorized keys 
+          IV. Policy
+          V. Safety Nets 
+
+I. Overview
+
+Currently we have a lot of passwd.tt, shadow.tt, group.tt, and authorized_keys/*.tt files floating around. And they all use a different method for populating users, and they're all work-around hacks.
+
+This module provides a clean and consistent interface for defining people, roles, users, and groups, and several layers of abstraction. It handles:
+
+    * /etc/passwd
+    * /etc/shadow
+    * /etc/group
+    * authorized_keys
+    * home directories
+    * skel files 
+
+II. Requirements
+
+This module was designed painstakingly with all three Systems Engineering groups to be extensible, scalable, and meet everyone's needs. Here are most of the requirements.
+
+  A. Identity Management (Unified People Information)
+
+    * People don't change based on where they are. Phil Dibowitz is Phil Dibowitz everywhere, and should be definable only in once central person repository.
+    * People = Users. There should be no inherit connection between people and users. You define people, and users and you map them. 
+
+  B. User management uses Rbx hierarchy
+
+While doing this presents a challenge to coresys, it was important from a design perspective to be able to define users and people->user mappings using the standard Rbx Configuation heirarchy. We need to be able to say "this cluster gets these users" and "this product gets these users regardless of what cluster it's in" and "this class always gets these users only in this product", etc. Just like other configuration data, we rely on the rbx hierarchy to provide us a rich configuration interface.
+
+As a compromise, websys agreed to write a helper application to this module that would take a person and list all places they have access
+
+  C. Unified user management
+
+There is only one way to add users. Duh.
+
+  D. Lots of abstraction
+
+I don't want to list all the websys people everywhere I need to map them to a user. I should have a level of abstration where I can define a group of people and then map them to something.
+
+  E. Special Requirements
+
+We wanted to support all our various oddities including:
+
+    * Build systems (individual user accounts)
+    * Subversion meta-users
+    * "special" systems (e.g. Coresys bastion hosts) - websys required this be a more generic notion they can apply to bastion hosts
+    * "root" shadow must be overwritable everywhere 
+
+III. The Design
+
+  A. Definitions and Concepts
+
+The following concepts are used in this model:
+
+    * People - People represent things that can be mapped to an account, which in almost all cases is a person. They in no way imply an account or a user.
+    * Roles - These are roles that we use. In most cases these are the same as our local accounts, but in no way imply an account or a user.
+    * Attributes - Users and roles have "attributes" - pieces of data about them. For example: home directory, ssh key, and shell are attributes
+    * Authgroup - A group of people for ease of management
+    * User - A UNIX user. A UNIX user may mapped to either a user or a role. Further it may be made up of a person or group of people.
+    * Group - A UNIX group. The membership of a group is defined by the role or person it maps to. 
+
+  B. The Data Model
+
+    1. Defining People And Roles
+
+To do this, we define a new part of the tree. Why? Because this is a unique branch for identity management. It's a new kind of data and not like the rest of the data. This is in /auth
+
+      a. People
+
+In /auth/people, we define a key per person. Lets take "phil" as an example. If we look at the "phil" key, we might see:
+
+key:ssh-dss AAAAB3NzaC1kc3MAAACBAOggyw9b2CQ2waP58p2Mqeu4Af7ZN8BmfeZ312Pj5RVfO/h/BL0jcCPXMllFi7DqNo7idjdjP/5rBqmzoH1YKgXZOUnCmw2BhAKRq5tDG3Sw77K4LkRVJr17C2j3yd/I/o14f6slh9ebMjFFoR0b+gruOT81qUNJebEMF2YTaArlAAAAFQDPnd7UoSe8ziTW5pQ5VO5KNEcTHQAAAIEA1R8++XBtgsYqCPf0enUE4Z1lWPk6LTPYMhV93K63nBj/STYFLVKvCSertxcHeXzhZ+sax3BKi4+BU4PFBXXiGzM+2WmKZsTwOrkmeSSdvxSibz/M9yi4zufWj1dHYK7RKabGk7Qqu9qWhNCpmS+gttT7pNncJGxmn+nVxLQpqo4AAACAT2hhHtsIvKy0zoomSasTUJAK19uk+CSMJBALeWkSjzBoIxAkM8Eyr4Fo37J2ACHY1xxhTb8OtvJVdEqOgOL+689J6jjBOh4B0JCZFEf/h4tSY5GR3CKvWqduS9yEHDdUK9z0X/2HVQw+WaJ296vzP2BZqnch4Xis1cBI3njqCEg= admin1
+gecos:Admin One
+homedir:/<$class>/shared/home/admin1
+shell:/bin/bash
+shadow:$2$l.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+primary_group:admin
+group:root
+group:disk
+
+This defines attributes about Phil such as his ssh key, gecos, homedir and more. Note that most of this data would only be used to create an individual account for phil. Note that most keys here are single-value - the exception is "key" and "group" - they're multivalue.
+
+NOTE: We have not yet defined any users!
+
+      b. Roles
+
+Roles live in /auth/roles, and look just like people except they don't have keys. If we look at root, we might see:
+
+homedir:/root
+shell:/bin/bash
+gecos:God
+shadow:$2$l.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+gid:root
+group:wheel
+
+NOTE: We have still not yet defined any users!
+
+    2. Auth Groups
+
+Auth Groups are an abstraction - just an arbitrary group of users. These live in /auth/auth_groups. SAs should be careful to name groups appropriately like: websys_dbas.
+
+Having a look at /auth/auth_groups/admin_group_1, we might see:
+
+admin1
+admin2
+admin3
+
+And this simply says that we can talk about admin_group_1 as a whole.
+
+NOTE: We have still not yet defined any users!
+
+    3. User Provisioning and Mapping
+
+User mapping, as previously stated, is done in via the normal rbx config keys to leverage the data hierarchy. We use the allowed_unix_users key for this. The format of each value of this key is "user:mapping" where "user" is a local unix users which will be created (it must match an existing role or person to get metadata), and "mapping" is the person or auth_group that has access to that account. An example of this key might be:
+
+root:@admin_group_1
+root:admin4
+user1:user1
+
+Note that the @ notation lets rbx know that "admin_group_1" is an auth_group. In this example, root is a local account that has everyone in the admin_group_1 authgroup, plus admin4's key. There is also a local user user1, which has user1's key.
+
+NOTE: Now, we have finally defined two users: root and phil.
+
+We have one other useful shortcut we can use. We can put an entry like so:
+
+:@admin_group_1
+
+This would give every person in the admin_group_1 auth_group their own individual account.
+
+    4. Group Provisioning and Mapping
+
+Similar to allowed_unix_users, there is an allowed_unix_groups key. However, it just lists groups:
+
+root
+phil
+
+The mappings happen in the person and role definitions using the "group:foo" syntax.
+
+    5. UID and GID consistency
+
+UID and GID consistency is enforced by putting uid and gid maps in a single place: /auth. These look like:
+
+0:root
+1:bin
+...
+
+    6. Home Directory Provisioning
+
+Home directories happen with as little work from you as possible. Rbx will create all homedirectories for you and chown them to the user.
+
+Obviously we have cases where this can't happen. For example, a daemon's home directory may be / - we don't want to chown that away from root. Thus there is a key called auth_system_homedirs. Any directory listed in here will not be created, chowned, or handled by the auth module unless the user in question is root.
+
+    7. Skel files
+
+If we're going to manage users' home directories from this module, we should probably create their skel files too, eh? Well, here's the deal. Unless specified, all users will get the contents of /include/skel/default copied to their home directory (note: they will still be owned by root). All files, where appropriate, should source a _extra file. i.e., .bash_profiles should source a .bash_extra if it exists so that users may add customizations as they see fit.
+
+However, you can specify an attribute of "skeldir" with a relative path to another skel dir. So if, inside /auth/roles/root, you put:
+
+skeldir: /includes/skel/root
+
+That directory would be used instead.
+
+  C. How the Data Model Fits Together
+
+For Role accounts:
+
+             |====(role accounts)======> Role
+             |====(individual accounts)===> Person
+             |
+            (Data)
+             |
+    [UNIX USER] 
+             |
+            (access)
+             |
+             |------Access--+---> Auth_Groups ---> People
+                            |------------------------^
+
+Users map to one role or person (depending on account type) for data, and to people for access. Obviously any access-mapping can use auth_groups to abstract groups of people.
+
+  D. Special Cases
+
+    1. Systems
+
+We also support special systems that do authentication differently, such as bastion hosts where many users have the same homedirectory. To do this, we must define our special system in the key special_auth_types. This is a standard key that can be defined anywhere, though I've thought of requiring to be global. Once you have defined a special auth type, for example, "bastion", you can then use this by making entries in a role or person with _$type in it. For example, lets modify /auth/person/phil like this:
+
+key:ssh-dss AAAAB3NzaC1kc3MAAACBAOggyw9b2CQ2waP58p2Mqeu4Af7ZN8BmfeZ312Pj5RVfO/h/BL0jcCPXMllFi7DqNo7idjdjP/5rBqmzoH1YKgXZOUnCmw2BhAKRq5tDG3Sw77K4LkRVJr17C2j3yd/I/o14f6slh9ebMjFFoR0b+gruOT81qUNJebEMF2YTaArlAAAAFQDPnd7UoSe8ziTW5pQ5VO5KNEcTHQAAAIEA1R8++XBtgsYqCPf0enUE4Z1lWPk6LTPYMhV93K63nBj/STYFLVKvCSertxcHeXzhZ+sax3BKi4+BU4PFBXXiGzM+2WmKZsTwOrkmeSSdvxSibz/M9yi4zufWj1dHYK7RKabGk7Qqu9qWhNCpmS+gttT7pNncJGxmn+nVxLQpqo4AAACAT2hhHtsIvKy0zoomSasTUJAK19uk+CSMJBALeWkSjzBoIxAkM8Eyr4Fo37J2ACHY1xxhTb8OtvJVdEqOgOL+689J6jjBOh4B0JCZFEf/h4tSY5GR3CKvWqduS9yEHDdUK9z0X/2HVQw+WaJ296vzP2BZqnch4Xis1cBI3njqCEg= admin1
+gecos:Admin One
+homedir:/<$class>/shared/home/admin1
+shell:/bin/bash
+shadow:$2$l.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+group:root
+group:disk
+gid:phil
+# Define bastion overrides
+homedir_bastion:/tmp
+gid_bastion:nobody
+shell_bastion:/bin/rksh
+
+Note here that we're overriding three of phil's attributes on bastion systems: homedir, shell, and gid. Great, but how do we use it? We define the key auth_type anywhere and put a valid value in it, where a valid value is something registered in special_auth_keys. Now, on any host where auth_type is "bastion", any attribute that has a _bastion counterpart will get used. If an attribute doesn't have a _bastion counterpart, the normal value will be used.
+
+    2. Roles
+
+In some cases we need to restrict a user to certain commands. This is easy - you simply set an attribute of keyopts in their key. This is most useful in roles. For example, in the subversion role, we want to say:
+
+keyopts:"command="/usr/bin/svnserve -r /ops/shared/home/subversion/systems-engineering -t --tunnel-user=@@user@@"
+
+Rbx will automatically replace "@@user@@" in a key_opt with the user in question. This can also be done with people however, for individual accounts.
+
+NOTE: I realize this kinda sucks. I didn't use <$foo> because rbx already replaces that and since "user" isn't a key, that would (a) be really confusing and (b) potentially get replaced with data we didn't intend. Feel free to suggest something better.
+
+    3. Custom root shadows
+
+The key 'root_shadow' can be defined anywhere to overwrite the root crypt.
+
+    4. "local" authorized keys
+
+On our build boxes, authorized_keys currently go in ~/.ssh instead of /etc/ssh/authorized_keys. While this module deprecates the need for such a special case, the module supports this as a transitional aid. Simply define the key local_authorized_keys where needed.
+
+IV. Policy
+
+Some things either can be enforced in code with others should not be or cannot easily be. Such things are written down as policy.
+
+Some example of policies you might choose to use are:
+
+    * Gecos information for all people should be the full name
+    * Standard username (people file) format such as "first initial, last name",
+      i.e. flastname
+
+V. Safety Nets
+
+The Auth Action employes the following safety nets:
+
+    * /etc/passwd cannot be blank
+    * /etc/shadow cannot be blank
+    * /etc/group cannot be blank
+    * Root (with uid 0) must be in /etc/passwd and /etc/shadow
+    * A user called 'sshd' must exist
+    * /etc/ssh/authorized_keys/root cannot have less then <$min_root_keys> keys in it
+    * No user can be without a user name, uid, gid, shadow, homedir, or shell (though if shadow isn't defined, it's automatically set to "x")
+    * No user can be without a gecos either, but this was a policy decision
+    * Data validation:
+          o All people/role/authgroup attributes are parsed by colons and thus we ensure no colons are in the data, thus no spurious colons can end up in /etc/{passwd,shadow,group} from these fields
+          o {uid,gid}_maps - only things of the form ^\d:$group$ are pulled in
+          o The above also ensures uid/gid is always an integer 
+    * We check the owner of all procs and make sure the UID and GID are going to be on the system and warn if they're not
+    * We check the owner of all crontabs and make sure that unix user name is gonig to be on the system (crontabs are by name not uid), and warn if they're not 
+
+The min_root_keys key can be defined anywhere, but defaults to 3 if not defined.
+

@@ -1,0 +1,6 @@
+gecos:RPM User
+homedir:/var/lib/rpm
+shell:/sbin/nologin
+primary_group:rpm
+shadow:!!
+type: system

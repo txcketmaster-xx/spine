@@ -1,0 +1,34 @@
+lvm2
+mdadm
+audit-libs
+selinux-policy-targeted
+setools
+checkpolicy
+compat-db
+#
+# This might as well be global, we're going to need them for most of
+# /software
+#
+[% MATCH c_arch=x86[-_]64; %]
+zlib.32bit
+openssl.32bit
+gdbm.32bit
+compat-db.32bit
+expat.32bit
+libgcc.32bit
+[% END %]
+#
+# libghttp doesn't seem to exist as a package in AS4.  Odd.
+#
+-libghttp
+-laus-libs
+-lvm
+-devlabel
+-IBMFirmware
+-daemontools
+-XFree86-xauth
+-raidtools
+tm_utils
+[% MATCH c_distro_version=^(?!AS4U2); %]
+kernel-largesmp#<$kernel_version>
+[% END %]

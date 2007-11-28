@@ -1,0 +1,11 @@
+- Proper exception handling
+- keys with metadata which can be used to declare then in both hierarchical and non-hierachical ways
+- track additional metadata about keys like sourcefile and sourceline
+- better release publisher
+- gut Data.pm:
+  - Non-filesystem backend
+  - queriable/contexts
+- File deletion
+- Make class_overlay MUCH more generic
+
+

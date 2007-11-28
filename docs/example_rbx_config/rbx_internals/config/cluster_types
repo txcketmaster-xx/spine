@@ -1,0 +1,5 @@
+# Maps clusters to cluster-types
+# Regex::ClusterType
+^dev\d+::dev
+^qa\d+::qa
+.*::prod

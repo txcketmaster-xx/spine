@@ -1,0 +1,7 @@
+[%-
+        SET include_header = c.getval('c_croot') _ "/includes/header/topper";
+        INCLUDE $include_header
+-%]
+*.info	/dev/console
+*.info	/etc/messages
+*.*	@syslog.sys.[% c.getval('c_cluster') %].[% c.getval('c_bu') %].tmcs

@@ -1,0 +1,155 @@
+GETTING STARTED
+
+This is the doc you have to read to be able to use Rbx. It's long, so grab
+yourself a cup of coffee.
+
+0. OVERVIEW
+
+  There are three basic pieces to Rbx:
+    1. Your configuration. The rest of this document talks about this in detail,
+       but this is stored in subversion, and exported to a "configball" upon
+       subversion checkin.
+    2. Config publisher. This converts checkins to config objects for Rbx.
+       Currently this object is a "configball" (iso gz ball), but that will
+       likely change soon.
+    3. Rbx itself. You run Rbx on a host to be configured, it pulls either
+       a specific release specified on the command line, a specific release
+       specified by a machine being "frozen", or the most recent release,
+       parses it, and applies the config.
+
+
+1. KEYS & TEMPLATES AT A HIGH LEVEL
+
+  The config tree is made up of key-value paires. Keys are any file
+  on a "config" directory (more on the directory structure later), and values
+  are an array of the lines inside.
+
+  Keys can be defined multiple times through Rbx's config tree, and
+  by default, values are appended to previous values.
+
+  Templates are template-toolkit-formated files. You get Rbx's core
+  data object exposed to you in template via the "c" variable.
+
+
+2. DESCEND ORDER & INCLUDES
+
+  Using data gathered during the "discovery" phase of Rbx (this can be
+  anything from the CPU type, to the OS release, to the "class" or "cluster"
+  a system is in), you will define a "descend order."
+
+  This descend order is a path which we descend the config tree. We'll use
+  ticketmaster as an example. Our naming schema is:
+      <class><class_instance>.<product>.<cluster>.<business_unit>.tmcs
+
+  So lets take an example hostname that follows this schema:
+      app1.tmol.lax1.websys.tmcs
+
+  In this case, the class is "app", and it's the first instance, "1", it's
+  in the product "tmol" (ticketmaster online), in the lax1 cluster, run
+  by the "websys" group (tmcs is just our internal tld). We define our
+  descend_order like this:
+
+     network/$subnet/
+     $business_unit/
+     $business_unit/$clustertype
+     $business_unit/$clustertype/$product/
+     $business_unit/$clustertype/$product/$class
+     $business_unit/$clustertype/$product/$class/$instance
+     host/$host
+
+  In other words, in our environment, the subnet you're on has the most
+  generic config data associated with it. From there, we want to inheret
+  all configs common to the entire of the websys group. This can be stuff
+  like admin users, basic mail aliases for root, etc.
+
+  From there we group our clusters into types (using regex's defined
+  in a key) such as "dev", "qa", "prod", and others. This is the next
+  level of configs.
+
+  From there, we want configuration related to the entire of the "tmol"
+  product. After that, things specific to "app" boxes *inside* the "tmol"
+  product. This piece is important. Many configuration systems will let
+  you apply an "app" and a "tmol" and a "websys" role to a system, but
+  by using a hierarchy, we're able to say we have app boxes in one product
+  that are different from another... but at the same time, say all app
+  boxes in that product still share similar configs.
+
+  Finally, we provide mechanisms for one-offs: the class_instance and
+  host-specific directories. These are generally things to be avoided
+  but every environment has their one-offs.
+
+  This is a Ticketmaster example, but your descend order might be:
+
+    hardware/$cpu_type
+    network/$netmask
+    $business_unit/
+    $business_unit/$class
+
+  For example. It's up to you to decide what works best for you. Rbx
+  is entirely flexible.
+
+  Under each one of these descend-order directories can optionally exist one
+  of three directories: config, overlay, and class_overlay. Configs are the
+  aforementioned "keys", and overlay and class_overlay are templates. More on
+  these later.
+
+  "But wait!" you say "What if I want to always say that all app boxes to
+  have some common configs? Or what if I have two boxes in different clusters
+  that have common configs?"
+
+  That's where includes come in. Under any "config" directory that's getting
+  descended, you can include a key called "include." This key specifies
+  additional directories to descend *prior* to the current directory.
+  The values of this key are _relative_ paths. They are currently hard-coded
+  to be relative to $businessunit/config_groups.
+
+  The config_groups directory can be organized into as many subdirectories
+  as you like - just specify the precise one to include in your "include"
+  key. As will all descended directories, it will not descend sub-directories.
+
+
+3. OVERLAYS AND CLASS_OVERLAYS
+
+  Templates are put into a directory called "overlay" under any descended
+  directory. The overlay directory is relative to the ROOT of the filesystem
+  of the machine being configured. In other words foo/overlay/bar will end up
+  in /bar while foo/overlay/etc/bar will end up in /etc/bar.
+
+  Class_overlay is a hack useful to Ticketmaster, and needs to be made a bit
+  more generic so that more people can use it. At ticketmaster, we have a
+  /$class directory where class-specific goes. Anything put under
+  class_overlay is relative to /$class instead of just /.
+
+  If file ends in .tt, its interpolated as TT before it's placed. If a file
+  does not, it's simply placed on the filesystem.
+
+  Permissioning is done via two special subversion proprties: "rbx:ugid"
+  and "rbx:perms". All templates, overlay directories, and class_overlay
+  directories MUST have both of these defined so Rbx can set permissions.
+
+  Overlays placed in more than once place are *overwritten* by the last
+  overlay in the descend_order.
+
+
+4. COMPLEX KEYS, TT KEYS
+
+  Rbx understands JSON and YAML keys provided you put the appropriate headers
+  at the top.
+
+  In addition, you can use TT syntax in your keys so that you can use
+  conditions such as wrapping a few lines in an "if" statement to check on the
+  OS release.
+
+  TT-interpolation is done before anything else, so your TT can spit out JSON,
+  YAML, or plain line-oriented keys.
+
+
+5. SUBVERSION & CONFIGBALLS
+
+  Rbx uses subversion release numbers as it's own release numbers. The post-
+  commit hook to subversion does some basic checkins, and then writes
+  to a fifo. The configball publisher reads from this fifo, does an export
+  of that release, makes a gzip'd ISOFS of it, and dumps it into a configurable
+  location. Rbx then retrieves these via HTTP.
+
+

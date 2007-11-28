@@ -1,0 +1,15 @@
+product/tmol/pxy_common
+role/httpd_common
+[% MATCH c_cluster=(stg1|stg2|stg3|els0); %]
+role/http_iptables_redirect
+[% END %]
+role/pki
+role/websys-media
+[% MATCH c_cluster=(lax1|lax2|ord1|ord2|lca1|lhr1|els1|els2); %]
+role/broker_blocker
+[% END %]
+role/apache-stats
+[% MATCH c_cluster=(bej1|stg3); %]
+role/cookieq_pxy
+[% END %]
+role/mod_security

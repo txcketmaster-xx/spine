@@ -1,0 +1,3 @@
+[% FOREACH line = c.getvals('virtual_aliases') %]
+  [% line %]
+[%+ END -%]

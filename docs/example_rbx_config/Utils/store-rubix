@@ -1,0 +1,418 @@
+#!/bin/bash
+SVN=${SVN:-/usr/bin/svn}
+PRUNEDOTSVN="( -path '*/.svn*' -prune )"
+OVERLAYDIRS="( -type d -a ( -name overlay -a -name class_overlay ) -a -links +3 )"
+SPECIALFILES="( -not -type f -a -not -type d -a -not -type l )"
+STORE=''
+RESTORE=''
+SVNACTION=''
+DEBUG=${RSVN_DEBUG:-0}
+VERBOSE=${RSVN_VERSOSE:-false}
+
+function setprop()
+{
+    local file=$1
+    shift
+    local propname=$1
+    shift
+    local propval=$1
+    shift
+
+    local cmd="${SVN} propset ${propname} ${propval} ${file}"
+    local setit=`${cmd} 2>&1`
+
+    if [ $? -ne 0 ]; then
+	echo "            Failed to set ${propname} on ${file}: ${setit}" 1>&2
+	return 1
+    fi
+
+    return 0
+}
+
+function getprop()
+{
+    local file=$1
+    shift
+    local propname=$1
+    shift
+
+    ${SVN} propget ${propname} ${file}
+}
+
+function property_changed()
+{
+    local file=$1
+    shift
+    local property=$1
+    shift
+    local value=$1
+    shift
+
+    local prev_val=`getprop ${file} ${property}`
+
+    if [ "${value}" = "${prev_val}" ]; then
+	return 1
+    fi
+
+    return 0
+}
+
+function check_set_prop()
+{
+    local file="$1"
+    shift
+    local prop="$1"
+    shift
+    local val="$1"
+    shift
+
+    property_changed ${file} ${prop} ${val}
+
+    # The property hasn't changed
+    if [ $? -ne 0 ]; then
+	return 0
+    fi
+
+    setprop ${file} ${prop} ${val}
+
+    if [ $? -ne 0 ]; then
+	echo "            Failed to set '${prop}' on ${file}" 1>&2
+	return 1
+    fi
+
+    return 0
+}
+
+function tweak_special_file()
+{
+    local file=$1
+    shift
+
+    local type=`stat -c '%F' ${file}`
+    local major=`stat -c '%t' ${file}`
+    local minor=`stat -c '%T' ${file}`
+    local perms=`stat -c '%a' ${file}`
+    local ugid=`stat -c '%u:%g' ${file}`
+
+    echo "${type}" | grep -qi 'fifo\|block\|character'
+
+    if [ $? -ne 0 ]; then
+	echo "            Can't tweak ${file} of type \"${type}\" yet." 1>&2
+	return 1
+    fi
+
+    for syscall in "/bin/rm -f ${file}" \
+		   "/bin/touch ${file}" \
+		   "/bin/chown ${ugid} ${file}" \
+		   "/bin/chmod ${perms} ${file}"; do
+	${syscall}
+
+	if [ $? -ne 0 ]; then
+	    echo "            System call \"${syscall}\" failed!" 1>&2
+	    return 1
+	fi
+    done
+
+    # ${type} may contain whitespace
+    check_set_prop ${file} 'rubix:filetype' "${type}" || return 1
+
+    if [ ${major} -ne 0 -o ${minor} -ne 0 ]; then
+	check_set_prop ${file} 'rubix:majordev' ${major} || return 1
+	check_set_prop ${file} 'rubix:minordev' ${minor} || return 1
+    fi
+}
+
+function store_perms()
+{
+    local entry=$1;
+    shift
+
+    local perms=`stat -c '%a' ${entry}`
+    local ugid=`stat -c '%u:%g' ${entry}`
+
+    check_set_prop ${entry} 'rubix:perms' ${perms} || return 1
+    check_set_prop ${entry} 'rubix:ugid' ${ugid} || return 1
+
+    return 0
+}
+
+function force_overlay_perms()
+{
+    local dir=$1
+    shift
+
+    check_set_prop ${dir} 'rubix:perms' 0755 || return 1
+    check_set_prop ${dir} 'rubix:ugid' 0:0 || return 1
+
+    return 0
+}
+
+function store_info()
+{
+    local dir=$1
+    shift
+
+    # First find any special files we need to deal with(not a file, dir, or
+    # symlink).
+    #echo find ${dir} \( -path '*/.svn*' -prune \) -o \( -not -type f -a -not -type d -a -not -type l \) -print
+
+    for file in `find ${dir} \( -path '*/.svn*' -prune \) -o \( -not -type f -a -not -type d -a -not -type l \) -print`; do
+	tweak_special_file ${file}
+
+	if [ $? -ne 0 ]; then
+	    echo "    Tweaking special file ${file} failed!"
+	    echo "    Tweaking special file ${file} failed!" 1>&2
+	    return 1
+	fi
+    done
+
+    # *ALL* overlay and class_overlay directories *MUST* be 0755 root:root!
+    force_overlay_perms ${dir}
+
+    # And now those special files are regular files 
+    #echo find ${dir} \( -path '*/.svn*' -prune \) -o -print
+
+    for entry in `find ${dir} \( -path '*/.svn*' -prune \) -o -print`; do
+	store_perms ${entry}
+
+	if [ $? -ne 0 ]; then
+	    echo "    Storing permissions and ownership on ${entry} FAILED!"
+	    echo "    Storing permissions and ownership on ${entry} FAILED!" 1>&2
+	    return 1
+	fi
+    done
+
+    return 0
+}
+
+function untweak_special_file()
+{
+    local file=$1
+    shift
+
+    local error=''
+    local borc=''
+    local mkcmd=''
+    local type=`getprop ${file} 'rubix:filetype'`
+    local major=`getprop ${file} 'rubix:majordev'`
+    local minor=`getprop ${file} 'rubix:minordev'`
+    local perms=`getprop ${file} 'rubix:perms'`
+    
+    echo "${type}" | grep -qi block && borc='b'
+    echo "${type}" | grep -qi character && borc='c'
+
+    if [ -e ${file} ]; then
+	/bin/rm -rf ${file}
+    fi
+
+    # It's a device file, not a FIFO or socket
+    if [ ${borc} ]; then
+	mkcmd="/bin/mknod -m ${perms} ${file} ${borc} ${major} ${minor}"
+    fi
+
+    echo "${type}" | grep -qi fifo
+
+    if [ $? -eq 0 ]; then
+	mkcmd="/bin/mkfifo -m ${perms} ${file}"
+    fi
+
+    if [ -z "${mkcmd}"  ]; then
+	echo "        ${file} doesn't appear to be a device or FIFO.  Not good." 1>&2
+	return 1
+    fi
+
+    error=`${mkcmd} 2>&1`
+
+    if [ $? -ne 0 ]; then
+	echo "        \"${mkcmd}\" FAILED" 1>&2
+	echo "${error}" 1>&2
+	return 1
+    fi
+
+    return 0
+}
+
+function restore_perms()
+{
+    local entry=$1;
+    shift
+
+    local perms=`getprop ${entry} 'rubix:perms'`
+    local ugid=`getprop ${entry} 'rubix:ugid'`
+    local type=`stat -c '%F' ${entry}`
+    # -h is for short for --no-dereference
+    local syscall="/bin/chown -h ${ugid} ${entry}"
+
+    ${syscall}
+
+    if [ $? -ne 0 ]; then
+	echo "\"${syscall}\" FAILED!"
+	echo "\"${syscall}\" FAILED!" 1>&2
+	return 1
+    fi
+
+    # Don't try to chmod symlinks, they're always 777
+    echo "${type}" | grep -qi 'symbolic'
+    if [ $? -ne 0 ]; then
+        syscall="/bin/chmod ${perms} ${entry}"
+
+        ${syscall}
+
+	if [ $? -ne 0 ]; then
+	    echo -e "\t\"${syscall}\" FAILED!"
+	    echo -e "\t\"${syscall}\" FAILED!" 1>&2
+	    return 1
+	fi
+    fi
+
+    return 0
+}
+
+function restore_info()
+{
+    local dir=$1
+    shift
+
+    #echo find ${dir} \( -path '*/.svn*' -prune \) -o -print
+
+    # chown & chmod everything at the same time
+    for entry in `find ${dir} \( -path '*/.svn*' -prune \) -o -print`; do
+	local special=`getprop ${entry} 'rubix:filetype'`
+
+	# Untweak the special file types
+	if [ "${special}" ]; then
+	    untweak_special_file ${entry}
+
+	    if [ $? -ne 0 ]; then
+		echo "        Un-tweaking special file ${entry} FAILED!" 1>&2
+                return 1
+	    fi
+	fi
+
+	restore_perms ${entry}
+
+	if [ $? -ne 0 ]; then
+	    echo "    Restoring permissions and ownership on ${entry} FAILED!" 1>&2
+            return 1
+	fi
+    done
+
+    # Lastly, make sure that the directory has the right perms
+    restore_perms ${dir}
+
+    return 0
+}
+
+function which_dir()
+{
+    shift $(($# -1)) # The repo should be the last item in the list
+    local working=$1
+    shift
+    local dir=${working}
+
+    echo "${working}" | grep -q '://'
+    if [ $? -eq 0 ]; then
+	dir=`echo ${working} | perl -ne 'chomp; my @foo = split(m|/|); my $f = pop(@foo); print $f;'`
+    fi
+    
+    echo ${dir}
+}
+
+function store()
+{
+    local working=`which_dir $@`
+
+    echo "Storing ${working}..."
+
+    #
+    # Why use "-a -links +3"?  Because -empty doesn't work when there's a .svn
+    # directory in overwise emptyr overlay dirs.
+    #
+    # rtilder    Tue Nov  9 15:54:20 PST 2004
+    #
+    #
+    # UPDATE:
+    #
+    # But we need to make sure every overlay directory gets restored, not just
+    # the ones that have child directories and files in them.  Otherwise PAM
+    # has a hissy fit if / is chmod 0700(my default umask).
+    #
+    # rtilder    Wed Nov 17 15:39:49 PST 2004
+    #
+    #
+    #  echo find ${working} \( -path '*/.svn*' -prune \) -o \
+    #       \( -type d -a \
+    #          \( -name overlay -o -name class_overlay \) \
+    #       \) -print
+
+    for dir in `find ${working} \( -path '*/.svn*' -prune \) -o \
+	                \( -type d -a \
+	                \( -name overlay -o -name class_overlay \) \
+	                \) -print`; do
+	${VERBOSE} && echo "Storing info for ${dir}... "
+	store_info ${dir}
+
+        if [ $? -ne 0 ]; then
+            echo 'FAILED!' 1>&2
+            return 1
+        fi
+
+	${VERBOSE} && echo "Finished storing info for ${dir}... "
+    done
+}
+
+function restore()
+{
+    local working=`which_dir $@`
+
+    echo "Restoring ${working}..."
+
+    #
+    # Lame hack.  Make sure all the non-overlay directoies are owned by root
+    # to prevent weird crap with rsync and UIDs that don't exist in production.
+    #
+    # rtilder    Wed Nov 17 16:44:46 PST 2004
+    #
+    /bin/chown -h -R 0:0 ${working}
+
+    for dir in `find ${working} \( -path '*/.svn*' -prune \) -o \
+                        \( -type d -a \
+		                \( -name overlay -o -name class_overlay \) \
+	                \) -print`; do
+	${VERBOSE} && echo "Restoring info for ${dir}... "
+	restore_info ${dir}
+
+        if [ $? -ne 0 ]; then
+            echo 'FAILED!' 1>&2
+            return 1
+        fi
+
+	${VERBOSE} && echo "Finished restoring info for ${dir}... " 
+    done
+
+    return 0
+}
+
+
+if [ ${EUID} -ne 0 -a ${UID} -ne 0 ]; then
+    echo "Sorry.  You need to be root to do restore ownership and permissions." 1>&2
+    exit 1
+fi
+
+script=`basename $0`
+
+if [ "${script}" = "store-svn" -o "${script}" = "store-rubix" ]; then
+    store $@
+    exit
+fi
+
+if [ "${script}" = "restore-svn" -o "${script}" = "restore-rubix" ]; then
+    restore $@
+    exit
+fi
+
+store $@ || exit 1
+
+${SVN} $@ || exit 1
+
+restore $@ || exit 1

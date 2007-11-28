@@ -1,0 +1,16 @@
+# Service restart dependancies
+# 
+# Purpose:
+#  Associate config files with services and restart
+#  if any modifications are detected.
+#
+# Syntax:
+#   Service:Command:File1:File2:...
+# Or:
+#   Command:file1:file2
+#
+# Starting with a slashd means syntax2
+#
+/sbin/sysctl -p:/etc/sysctl.conf
+/sbin/telinit q:/etc/inittab
+named:restart:/chroot/named/etc/named.conf

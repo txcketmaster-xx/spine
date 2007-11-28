@@ -1,0 +1,4 @@
+role/bind
+role/dns_server
+product/sys/dns_common
+role/provision

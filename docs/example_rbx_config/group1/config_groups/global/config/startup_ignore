@@ -1,0 +1,11 @@
+# Files in /etc/init.d to ignore
+single
+halt
+functions
+killall
+ticketmaster
+overlay_tmpfs
+rubix
+nfs
+# Fix for overlay-placed, modified startup scripts.
+.*\.rpm(save|orig|new)

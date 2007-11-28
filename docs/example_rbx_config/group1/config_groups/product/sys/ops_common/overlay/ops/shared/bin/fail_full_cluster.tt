@@ -1,0 +1,66 @@
+#!/bin/bash
+
+#
+# Written to fail each part of the physical cluster
+#
+# THIS SCRIPT IS STORED IN CVS. Please make changes there and copy
+# to the rubix svn repo.
+#
+# $Id: fail_full_cluster.tt,v 1.1.2.1 2007/09/14 22:50:47 phil Exp $
+#
+
+[% bu = c.getval("c_bu") %]
+[% cluster = c.getval("c_cluster") %]
+
+FAIL_FILES="
+tmweb:tmweb:/fls1/vol0/[% bu %]-[% cluster %]-pos-app/shared/conf/fail_cluster
+tmweb:tmweb:/fls1/vol0/[% bu %]-[% cluster %]-shared-app/shared/conf/fail_cluster
+tmweb:tmweb:/fls1/vol0/[% bu %]-[% cluster %]-tmol-apt/shared/conf/fail_cluster
+"
+
+FAIL_LONGTERM_FILES="
+tmweb:tmweb:/fls1/vol0/[% bu %]-[% cluster %]-pos-app/shared/conf/fail_cluster_longterm
+tmweb:tmweb:/fls1/vol0/[% bu %]-[% cluster %]-shared-app/shared/conf/fail_cluster_longterm
+tmweb:tmweb:/fls1/vol0/[% bu %]-[% cluster %]-tmol-apt/shared/conf/fail_cluster_longterm
+"
+
+case "$1" in
+	fail|remove)
+		echo "Failing this cluster"
+		for file in $FAIL_FILES; do
+			IFS=:
+			set $file
+			echo "touching $3"
+			touch $3
+			chown $1:$2 $3
+		done
+		;;
+	longterm)
+		echo "Adding fail_cluster_longterm files"
+		for file in $FAIL_LONGTERM_FILES; do
+			IFS=:
+			set $file
+			echo "touching $3"
+			touch $3
+			chown $1:$2 $3
+		done
+		;;
+	unfail|add)
+		echo "UN-Failing this cluster"
+		for file in $FAIL_FILES $FAIL_LONGTERM_FILES; do
+			IFS=:
+			set $file
+			# Not using -r, thus we know it's a file
+			# need not test
+			echo "removing $3"
+			rm -f $3
+		done
+		;;
+	*)
+		echo "Usage: $0 (fail|remove|unfail|add|longterm)"
+		echo "   fail/remove touches fail_cluster files"
+		echo "   longterm touches fail_cluster_longterm files"
+		echo "   unfail/add removes them"
+		;;
+esac
+

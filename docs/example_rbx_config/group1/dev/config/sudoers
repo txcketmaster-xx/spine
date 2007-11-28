@@ -1,0 +1,9 @@
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- remove *
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- update *
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- install *
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- upgrade *
+web:/usr/bin/rubix
+web:/sbin/sysctl -a
+web:/sbin/sysctl -w *
+web:/sbin/sysctl -p *
+web:/usr/bin/rubix

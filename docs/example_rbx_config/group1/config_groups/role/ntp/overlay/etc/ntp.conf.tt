@@ -1,0 +1,10 @@
+driftfile /etc/ntp/ntp.drift
+[% IF c.getval('ntp_master') %]
+statsdir /etc/ntp/ntpstats/
+filegen peerstats file peerstats type day enable
+filegen loopstats file loopstats type day enable
+filegen clockstats file clockstats type day enable
+[% END %]
+[% FOREACH ntp_server = c.getvals('ntp_servers') %]
+server [% ntp_server %]
+[% END %]

@@ -1,0 +1,42 @@
+[% SET bu = c.getval('c_bu') _ "." _
+                        c.getval('c_tld')
+%]
+[% SET sys = "sys" _ "." _
+                        c.getval('c_cluster') _ "." _
+                        bu
+-%]
+[% SET prod = c.getval('c_product') _ "." _
+                        c.getval('c_cluster') _ "." _
+                        bu
+-%]
+ddns-update-style       none;
+
+option domain-name "[% sys +%] [%+ prod +%] [%+ bu %]";
+option domain-name-servers [%+  c.getvals('dns_servers').join(', ') %];
+
+option subnet-mask [% c.getval('c_netmask') %];
+option broadcast-address [% c.getval('c_bcast') %];
+
+allow bootp;
+allow booting;
+
+default-lease-time 300;
+max-lease-time 300;
+
+if substring (option vendor-class-identifier, 0, 9) = "PXEClient" {
+        filename "pxelinux.0";
+        next-server [% c.getval('c_ip_address') %];
+}
+
+subnet [% c.getval('c_network') %] netmask [% c.getval('c_netmask') %] {
+        range [% c.getval('dhcp_range') %];
+        option routers [% c.getval('default_gateway') %];
+
+	[% UNLESS c.getval('c_instance') == "dhcp_master_instance" %]
+	[% END %]
+
+[% FOREACH line = c.getvals('special_dhcp') %]
+[%+  line %]
+[% END %]
+
+}

@@ -1,0 +1,6 @@
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- remove *
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- update *
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- install *
+web:/usr/bin/apt-get -c /etc/apt/apt.conf -- upgrade *
+web:/usr/bin/rubix
+dba:/usr/bin/rubix

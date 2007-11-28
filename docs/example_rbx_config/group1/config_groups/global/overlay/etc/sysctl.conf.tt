@@ -1,0 +1,30 @@
+[%-
+        SET include_header = c.getval('c_croot') _ "/includes/header/topper";
+        INCLUDE $include_header
+-%]
+
+# Kernel sysctl configuration file for Red Hat Linux
+#
+# For binary values, 0 is disabled, 1 is enabled.  See sysctl(8) and
+# sysctl.conf(5) for more details.
+
+# Controls IP packet forwarding
+net.ipv4.ip_forward = 0
+
+# Controls source route verification
+net.ipv4.conf.default.rp_filter = 1
+
+# Controls the System Request debugging functionality of the kernel
+kernel.sysrq = [%+ c.getval('sysctl_kernel_sysreq') +%]
+
+# Controls whether core dumps will append the PID to the core filename.
+# Useful for debugging multi-threaded applications.
+kernel.core_pattern = /var/cores/core-%e.%p
+kernel.core_uses_pid = 1
+
+#
+# New custom settings section
+#
+[%+ FOREACH entry = c.getvals('sysctl_custom_settings') +%]
+[%+     entry +%]
+[%+ END +%]

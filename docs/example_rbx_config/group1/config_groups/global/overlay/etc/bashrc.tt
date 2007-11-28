@@ -1,0 +1,61 @@
+[%-
+        SET include_header = c.getval('c_croot') _ "/includes/header/topper";
+        INCLUDE $include_header
+-%]
+
+# /etc/bashrc
+
+# System wide functions and aliases
+# Environment stuff goes in /etc/profile
+
+# by default, we want this to get set.
+# Even for non-interactive, non-login shells.
+if [ "`id -gn`" = "`id -un`" -a `id -u` -gt 99 ]; then
+	umask 002
+else
+	umask 022
+fi
+
+# are we an interactive shell?
+if [ "$PS1" ]; then
+    if [ -x /usr/bin/tput ]; then
+      if [ "x`tput kbs`" != "x" ]; then # We can't do this with "dumb" terminal
+        stty erase `tput kbs`
+      elif [ -x /usr/bin/wc ]; then
+        if [ "`tput kbs|wc -c `" -gt 0 ]; then # We can't do this with "dumb" terminal
+          stty erase `tput kbs`
+        fi
+      fi
+    fi
+    case $TERM in
+	xterm*)
+		if [ -e /etc/sysconfig/bash-prompt-xterm ]; then
+			PROMPT_COMMAND=/etc/sysconfig/bash-prompt-xterm
+		else
+	    	PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/~}\007"'
+		fi
+		;;
+	screen)
+		if [ -e /etc/sysconfig/bash-prompt-screen ]; then
+			PROMPT_COMMAND=/etc/sysconfig/bash-prompt-screen
+		else
+		PROMPT_COMMAND='echo -ne "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/~}\033\\"'
+		fi
+		;;
+	*)
+		[ -e /etc/sysconfig/bash-prompt-default ] && PROMPT_COMMAND=/etc/sysconfig/bash-prompt-default
+	    ;;
+    esac
+    # Turn on checkwinsize
+    shopt -s checkwinsize
+    [ "$PS1" = "\\s-\\v\\\$ " ] && PS1="[\u@\H \w]\\$ "
+    
+    if [ "x$SHLVL" != "x1" ]; then # We're not a login shell
+        for i in /etc/profile.d/*.sh; do
+	    if [ -r "$i" ]; then
+	        . $i
+	    fi
+	done
+    fi
+fi
+# vim:ts=4:sw=4

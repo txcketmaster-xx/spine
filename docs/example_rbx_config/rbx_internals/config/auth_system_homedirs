@@ -1,0 +1,16 @@
+/
+/var/ftp
+/var/lib/nfs
+/bin
+/sbin
+/var/crash
+/var/lib/rpm
+/var/named
+/var/www
+/var/empty/sshd
+/var/arpwatch
+/var/spool/postfix
+/etc
+/etc/nagios
+/dev
+/root

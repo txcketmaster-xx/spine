@@ -1,0 +1,57 @@
+[%-
+        SET include_header = c.getval('c_croot') _ "/includes/header/topper";
+        INCLUDE $include_header header_comment='//';
+-%]
+
+// $Id: apt.conf.tt,v 1.1.2.1 2007/09/14 22:50:59 phil Exp $
+// See the apt.conf(5) man page for syntax and all available options
+
+[%
+    # Prepare the "Hold" and "Allow-Duplicated" config lines based 
+    # on the existance of "=" and "#" in the "packages" key.
+
+    FOREACH package = c.getvals('packages').grep('=');;
+	package_part = package.split('=');
+	hold = '"^' _ package_part.0 _'$"; ';
+	packages_hold = packages_hold _ hold;
+    END;
+
+    FOREACH package = c.getvals('packages').grep('#');;
+	package_part = package.split('#');
+	dup = '"^' _ package_part.0 _'$"; ';
+	packages_allow_dup = packages_allow_dup _ dup;
+    END;
+%]
+
+APT {
+    Clean-Installed "false";
+    Get {
+        Assume-Yes "false";
+	Force-Yes "true";
+        Download-Only "false";
+        Show-Upgraded "true";
+        Fix-Broken "false";
+        Ignore-Missing "false";
+        Compile "false";
+    };
+};
+
+Acquire {
+    Retries "0";
+    Http {
+        Proxy ""; // http://user:pass@host:port/
+    }
+};
+
+RPM {
+    Ignore { "sendmail"; };
+    Hold { [% packages_hold %] };
+    Allow-Duplicated { "^gpg-pubkey$"; [% packages_allow_dup %] };
+    Options { };
+    Install-Options "";
+    Erase-Options "";
+    Source {
+        Build-Command "rpmbuild --rebuild";
+    };
+};
+

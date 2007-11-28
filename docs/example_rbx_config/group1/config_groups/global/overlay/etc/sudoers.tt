@@ -1,0 +1,48 @@
+[%-
+        SET include_header = c.getval('c_croot') _ "/includes/header/topper";
+        INCLUDE $include_header
+-%]
+# sudoers file.
+#
+# This file MUST be edited with the 'visudo' command as root.
+#
+# See the sudoers man page for the details on how to write a sudoers file.
+#
+
+# Host alias specification
+
+# User alias specification
+
+# Cmnd alias specification
+
+# Defaults specification
+
+# Defaults specification
+
+Defaults    env_reset
+Defaults    env_keep = "COLORS DISPLAY HOSTNAME HISTSIZE INPUTRC KDEDIR \
+                        LS_COLORS MAIL PS1 PS2 QTDIR USERNAME \
+                        LANG LC_ADDRESS LC_CTYPE LC_COLLATE LC_IDENTIFICATION \
+                        LC_MEASUREMENT LC_MESSAGES LC_MONETARY LC_NAME LC_NUMERIC \
+                        LC_PAPER LC_TELEPHONE LC_TIME LC_ALL LANGUAGE LINGUAS \
+                        _XKB_CHARSET"
+
+# User privilege specification
+root    ALL=(ALL) ALL
+
+# Uncomment to allow people in group wheel to run all commands
+# %wheel        ALL=(ALL)       ALL
+
+# Same thing without a password
+# %wheel        ALL=(ALL)       NOPASSWD: ALL
+
+# Samples
+# %users  ALL=/sbin/mount /cdrom,/sbin/umount /cdrom
+# %users  localhost=/sbin/shutdown -h now
+
+[% SET hostname = c.getval('c_hostname_s') %]
+[% FOREACH line = c.getvals('sudoers') %]
+  [% fields = line.split(':') %]
+  [% user = fields.shift %]
+  [% user %]	ALL=NOPASSWD:[% fields.join(',NOPASSWD:') %]
+[%+ END -%]

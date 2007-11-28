@@ -1,0 +1,1 @@
+echo -ne "\033_${USER}@${HOSTNAME}:${PWD/#$HOME/~}\033\\"

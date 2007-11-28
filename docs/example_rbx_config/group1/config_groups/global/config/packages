@@ -1,0 +1,169 @@
+# RedHat default packages
+libgcc
+setup
+basesystem
+tzdata
+glibc
+bzip2-libs
+cracklib
+e2fsprogs
+ethtool
+glib
+hdparm
+laus-libs
+libacl
+libtermcap
+mingetty
+bash
+lvm
+pcre
+raidtools
+rootfiles
+slang
+words
+zlib
+info
+ed
+gawk
+coreutils
+grub
+gpm
+gzip
+procps
+readline
+apt
+authconfig
+#
+# We don't need this with syslog-ng, so starting with Centos 5 we
+# won't install it. Really we should only uninstall it if we include
+# role/syslog-ng, but since role/syslog-ng is included at the websys/global
+# level it will get processed before this key, so we need to remove it here
+# as well.
+[% MATCH c_distro=^(?!AS5); %]
+sysklogd
+[% END %]
+tar
+util-linux
+vim-minimal
+vim-enhanced
+initscripts
+cyrus-sasl-md5
+libuser
+man-pages
+attr
+lslk
+mailx
+crontabs
+ncompress
+perl-Filter
+rsync
+setarch
+symlinks
+traceroute
+zip
+at
+mgetty
+mtr
+pdksh
+bc
+telnet
+tmpwatch
+devlabel
+iptables
+netdump
+pciutils
+nfs-utils
+hwdata
+redhat-logos
+filesystem
+termcap
+glibc-common
+beecrypt
+chkconfig
+db4
+elfutils-libelf
+gdbm
+glib2
+iputils
+libattr
+libstdc++
+mktemp
+iproute
+MAKEDEV
+net-tools
+popt
+shadow-utils
+newt
+cracklib-dicts
+file
+cpio
+findutils
+grep
+ash
+krb5-libs
+ncurses
+less
+openssl
+psmisc
+rpm
+sed
+pam
+kudzu
+SysVinit
+mkinitrd
+vim-common
+which
+cyrus-sasl
+openldap
+passwd
+eject
+acl
+lsof
+bzip2
+mdadm
+perl
+logrotate
+schedutils
+slocate
+tcp_wrappers
+unzip
+diffutils
+groff
+man
+bind-utils
+pinfo
+sudo
+time
+wget
+dhclient
+portmap
+libcap
+rubix
+
+# Specific kernels
+kernel#<$kernel_version>
+kernel-smp#<$kernel_version>
+
+# Filer dependancies
+gdbm
+expat
+[% MATCH c_distro_name=^CentOS; %]
+centos-release
+[% END %]
+[% MATCH c_distro=^(?!AS4); %]
+redhat-release
+losetup
+dev
+libghttp
+modutils
+mount
+[% END %]
+
+# Custom packages
+tm_utils
+tminit
+sysstat
+fping
+
+# For forthcoming rubix and check_tm releases.
+perl-YAML-Syck

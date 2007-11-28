@@ -1,0 +1,3 @@
+-vim-enhanced
+bcm582x-driver#<$kernel_version>smp
+bcm582x#<$kernel_version>smp

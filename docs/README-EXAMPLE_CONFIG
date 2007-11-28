@@ -1,0 +1,110 @@
+This document attempts to explain the layout of the example config distributed
+with rbx.
+
+ASSUMED HOST SETUP
+The example uses a slightly more complex host naming scheme than many shops
+probably have in order to demonstarte the flexibility of rbx. While the naming
+scheme fairly closely matches Ticketmaster's setup, it was not chosen for that
+reason.
+
+The naming schema chosen is:
+
+   <class><num>.<product>.<cluster>.<group>.<tld>
+
+The tld in this case, doesn't matter at all, it's ignored by this setup.
+
+There is only one group setup, and it's called "group1."
+
+The clusters are generally referred to as "cu1", "cu2", etc. for production
+clusters and "dev1" ... "devN" for dev clusters and "qa1" ... "qaN" for qa
+clusters.
+
+The product is simply some grouping of classes. These may be different
+sub-sets of systems that a group supports.
+
+Classes are the basic devision of your systems, such as web servers, proxy
+servers, dns servers, etc. The number next to class is just a way to number
+the instances of a given class.
+
+Most shops will likely use a scheme that just includes <class><num>, <group>,
+and <tld> or alternatively, <class><num>, <cluster>, <group>, and <tld>. This
+is fine, but we wanted to demonstrate that further levels of group nesting
+are possible and easy.
+
+
+THE BASIC LAYOUT
+
+As one can see from the /local/config/policy_hierarchy file, the descend-order
+rbx will use is:
+
+network/<network>
+<group>/
+<group>/<cluster_type>
+<group>/<cluster_type>/<product>
+<group>/<cluster_type>/<product>/<class>
+<group>/<cluster_type>/<product>/<class>/<num>
+host/<host>
+
+The network/ directory is obviously where network-specific configs live.
+
+The group hierarchy is descended, in this case, from the least-specific part
+of the hostname to the most specific part, but that's just the way we chose to
+do it in our policy_hierarchy. The cluster_type is defined by reg-ex's in
+rbx_internals/config/cluster_types - prod cluster match to the "prod"
+cluster_type, dev to dev, and qa to qa.
+
+The host/ directory is not populated, but directories named after
+fully-qualified host names could go here for host-specific overrides
+
+
+THE INCLUDE LAYOUT
+
+Includes are rooted at /<group>/config_groups based on the key
+/local/config/include_dir
+
+Looking in this directory we see it has it's own hierarchy. This hierarchy
+isn't defined anywhere. Since include keys allow you to include any directory
+under here you want, you can tier them as you see fit.
+
+In this case we've chosen to have two tiers internal to our config groups:
+
+  The "product" tier
+  This tier mirrors the basic cluster_type hierarchy and allows configs for
+  a given product-class pair that need to be across all cluster_types to be
+  put in one obvious place and then included at each of the cluster-type
+  levels.
+
+  The "role" tier
+  This is where all other include-able directories go. Anything that requires
+  a group of configs go into role directories and those roles are included
+  as needed.
+
+There is also a "global" config-group that we include at the top level as a
+generic place to put all of the global stuff so that it doesn't make the
+group1/config directory a mess.
+
+
+USING THE CONFIG
+You'll need to use the 'add_sane_permissions' script in the
+example_rbx_config/Utils directory to add some default permissions to your
+tree before attempting to use it. The FS permissions on all overlay
+directories are directly translated to the permissions on the resulting file.
+Once you've done that, rbx can be used like this:
+
+  rbx --dryrun --croot /path/to/example_rbx_config --host <hostname>
+
+Note that the hostname MUST resolve using DNS.
+
+
+A NOTE ON PERMISSIONS AND SUBVERSION
+We use subversion to manage our config tree for two main reasons: (1)
+subversion provides arbitrary "properties" that can be attached to any object.
+We use these to assign permissions and ownership to all overlay objects. THe
+publisher than uses this data to permission the files properly in the
+resulting config tree. (2) Atomic commits give us version numbers. When using
+the configball publisher you then have the ability to "freeze" a box on a
+release and/or rollback.
+
+
+
+
