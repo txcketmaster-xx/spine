@@ -1,0 +1,887 @@
+#!/usr/bin/perl
+# -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
+# vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
+
+# $Id: spine,v 1.28.2.19.2.2.2.4 2007/11/16 19:55:10 phil Exp $
+
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# (C) Copyright Ticketmaster, Inc. 2007
+#
+
+our $VERSION = qq(2.0 Beta);
+
+use strict;
+
+use lib q(/usr/lib/spine);
+
+my $perl_ver = sprintf "%vd", $^V;
+
+use Fcntl qw(:DEFAULT :flock);
+use Getopt::Long;
+use IO::File;
+use Net::Domain qw(hostfqdn);
+use Storable;
+use Spine::ConfigFile;
+use Spine::Constants qw(:basic :plugin);
+use Spine::Data;
+use Spine::Registry;
+use Spine::State;
+use Spine::Util;
+use POSIX qw(ctime);
+use File::Spec::Functions;
+
+use sigtrap 'handler' => \&ignore_signal, 'normal-signals';
+
+use constant NODEFILE => '/etc/nodename';
+use constant LOCKFILE => '/var/run/spine.lock';
+use constant DEFAULT_CONFIGFILE => '/etc/spine.conf';
+use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
+
+use constant DEFAULT_CONFIG => {
+        spine => {
+            StateDir => '/var/spine',
+            ConfigSource => 'ISO9660',
+            Profile => 'StandardPlugins'
+        },
+
+        DefaultPlugins => {
+            'DISCOVERY/populate' => 'DryRun SystemInfo',
+            'DISCOVERY/policy-selection' => 'DescendOrder',
+            'PARSE/complete' => 'IPAliases Auth FilerExports Interpolate',
+        },
+
+        FileSystem => {
+            Path => '/software/spine/config'
+        },
+
+        ISO9660 => {
+            URL => 'http://repository/cgi-bin/rcrb.pl',
+            Destination => '/var/spine/configballs',
+            Timeout => 5
+        },
+
+         StandardPlugins => {
+            PREPARE => 'PrintData Templates Overlay',
+            EMIT => 'Templates Auth',
+            APPLY => 'Overlay RPMPackageManager SystemHarden TweakStartup'
+                         . ' RestartServices Finalize',
+            CLEAN => 'Overlay RPMPackageManage'
+         },
+
+        FirstRun => {
+            PREPARE => 'PrintData Overlay',
+            EMIT => 'Templates Auth',
+            APPLY => 'Overlay RPMPackageManager SystemHarden TweakStartup'
+                         . ' Finalize',
+            CLEAN => 'Overlay',
+        }
+    };
+
+#
+# These are package level variables so that the various supporting modules and
+# plugins can access them directly via $::CONFIG.  Should this stuff get
+# registered with Spine::Registry instead?
+#
+our ($SAVE_STATE, $DEBUG, $CONFIG, %OPTIONS);
+
+#
+# $SAVE_STATE is used by Spine::Plugin::Templates::quick_template and
+# Spine::Plugin::Prindata::printdata at the moment to tell the driver script
+# to not bother storing the state for this run.  We really need a better
+# mechanism for it but this'll do for now.
+#
+# rtilder    Thu Jan  4 11:44:24 PST 2007
+#
+$SAVE_STATE = 1;
+$DEBUG = $ENV{SPINE_DEBUG} || 0;
+
+# Turn off buffering
+if ($DEBUG) {
+    select STDERR;
+    $| = 1;
+    select STDOUT;
+    $| = 1;
+}
+
+#
+# Grab only our config file so we can load our plugins
+#
+Getopt::Long::Configure('pass_through');
+
+my $cfile = DEFAULT_CONFIGFILE;
+my $profile = undef;
+my @actions = ();
+
+GetOptions('config-file=s' => \$cfile,
+            'action|plugin=s@' => \@actions,
+            'actiongroup|profile=s' => \$profile);
+
+Getopt::Long::Configure('no_pass_through');
+
+
+# Parse the config file
+$CONFIG = new Spine::ConfigFile(Filename => $cfile, Type => 'Ini');
+$CONFIG->{spine}->{Profile} = $profile if defined($profile);
+
+if (not defined($CONFIG))
+{
+    if ($cfile ne DEFAULT_CONFIGFILE)
+    {
+	print STDERR $Spine::ConfigFile::ERROR;
+	goto failure;
+    }
+
+    if (-f $cfile and (not -r $cfile))
+    {
+	print STDERR "Default config file $cfile exists but isn't readable.\n";
+	goto failure;
+    }
+
+    if (not -f DEFAULT_CONFIGFILE)
+    {
+	print STDERR "No config file found at default $cfile.  Using hardcoded defaults.\n";
+
+        $CONFIG = DEFAULT_CONFIG;
+    }
+}
+
+
+# Take care of our PluginPath if provided
+if (defined($CONFIG->{spine}->{PluginPath}))
+{
+    unshift @INC, split(/:/, $CONFIG->{spine}->{PluginPath});
+}
+
+#
+# If specific actions were requested, we don't use our profile,
+# we build a new profile of just the actions the user wants.
+#
+if (scalar(@actions) > 0) {
+    $CONFIG->{spine}->{Profile} = '__action';
+    # Use a hash for uniqueness
+    my $action_profile = {};
+    foreach my $action (@actions) {
+        unless (exists $CONFIG->{'action_' . $action}) {
+            print STDERR "Action $action is not a valid action!\n";
+            goto failure;
+        }
+
+        my $action_map = $CONFIG->{'action_' . $action};
+
+        foreach my $phase (keys(%{$action_map})) {
+            unless (exists($action_profile->{$phase})) {
+                $action_profile->{$phase} = {};
+            }
+            unless ($action_map->{$phase} eq '') {
+              foreach my $method (split(/\s+/, $action_map->{$phase})) {
+                  $action_profile->{$phase}->{$method} = undef;
+              }
+           }
+        }
+    }
+    # Now we actually make our profile
+    foreach my $phase (keys(%{$action_profile})) {
+        $CONFIG->{$CONFIG->{spine}->{Profile}}->{$phase} =
+            join(' ', keys(%{$action_profile->{$phase}}));
+    }
+}
+#
+# Prepare our profile - if any phase was left out, we fill it in
+# with defaults, if we have them.
+#
+foreach my $phase (keys(%{$CONFIG->{DefaultPlugins}})) {
+    unless (exists($CONFIG->{$CONFIG->{spine}->{Profile}}->{$phase})) {
+        $CONFIG->{$CONFIG->{spine}->{Profile}}->{$phase} =
+            $CONFIG->{DefaultPlugins}->{$phase};
+    }
+}
+
+# Set up our plugin registry singleton object for this process
+my $registry = new Spine::Registry($CONFIG);
+
+# Create our hookable points for plugins
+$registry->create_hook_point(SPINE_PHASES);
+
+# Now attempt to load all our plugins
+while (my ($phase, $plugins) = each(%{$CONFIG->{$CONFIG->{spine}->{Profile}}})) {
+    my @plugins = split(/(?:\s*,?\s+)/, $plugins);
+
+    unless ($registry->load_plugin(@plugins) == SPINE_SUCCESS) {
+        print STDERR "Failed to load at least one plugin!\n";
+        goto failure;
+    }
+}
+
+# No plugins loaded?  Not ok!
+unless (scalar(keys(%{$registry->{PLUGINS}}))) {
+    print STDERR "Didn't load any plugins.  Library path or config problem!\n";
+    goto failure;
+}
+
+#
+# Time to process command line options
+#
+
+# First, we handle just this script's options
+
+Getopt::Long::Configure('pass_through');
+
+unless (GetOptions(\%OPTIONS,
+                   'croot=s',
+                   'help|h',
+                   'autofqdn',
+                   'verbosity=s',
+                   'config-source=s',
+                   'release=s',
+                   'freeze',
+                   'hostname|as=s',
+                   'last|which|what|huh|wtf')) {
+    usage();
+    goto failure;
+}
+
+Getopt::Long::Configure('no_pass_through');
+
+# Help option.
+if ($OPTIONS{help}) {
+    usage();
+    goto finished;
+}
+
+# Now we get our plugin options
+unless (GetOptions(%{$registry->get_options()})) {
+    print STDERR "Invalid option.\n";
+    goto failure;
+}
+
+# Now grab a copy of our previous state information
+my $prev_state = new Spine::State($CONFIG);
+$prev_state->load();
+
+# If we're asked to report what we're currently configured with, do so and exit
+if (defined($OPTIONS{last}))
+{
+    print 'Last configured with release: ', $prev_state->release();
+    print "\t\tAt: ", ctime($prev_state->run_time());
+    goto finished;
+}
+
+# Get our configuration tree location
+my $source = get_source(\%OPTIONS, $CONFIG);
+
+unless (defined($source)) {
+    # Error reporting is handled by get_source()
+    goto failure;
+}
+
+#
+# Figure out what release we're at.
+#
+my $release = get_release($source, \%OPTIONS, $CONFIG);
+
+if (not defined($release))  # There was an error
+{
+    print STDERR "Couldn't find a config for that release.  Bailing.\n";
+    goto failure;
+}
+
+
+print 'spine_core: Using configuration: ', $source->source_info(), "\n";
+
+
+# Determine the hostname.
+my ($hostname, $file_hostname);
+if (defined($OPTIONS{hostname}))
+{
+    $hostname = $OPTIONS{hostname};
+}
+elsif ( $file_hostname = read_nodefile(NODEFILE) )
+{
+    $hostname = $file_hostname;
+}
+else
+{
+    $hostname = hostfqdn() if ($OPTIONS{autofqdn});
+}
+
+# Set default verbosity
+my $verbosity;
+if ( exists $OPTIONS{verbosity} )
+{
+    $verbosity = $OPTIONS{verbosity};
+}
+else
+{
+    $verbosity = 2;
+}
+
+
+# Announce what we're doing
+print 'spine: starting Spine v' . $VERSION . ' -- configuration release ',
+      $source->release(), "\n";
+print "spine: initializing data for $hostname\n";
+
+
+# Create the configuration object.
+my $c = Spine::Data->new(hostname    => $hostname,
+                         verbosity   => $verbosity,
+                         source      => $source,
+                         release     => $release,
+                         config      => $CONFIG);
+
+# This should be a redundant check now
+#
+# rtilder  Tue Jun 27 12:23:39 PDT 2006
+if (not defined($c)) {
+    print STDERR "spine initialization: Errors encountered parsing data tree.\n";
+    goto failure;
+}
+
+# Our data object will contain the c_failure key if we
+# have had a critical parsing error.
+if ($c->getval('c_failure'))
+{
+    print STDERR "spine initialization: Errors encountered parsing data tree.\n";
+    $c->error("failure: " . $c->getval('c_failure'), 'crit');
+    goto failure;
+}
+
+# A quick sanity check, just to be sure
+if ($c->{c_release} != $source->release())
+{
+    print STDERR "Requested release \"$c->{c_release}\" doesn't match release parsed\n";
+    print STDERR 'from config source "', $source->release(), "\"\n";
+    goto failure;
+}
+
+
+# Populate our current runtime state information
+my $state = new Spine::State($CONFIG);
+
+# Make sure our state can save itself.
+$state->data($c);
+
+# Establish a lock before we run any actions.
+my $lock_fh = get_lock();
+unless ($lock_fh)
+{
+    $c->error("could not get exclusive lock", 'crit');
+    goto failure;
+}
+
+PHASE: foreach my $pork ( ( ['PREPARE', "Failed to prepare for emission!"],
+                            ['EMIT', "Failed to emit configuration!"],
+                            ['APPLY', "Failed to apply configuration!"],
+                            ['CLEAN', "Failed to clean up!"] ) ) {
+    my ($phase, $msg) = @{$pork};
+
+    my $point = $registry->get_hook_point($phase);
+
+    unless ($point->register_hooks() == SPINE_SUCCESS) {
+        print STDERR "Error registering hooks!\n";
+        last;
+    }
+
+    foreach my $hook (@{$point->{hooks}}) {
+        # *sigh*  We need to add $prev_state to the parameter list for the
+        #         TweakStartup plugin.
+        #
+        # rtilder    Wed Dec 20 10:29:52 PST 2006
+        my $rc = $point->run_hook($hook, $c, $prev_state);
+
+        if ($rc == PLUGIN_FATAL) {
+            print STDERR "\t\t", $hook->{module}, "::$hook->{name} ",
+                "encountered fatal errors: \"$hook->{msg}\"\n";
+            print STDERR "\tExiting as gracelessly as possible.\n";
+            goto failure;
+        }
+        elsif ($rc == PLUGIN_ERROR) {
+            print STDERR "\t\t", $hook->{module}, "::$hook->{name} ",
+                "encountered errors: \"$hook->{msg}\"\n";
+            print STDERR "\tContinuing with run.\n";
+        }
+        elsif ($rc == PLUGIN_EXIT) {
+            #
+            # Need a better messaging option.  This message is causing some
+            # confusion. :\
+            #
+            # rtilder    Wed May  9 10:33:20 PDT 2007
+            #
+            #print STDOUT "\tAt least one plugin requested a clean exit.\n";
+            last PHASE;
+        }
+    }
+}
+
+# Clean up our config tree now that we're all done with it
+$source->clean();
+
+if ($SAVE_STATE)
+{
+    # Store our config object to disk.
+    print STDERR "Saving state...\n";
+    unless ($state->store())
+    {
+        $c->error('failed to write session object [' . $state->error . ']',
+                  'err');
+    }
+
+    # Store the hostname for future use only if it was explicitly
+    # specified as an argument.
+    if ($OPTIONS{hostname} or $OPTIONS{autofqdn})
+    {
+        write_nodefile(NODEFILE, $hostname);
+    }
+
+    #
+    # Doesn't freeze if it doesn't need to but only return non-true on error
+    # while trying to freeze.
+    #
+    unless (freeze_release($release, \%OPTIONS, $CONFIG,
+                           catfile($state->{StateDir}, 'FrozenAtRelease'))) {
+        print STDERR "Failed to freeze state!\n";
+        goto failure;
+    }
+}
+
+
+finished:
+# Release our exclusive lock and exit.
+release_lock();
+exit(0);
+
+failure:
+release_lock();
+exit(1);
+
+
+END {
+    release_lock();
+}
+
+
+sub read_nodefile
+{
+    my $file = shift;
+    my $hostname = undef;
+
+    unless (-f $file) {
+        print STDERR "Node file \"$file\" doesn't exist!\n";
+        return undef;
+    }
+
+    my $fh = new IO::File("< $file");
+
+    unless (defined($fh)) {
+        print STDERR "Couldn't open node file \"$file\": $!\n";
+        return undef;
+    }
+
+    $hostname = <$fh>;
+
+    $fh->close();
+
+    chomp $hostname;
+
+    $hostname =~ s/\s*//g;
+    unless  ( $hostname =~ m/$Spine::Util::dns_schema/xi )
+    {
+        return undef;
+    }
+
+    return $hostname;
+}
+
+
+sub write_nodefile
+{
+    my $file = shift;
+    my $hostname = shift;
+    my $fh = new IO::File("> $file");
+
+    unless (defined($fh)) {
+        print STDERR "Couldn't open node file \"$file\": $!\n";
+        return 0;
+    }
+
+    print $fh "$hostname\n";
+
+    $fh->close();
+
+    return 1;
+}
+
+
+sub get_lock
+{
+    sysopen(LOCK_FH, LOCKFILE, O_RDWR|O_CREAT)
+	|| return undef;
+    flock(LOCK_FH, LOCK_EX|LOCK_NB)
+	|| return undef;
+    return *LOCK_FH;
+}
+
+
+sub release_lock
+{
+    flock(LOCKFILE, LOCK_UN);
+    close(LOCKFILE);
+}
+
+
+sub ignore_signal
+{
+    my $signal = shift;
+
+    $SIG{$signal} = 'IGNORE';
+    print STDERR "Caught signal $signal.\n";
+
+    if (-t STDIN and ($signal eq 'INT' or $signal eq 'TERM')) {
+        release_lock();
+	exit(1);
+    }
+
+    return 1;
+}
+
+
+sub get_frozen_release
+{
+    my $dir = shift;
+    my $frozen = "$dir/FrozenAtRelease";
+
+    if (not -f $frozen)
+    {
+        return '';
+    }
+
+    if (-z $frozen)
+    {
+        print STDERR "Frozen release file \"$frozen\" exists but is 0 bytes.\n";
+        return undef;
+    }
+
+    my $fh = new IO::File("< $frozen");
+
+    if (not defined($fh))
+    {
+        print STDERR "Failed to open frozen release file \"$frozen\": $!\n";
+        return undef;
+    }
+
+    my $release = $fh->getline();
+
+    $fh->close();
+
+    chomp($release);
+    $release =~ s/\s*//g;
+
+    return $release;
+}
+
+
+#
+# Handles determining and instantiating our configuration source.
+#
+# Command line options override the config file, obviously
+#
+sub get_source
+{
+    my $options = shift;
+    my $config  = shift;
+
+    my $source_type = 'Spine::ConfigSource::' . $config->{spine}->{ConfigSource};
+    my $source      = undef;
+
+    # Config root option.  We handle this separately so that we can can pass
+    # in the Path parameter explicitly
+    #
+    if (defined($options->{croot})) {
+        require Spine::ConfigSource::FileSystem;
+        $source = new Spine::ConfigSource::FileSystem(Config => $config,
+                                                      Path   => $options->{croot});
+
+        if (not defined($source)) {
+            print STDERR "Failed to initialize config root from command line: $Spine::ConfigSource::FileSystem::ERROR\n";
+            print STDERR "Falling back to configuration file settings.\n";
+        }
+    }
+    # If --config-source was provided, use that.
+    #
+    elsif (defined($options->{'config-source'})) {
+        $source_type = 'Spine::ConfigSource::' . $options->{'config-source'};
+    }
+
+
+    # If we were passed --croot=/foo then we should already have a valid config
+    # source and we can skip this section
+    if (not defined($source)) {
+        # Try to instantiate the appropriate Spine::ConfigSource object
+        # specififed in the config file.
+
+        # Has to be done in this way.  See perldoc -f require and search for
+        # "::" for details on why
+        eval "require $source_type";
+
+        if ($@) {
+            print STDERR "Failed to load the $source_type configuration source: $@\n";
+            return undef;
+        }
+
+        eval
+        {
+            no strict 'refs';
+            $source = $source_type->new(Config => $config);
+            use strict 'refs';
+        };
+
+        if ($@) {
+            print STDERR "Failed to initialize configuration source: $@\n";
+            return undef;
+        }
+    }
+
+    #
+    # If our configuration source still isn't a valid object, we error out.
+    #
+    if (not defined($source)) {
+        my $foo;
+
+        no strict 'refs';
+        eval { $foo = ${$source_type . '::ERROR'} };
+
+        print STDERR "Failure to initialize configuration source $source_type: $foo\n";
+        use strict 'refs';
+        return undef;
+    }
+
+    return $source;
+}
+
+
+sub get_release
+{
+    my ($source, $options, $config) = @_;
+
+    #
+    # Check to see if we're frozen at a release.  If we are, use that release
+    # for all our future endeavours!
+    #
+    my $release = get_frozen_release($config->{spine}->{StateDir});
+
+    # Was there an error retrieving the frozen release?
+    #
+    if (not defined($release))
+    {
+        print STDERR "Can't parse frozen release.  Bailing.  Delete or fix.\n";
+        goto release_failed;
+    }
+
+
+    #
+    # --release on the command line overrides frozen release
+    #
+    if (exists($options->{release}))
+    {
+        if ($options->{release} eq 'latest') {
+            $release = '';
+        } else {
+            $release = $options->{release};
+        }
+    }
+
+
+    # If it's an empty string, we want to snag some updates, yo!
+    if ($release eq '') {
+        $release = $source->check_for_update($prev_state->release())
+    }
+
+    if (not defined($release)) {
+        print STDERR "Failed while checking for newer configuration releases: $source->{error}\n";
+        goto release_failed;
+    }
+
+    if ($release) {
+        if (not defined($source->retrieve($release))) {
+            print STDERR "Failed to retrieve latest configuration release: $source->{error}\n";
+            goto release_failed;
+        }
+    }
+
+    if (not defined($source->config_root()))
+    {
+        print STDERR "Couldn't mount or find the configuration source: $source->{error}\n";
+        goto release_failed;
+    }
+
+    if (exists($options->{release}))
+    {
+        # If a release was specified, we can remove FrozenAtRelease now that
+        # we've retrieved the dezired version.
+        unlink catfile($config->{spine}->{StateDir}, 'FrozenAtRelease');
+    }
+
+    return $source->release();
+
+  release_failed:
+    return undef;
+}
+
+
+#
+# Freeze if specified
+#
+# Defined by http://bugz.tm.tmcs/show_bug.cgi?id=27820#c0
+#
+# Basically:
+#
+#   If --release=latest is used we never freeze.
+#
+#   If --freeze was specified on the command line, always freeze.
+#
+#   If AutoFreeze is enabled on the command line and a specific release
+#   number is specified via --release, then freeze on that.
+#
+sub freeze_release
+{
+    my $release = shift;
+    my $options = shift;
+    my $config  = shift;
+    my $freeze_file = shift;
+
+    # Print out a special warning for --release=latest and --freeze on the
+    # command line
+    if ($options->{release} eq 'latest' and exists($options->{freeze})) {
+        print STDERR "WARNING: Won't freeze when --release=\"latest\"\n";
+
+        # Don't return an error, though.
+        return 1;
+    }
+
+    if (exists($options->{freeze})
+        or (exists($options->{release})
+            and $options->{release} ne 'latest'
+            and $config->{Spine}->{AutoFreeze} =~ m/(?:yes|true|on|1)/i) ) {
+
+        my $fh = new IO::File("> $freeze_file");
+
+        if (not defined($fh)) {
+            print STDERR "Failed to open $freeze_file: $!\n";
+            return 0;
+        }
+
+        print $fh "$release\n";
+
+        $fh->close();
+    }
+
+    return 1;
+}
+
+
+sub usage
+{
+    print STDERR (<<EOF);
+Spine v$VERSION -- Configuration management system.
+Usage: spine [options]
+
+    --action <action>	
+			Run the specified action(s). Actions are defined
+                        much like profiles in the config file, but begin
+                        with 'action_'. The difference is that actions are
+                        small pieces that can be stacked together. When using
+                        an action or actions, your profile is ignored.
+                        However, the DefaultPlugins section of the config is
+                        still used to fill in missing phases where possible.
+			You may run multiple actions by repeating this
+                        option.
+
+    --croot <directory>
+			Location of the configuration hierarchy.
+			By default, this path will be relative
+			to the spine executable in config/.
+
+    --autofqdn
+			Attempt to determine the FQDN. Use this
+			option if /etc/nodename has not been
+			generated.
+
+    --dryrun
+                        Do not actually make changes to the system.
+                        Only report the actions which would be taken.
+
+    --printdata
+    --spinaltap
+			Only print out the data object and
+			exit. No actions will be run.
+
+    --profile <profile>
+    --actiongroup <profile>
+			Runs the set of plugins defined in any profile
+                        in config file. This replaces v1 actiongroups.
+                        The term actiongroup doesn't apply any longer
+                        as actions profiles are not strictly groups of
+                        actions, though a profile can be written to do
+                        the same thing as any group of actions.
+
+    --verbosity
+                        Numeric value for setting the verbosity
+                        level. Greater numbers mean more verbose.
+                        The default value is 2.
+
+    --config-file <file>
+                        The configuration file to use for this script.
+                        The default is /etc/spine.conf.
+
+    --config-source <configuration source type>
+                        The type of configuration source to use.  Defined by
+                        the "ConfigSource" key in the [spine] section of the
+                        configuration file,
+
+    --release <release number | "latest">
+                        The release to use for this run.
+
+    --freeze
+    --paralyze
+                        Freeze this machine's configuration release at the
+                        release it uses for this run.  Can only be overridden
+                        with --release on the command line.
+
+    --last
+                        Print information about the last successful run on this
+                        machine.
+
+    --hostname <hostname to configure for>
+                        Use hostname to configure system
+
+    --help
+			This help screen.
+
+Examples:
+
+    spine --profile apply_auth
+    spine --action apply_overlay --action process_templates
+    spine --croot /tmp/testconfig bld1.sys.adm1.websys.tmcs
+
+Notes:
+
+    Spine extracts all the information necessary to configure
+    the system from the hostname.  If the hostname is provided
+    on the command line and results in a sucessful run, it is
+    stored in /etc/nodefile. The hostname stored in this file
+    is then used for subsequent runs.
+
+EOF
+}

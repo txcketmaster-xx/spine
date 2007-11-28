@@ -1,0 +1,122 @@
+#!/usr/bin/perl -w
+
+# -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
+# vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
+
+# $Id: ui,v 1.7.12.1.2.1 2007/10/02 22:01:25 phil Exp $
+
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# (C) Copyright Ticketmaster, Inc. 2007
+#
+
+use strict;
+
+use lib qw(/usr/lib/spine);
+
+use Getopt::Long;
+use Spine::Util;
+
+my %options;
+GetOptions(
+    \%options,
+    'hostname=s'
+);
+
+my $cmdline_hostname = $options{hostname};
+
+my $DIALOG = qq(/usr/bin/dialog);
+my $VMCMD = qq(/usr/local/vmware-tools/sbin/vmware-guestd);
+
+while (1)
+{
+    my $hostname = get_hostname();
+    my $pass_regex = check_hostname($hostname);
+    my $does_resolve = Spine::Util::resolve_address($hostname);
+
+    unless ($pass_regex)
+    {
+        msgbox_error("Invalid hostname format \[$hostname\]");
+	next;
+    }
+
+    unless ($does_resolve)
+    {
+	msgbox_error("Could not resolve \[$hostname\]");
+	next;
+    }
+
+    print "NEWHOSTNAME=" . $hostname . "\n";
+    last;
+}
+
+
+sub get_hostname
+{
+
+    my $hostname;
+    my $dialogcmd = "$DIALOG --stdout --nocancel "
+	          . "--inputbox \"Hostname\" 9 55";
+
+    # Try three different methods for determining the hostname:
+    # user supplied via command line, whether we are a VM
+    # in which case we ask the host server, or prompt the
+    # user via dialog box.
+
+    open(PROCPCI, "< /proc/pci");
+    if ($cmdline_hostname)
+    {
+        $hostname = $cmdline_hostname;
+        $cmdline_hostname = undef;
+    }
+    elsif ( grep(/VMware Inc/i, <PROCPCI>) && (-x "$VMCMD") )
+    {
+        $hostname = `$VMCMD --cmd machine.id.get 2>/dev/null`;
+        if ($? > 0 ) { $hostname = `$dialogcmd`; }
+    }
+
+    else
+    {
+        $hostname = `$dialogcmd`;
+    }
+
+    $hostname = lc($hostname);
+
+    close(PROCPCI);
+    return $hostname;
+}
+
+
+sub check_hostname
+{
+    my $hostname = shift;
+    if ( $hostname =~ m/$Spine::Util::dns_schema/xi )
+    {
+	return 1;
+    }
+    else
+    {
+	return 0;
+    }
+}
+
+
+sub msgbox_error
+{
+    my $errormsg = shift;
+    my $dialogcmd = "$DIALOG --stdout --msgbox \"$errormsg\" 6 55";
+
+    `$dialogcmd`;
+    return 1;
+}
