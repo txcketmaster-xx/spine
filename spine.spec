@@ -56,12 +56,10 @@ Ticketmaster configuration system's publishing system
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
 
-pushd spine
+cd %{name}-%{version}
 # Hooray for Makefiles!
 make DESTDIR=$RPM_BUILD_ROOT install
-popd
 
-rm -f $RPM_BUILD_ROOT/usr/bin/spine-cramfs-publish.py[co]
 
 # Shortcut the install of File::Temp
 %{__mkdir_p} -m 755 $RPM_BUILD_ROOT%{spine_lib_prefix}/File
@@ -91,7 +89,9 @@ rm -f $RPM_BUILD_ROOT/usr/bin/spine-cramfs-publish.py[co]
 %ifarch noarch
 %files fsball-publisher
 %defattr(-,root,root)
-/usr/bin/spine-cramfs-publish.py
+%{spine_prefix}/bin/spine-cramfs-publish.py
+%{spine_prefix}/bin/spine-cramfs-publish.pyo
+%{spine_prefix}/bin/spine-cramfs-publish.pyc
 %config(noreplace) /etc/cramfs-publisher.conf
 
 %endif
