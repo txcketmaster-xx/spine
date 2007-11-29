@@ -60,10 +60,6 @@ cd %{name}-%{version}
 # Hooray for Makefiles!
 make DESTDIR=$RPM_BUILD_ROOT install
 
-
-# Shortcut the install of File::Temp
-%{__mkdir_p} -m 755 $RPM_BUILD_ROOT%{spine_lib_prefix}/File
-
 %clean
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
 
