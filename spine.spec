@@ -15,8 +15,7 @@ Release:   %{spine_rel}
 Vendor:    Ticketmaster
 License:   GPLv3
 Group:     System/Libraries
-Source:    %{name}-%{version}-cvs.tar.gz
-Source2:   File-Temp-%{File_Temp_ver}.tar.gz
+Source:    %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 BuildArch: noarch
 Requires:  dialog >= 0.9
@@ -52,7 +51,7 @@ Ticketmaster configuration system's publishing system
 %prep
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
 
-%setup -c -a 0 -a 2 -n %{name}
+%setup -c -a 0 -n %{name}
 
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
