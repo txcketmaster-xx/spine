@@ -63,7 +63,7 @@ sub hardware_hunt
     my $machine;
 
     # Run lshw
-    my $xml = _exec_lshw($c, qw(/usr/sbin/lshw -quiet -xml));
+    my $xml = _exec_lshw($c, qw(/usr/sbin/lshw -xml 2>/dev/null));
 
     unless (defined($xml)) {
         # Some kind of error encountered, _exec_lshw() reports the errors

@@ -19,7 +19,7 @@ Source:    %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 BuildArch: noarch
 Requires:  dialog >= 0.9
-Requires:  lshw >= 2.11
+Requires:  lshw
 Requires:  perl(Digest::MD5) >= 2.20
 Requires:  perl(Net::DNS) >= 0.49
 Requires:  perl(Template) >= 2.14
