@@ -100,36 +100,36 @@ use constant {
 
 # Used for testing the values of the spine:filetype property
 use constant {
-    RBX_FILETYPE_BLOCK => 'block',
-    RBX_FILETYPE_CHAR  => 'character',
-    RBX_FILETYPE_PIPE  => 'fifo'
+    SPINE_FILETYPE_BLOCK => 'block',
+    SPINE_FILETYPE_CHAR  => 'character',
+    SPINE_FILETYPE_PIPE  => 'fifo'
 };
 
 use constant {
-    RBX_TYPE_NULL  =>  1,
-    RBX_TYPE_KEY   =>  2,
-    RBX_TYPE_BLOCK =>  3,
-    RBX_TYPE_CHAR  =>  4,
-    RBX_TYPE_FILE  =>  5,
-    RBX_TYPE_DIR   =>  6,
-    RBX_TYPE_LINK  =>  7,
-    RBX_TYPE_PIPE  =>  8,
-    RBX_TYPE_TMPL  =>  9,
-    RBX_TYPE_UNIX  => 10,
+    SPINE_TYPE_NULL  =>  1,
+    SPINE_TYPE_KEY   =>  2,
+    SPINE_TYPE_BLOCK =>  3,
+    SPINE_TYPE_CHAR  =>  4,
+    SPINE_TYPE_FILE  =>  5,
+    SPINE_TYPE_DIR   =>  6,
+    SPINE_TYPE_LINK  =>  7,
+    SPINE_TYPE_PIPE  =>  8,
+    SPINE_TYPE_TMPL  =>  9,
+    SPINE_TYPE_UNIX  => 10,
 };
 
 $tmp = [qw(SVN_ABSENT SVN_FILE SVN_DIRECTORY SVN_UNKNOWN
-           RBX_FILETYPE_BLOCK RBX_FILETYPE_CHAR RBX_FILETYPE_PIPE
-           RBX_TYPE_KEY RBX_TYPE_BLOCK RBX_TYPE_CHAR RBX_TYPE_FILE
-           RBX_TYPE_DIR RBX_TYPE_LINK RBX_TYPE_PIPE RBX_TYPE_TMPL
-           RBX_TYPE_UNIX)];
+           SPINE_FILETYPE_BLOCK SPINE_FILETYPE_CHAR SPINE_FILETYPE_PIPE
+           SPINE_TYPE_KEY SPINE_TYPE_BLOCK SPINE_TYPE_CHAR SPINE_TYPE_FILE
+           SPINE_TYPE_DIR SPINE_TYPE_LINK SPINE_TYPE_PIPE SPINE_TYPE_TMPL
+           SPINE_TYPE_UNIX)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{publish} = $tmp;
 
 $tmp = undef;
 
 
-use constant MIME_TYPE_PREFIX    => 'application/vnd.rbx.';
+use constant MIME_TYPE_PREFIX    => 'application/vnd.spine.';
 use constant MIME_TYPE_FS_PREFIX => MIME_TYPE_PREFIX . 'fs.';
 
 use constant {

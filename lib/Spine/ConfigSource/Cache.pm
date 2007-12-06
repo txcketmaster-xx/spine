@@ -53,7 +53,7 @@ use constant {
     KEEP_NEWEST  => 2,
 };
 
-our $DEBUG = $ENV{RBX_CONFIGSOURCE_DEBUG} || 0;
+our $DEBUG = $ENV{SPINE_CONFIGSOURCE_DEBUG} || 0;
 
 
 sub new
