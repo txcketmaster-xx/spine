@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: EthernetInterfaces.pm,v 1.1.2.1.2.1 2007/10/02 22:01:35 phil Exp $
+# $Id: EthernetInterfaces.pm,v 1.1.2.2.2.2 2007/09/11 21:28:00 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -25,9 +25,11 @@ package Spine::Plugin::EthernetInterfaces;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
+use IO::File;
+
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.1.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.2.2.2 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "A quick data discovery plugin that harvests the ethernet interfaces on the machine";
 
 $MODULE = { author => 'Nicolas "Sir Speedy" Simonds <nicolas.simonds@ticketmaster.com>',
@@ -44,7 +46,7 @@ sub get_interfaces
     my $c = shift;
     my @ints;
 
-    open INPUT, "/proc/net/dev" or do {
+    my $fh = new IO::File('/proc/net/dev') or do {
         $c->cprint("Failed to open /proc/net/dev: $!");
         return PLUGIN_FATAL;
     };
@@ -52,7 +54,7 @@ sub get_interfaces
     while (my $line = <INPUT>) {
         $line =~ m/^\s*(eth\d+)/ and push @ints, $1;
     }
-    close INPUT;
+    $fh->close();
 
     $c->set('ethernet_interfaces', \@ints)
 

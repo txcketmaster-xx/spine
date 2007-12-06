@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: SystemInfo.pm,v 1.1.2.12.2.2 2007/10/02 22:52:36 phil Exp $
+# $Id: SystemInfo.pm,v 1.1.2.15.2.2 2007/09/11 21:28:01 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.12.2.2 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.15.2.2 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Spine::Plugin system information harvester";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -85,8 +85,13 @@ sub get_sysinfo
         my %devs = @{$c->getvals('network_device_map')};
 
         # We walk the PCI bus to determine which network card we have
-        open(PCI, '/sbin/lspci |');
-        while (<PCI>) {
+        my $fh = new IO::File('/sbin/lspci |');
+
+        unless (defined($fh)) {
+            die "Failed to open /sbin/lspci: $!";
+        }
+
+        while (<$fh>) {
             next unless m/Ethernet/;
             # FIXME  This is kind of dumb.  We don't provide any kind of
             #        interface to driver mapping and we really should
@@ -95,7 +100,7 @@ sub get_sysinfo
             }
 	}
 	$netcard = 'unknown' unless $netcard;
-        close (PCI);
+        $fh->close();
 
 	my $cmd = $ifconfig . " eth" . $iface;
 	foreach my $line (`$cmd`)

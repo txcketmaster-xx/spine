@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: ISO9660.pm,v 1.4.6.2.2.1 2007/10/02 22:01:33 phil Exp $
+# $Id: ISO9660.pm,v 1.4.6.3.2.2 2007/09/13 16:15:15 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -22,18 +22,16 @@
 use strict;
 
 package Spine::ConfigSource::ISO9660;
-our ($VERSION, @ISA, $ERROR);
+our ($VERSION, $ERROR);
+
+use base qw(Spine::ConfigSource::FileSystem Spine::ConfigSource::HTTPFile);
 
 use Digest::MD5;
 use File::Temp qw(:mktemp);
-use HTTP::Request;
-use LWP::UserAgent;
-use Spine::ConfigSource;
-use Spine::ConfigSource::Cache;
 use Storable qw(thaw);
 
 @ISA = qw(Spine::ConfigSource);
-$VERSION = sprintf("%d.%02d", q$Revision: 1.4.6.2.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.4.6.3.2.2 $ =~ /(\d+)\.(\d+)/);
 
 # See END block at the end of this file.
 my @__MOUNTS;
@@ -43,64 +41,10 @@ sub new
     my $klass = shift;
     my %args = @_;
 
-    my $self = new Spine::ConfigSource(%args);
+    my $self = new Spine::ConfigSource::HTTPFile(@_);
 
+    # We want to override the default FileSystem contstructor
     bless $self, $klass;
-
-    $self->{Destination} = $args{Destination};
-    $self->{URL} = $args{URL};
-    $self->{PreviousRelease} = $args{PreviousRelease};
-
-    # If we were passed a Spine::ConfigFile object, use it to populate most of
-    # our settings
-    if (exists($args{Config}) and defined($args{Config}))
-    {
-        my $section = $args{Config}->{ISO9660};
-
-        foreach my $item (qw(Destination URL Timeout))
-        {
-            if ( ( not exists($self->{$item})
-                   or not defined($self->{$item}) )
-                 and exists($section->{$item}))
-            {
-                $self->{$item} = $section->{$item};
-            }
-        }
-    }
-
-    # Now some quick sanity checks
-    if (not defined($self->{Destination})
-        and not defined($self->{URL}))
-    {
-        $ERROR = "You must specify a source URL and a destination dir for ISO9660 fsballs!\n";
-        undef $self;
-        return undef;
-    }
-
-    if (not exists($self->{Timeout}) or not defined($self->{Timeout}))
-    {
-        $self->{Timeout} = 30;
-    }
-
-    # If the destination directory doesn't exist, create it
-    if (not -d $self->{Destination} and not mkdir($self->{Destination}))
-    {
-        $ERROR = "Failed to created destination directory: $!";
-        return undef;
-    }
-
-    $self->{UA} = exists($args{UserAgent}) ? $args{UserAgent} :
-        new LWP::UserAgent(timeout => $self->{Timeout});
-
-    $self->{_cache} = new Spine::ConfigSource::Cache(Directory => $self->{Destination},
-                                                     Method => Spine::ConfigSource::Cache::MAX_FILES,
-                                                     Ignore => '^\.');
-
-    if (not defined($self->{_cache}))
-    {
-        $ERROR = "Cache driver failed to instantiate!";
-        return undef;
-    }
 
     # See END block at end of this file.
     push @__MOUNTS, $self;
@@ -120,45 +64,6 @@ sub error {
 }
 
 
-sub _http_request
-{
-    my $self = shift;
-    my $url  = shift;
-    my $file = shift;
-    my $content = undef;
-    my $response;
-
-    my $request = new HTTP::Request('GET', $url);
-
-    #
-    # We use the request() method instead of the simple_request() method here
-    # because the simple_request() method won't transparently follow
-    # redirects, which we definitely want to have happen.
-    #
-    # rtilder    Wed Apr 13 14:06:56 PDT 2005
-    #
-
-    if (defined($file))
-    {
-        $response = $self->{UA}->request($request, $file);
-    }
-    else
-    {
-        $response = $self->{UA}->request($request);
-    }
-
-    # Check to be sure it's good
-    if ($response->code() != 200)
-    {
-        $self->{error} = "Bad response code for URL $url: " . $response->code . ' '
-            . $response->message;
-        return undef;
-    }
-
-    return $response;
-}
-
-
 sub _mount_isofs
 {
     my $self = shift;
@@ -166,7 +71,7 @@ sub _mount_isofs
 
     if (not defined($filename))
     {
-        $filename = $self->{_cache}->get($self->{_filename});
+        $filename = $self->{_cache}->get($self->{filename});
     }
 
     if ($filename =~ m/^\s*$/ or not -f $filename or not -r $filename)
@@ -175,6 +80,8 @@ sub _mount_isofs
         return undef;
     }
 
+    # FIXME  Genericize decompression and start using File::MimeInfo::Magic to
+    #        determine file types
     if ($filename =~ m/\.gz$/)
     {
         my $tmpfile = mktemp('/tmp/isofsball.XXXXXX');
@@ -275,116 +182,6 @@ sub _umount_isofs
 }
 
 
-sub check_for_update
-{
-    my $self = shift;
-    my $prev = shift;
-    my $file = shift;
-    my $check = "$self->{URL}?a=check&prev=$prev";
-
-    my $resp = $self->_http_request($check);
-
-    if (not defined($resp))
-    {
-        goto check_error;
-    }
-
-    my $ctype = $resp->header('Content-Type');
-
-    if ($ctype ne 'application/perl-storable')
-    {
-        $self->error("Invalid content type for response for ISO9660::check_for_update: $ctype");
-        goto check_error;
-    }
-
-    # Deserialize the payload
-    my $version_data = thaw($resp->content);
-
-    if (not defined($version_data))
-    {
-        $self->error("Failed to deserialize payload for ISO9660::check_for_update()!");
-        goto check_error;
-    }
-
-    if ($version_data->{latest_release} > $prev)
-    {
-        undef $resp;
-        return $version_data->{latest_release};
-    }
-
-    undef $resp;
-    return $prev;
-
- check_error:
-    undef $resp;
-    return undef;
-}
-
-
-sub retrieve
-{
-    my $self = shift;
-    my $release = shift;
-    my $retrieve = "$self->{URL}?a=gimme&release=$release";
-
-    # Check to see if we have it cached locally first
-    my $cached = $self->{_cache}->get("spine-config-$release.iso.gz");
-
-    if ($cached)
-    {
-        # Lame but for some reason I cant get Cache.pm to work with Exporter
-        $self->{_filename} = Spine::ConfigSource::Cache::filename($cached);
-        return 1;
-    }
-
-    my $resp = $self->_http_request($retrieve);
-
-    if (not defined($resp))
-    {
-        goto retrieve_error;
-    }
-
-    my $ctype = $resp->header('Content-Type');
-
-    if ($ctype ne 'application/x-gzip')
-    {
-        $self->error("Invalid content type for response in ISO9660::retrieve($release): $ctype");
-        goto retrieve_error;
-    }
-
-    # It's shame that there isn't a method in the URI class that'll give you
-    # the file name.
-    my @f = split(m|/|, $resp->base->path);
-    my $file = pop @f;
-
-    if (not defined($self->{_cache}->add(Buffer => $resp->content,
-                                         Filename => $file)))
-    {
-        print STDERR "Failed to save file to cache!\n";
-        goto retrieve_error;
-    }
-
-    $self->{_filename} = $file;
-
-    # We don't mount the ISO ball here.  We do it when config_head is first
-    # called.
-    undef $resp;
-    return 1;
-
- retrieve_error:
-    undef $resp;
-    return undef;
-}
-
-
-sub retrieve_latest
-{
-    my $self = shift;
-
-    return $self->retrieve($self->check_for_update());
-}
-
-
 sub config_root
 {
     my $self = shift;
@@ -393,7 +190,7 @@ sub config_root
     {
         if (not $self->_mount_isofs())
         {
-            $self->error("Failed to mount $self->{_filename}!");
+            $self->error("Failed to mount $self->{filename}!");
             return undef;
         }
         $self->{_mounted} = 1;

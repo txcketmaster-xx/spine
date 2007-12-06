@@ -1,0 +1,104 @@
+Relatively urgent:
+
+  - Provide source file(and hopefully line number) that config key entries
+  - Key name information and usage, i.e. a data dictionary for the standard
+    stuff
+  - Re-implement action groups in new design
+  - Clean up distro detection and naming
+  - Perl configball publisher.  Basically functionality works, just need to
+    upgrade the repository server to Subversion v1.4
+  - Restructure our Template usage by implementing our own Template::Provider
+    module.  We can gain template inheritance that way.
+  - Stop using rsync in the build_overlay functionality.  We need to be able
+    to have some more functionality there that rsync can't provide, i.e.:
+    - The ability to have a symlink's target be interpolated so you can have a
+      link point to /<$c_class>/shared/conf(literally) and interpolate the
+      value of $c->{c_class} as necessary.
+
+Nice to have:
+
+  - More generic and pluggable system information discovery system
+    - PCI, USB, etc bus information
+    - Parsers for existing important files:
+      - sysctl.conf, modules.conf, fstab, network config files, etc
+  - Support for more than just RH based distros
+  - Template inheritance 
+
+
+Tidbits from the twiki page:
+
+A.  Factor the uber-object that is Spine::Data into saner, purpose specific
+    modules that provide a framework to ease development of plugins and
+    templates
+    1. It currently serves two(three in v1.x) major functions:
+          a. Runtime discovery: hardware, OS information, other system
+             information, and policy selection(moved out in v2.0)
+                * Parsing: walks and parses the configuration tree
+                * Data access: provides hooks for templates and plugins to
+                  access the configuration data
+    2. Runtime discovery needs to be expanded and generalized
+          a. Standard convenience functionality for things like:
+                * dmidecode data out of the firmware and BIOS
+                * walking/searching the various system buses(PCI, USB,
+                  Firewire)
+                * installed packages
+                * user and group database access
+                * data representation of the contents of various system
+                  configuration files
+          b. How should it be integrated with the rest of the data access
+             functionality?
+    3. Parsing needs a massive overhaul
+          b. Needs to have pluggable support for additional syntaxes
+                * parser selection should be based on MIME type, at least
+                * possibly by just registering a callback with the parser
+                  module
+          a. Move the "basic" syntax to one that uses plain perl or TT for all
+             logic and data manipulation
+    4. Data access needs to be proxied
+          a. Templates shouldn't be able to modify any data
+          b. Configuration keys should be able to modify parsed data but not
+             "discovered" data
+B. Spine needs to move away from filesystem based configballs
+    1. Spine::ConfigSource needs to be improved to provide functionality to
+       Spine::Parser so that the current filesystem calls used to access
+       configuration key data can be replaced with something more purpose
+       specific
+    2. Building the overlay will subsequently need to be re-worked
+          a. This will provide an opportunity to incorporate additional,
+             useful functionality to our templating system
+                * "incremental" templates: don't overwrite, just incorporate
+                   and process the new portion
+                * generate multiple output files from a single template(think
+                  /etc/sysconfig/network-scripts/ifcfg-eth0:0, ifcfg-eth0:1
+                  from a single interface alias template)
+          b. Add new filesystem manipulation functionality
+                * Remove existing files, dirs, etc.
+          c. Real transaction sets(more distant future)
+                * Steal RPM's?
+C. Move away from the currently required filesystem hierarchy for specifying
+   policy application
+     1. While a hierarchy isn't a bad idea, the spine-config repository is far
+        too large to be even remotely manageable now
+     2. Roughly 95% of the config/overlay/class_overlay triumvirates can be
+        condensed into a single, fairly small file with a simple syntax, like
+        YAML or JSON.
+     3. Before this can happen, the parsing and overlay building overhaul needs
+        to happen
+D. Allow the line between configuration data and code that manipulates it to
+   blur
+     1. This was a good idea initially but has been an increasing liability
+        with Spine.
+          * It takes far longer to get code changes out than it does to get
+            configballs published
+          * The ability to have configuration keys that can perform significant
+            manipulation of configuration data in an existing programming
+            language would reduce the number of code releases to bug fixes and
+            feature additions to only the very core functionality
+E. Real exception handling for modules and plugins
+     1. Perl sucks hard in this regard but we'll need to start using real OO
+       style exceptions or the code will continue to be difficult to handle
+F. Daemonize spine
+     1. Spine should really run as a daemon that listens on a socket or
+        two(UNIX and possibly TCP+SSL3/TLS) and performs actions based on the
+        commands received
+

@@ -1,7 +1,7 @@
 # -*- Mode: perl; cperl-continued-brace-offset: -4; cperl-indent-level: 4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: DescendOrder.pm,v 1.1.2.5.2.2 2007/10/02 22:52:36 phil Exp $
+# $Id: DescendOrder.pm,v 1.1.2.11.2.1 2007/09/11 21:28:00 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -29,7 +29,7 @@ use Spine::Plugin::Interpolate;
 
 our ($VERSION, $DESCRIPTION, $MODULE, $CURRENT_DEPTH, $MAX_NESTING_DEPTH);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.5.2.2 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.11.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Determines which policies to apply based on the spine-config" .
     " directory hierarchy layout";
 
@@ -58,7 +58,7 @@ sub descend_order
     #   populating variables that assume a certain descend order.
     #
     #   However, sadly, some of these are still in use, so they'll stay for
-    #   now. c_host_dir was used by websys' motd.tt (fixed now), but in
+    #   now. c_host_dir was used by osscode' motd.tt (fixed now), but in
     #   addition, removing it caused various templates to stop getting
     #   generated (!!), so clearly other things need it.
     #
@@ -76,7 +76,6 @@ sub descend_order
 
     foreach my $dir (@{$c->{policy_hierarchy}}) {
         push @{$c->{c_hierarchy}}, get_includes($c, $dir);
-        push @{$c->{c_hierarchy}}, $dir;
     }
 
     return PLUGIN_SUCCESS;

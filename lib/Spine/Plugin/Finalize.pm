@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Finalize.pm,v 1.1.2.6.2.1 2007/10/02 22:01:35 phil Exp $
+# $Id: Finalize.pm,v 1.1.2.7.2.2 2007/09/11 21:28:00 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -34,9 +34,11 @@ package Spine::Plugin::Finalize;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
+use IO::File;
+
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.6.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.7.2.2 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Spine::Plugin skeleton";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -297,9 +299,14 @@ sub get_current_cmdline
         @_ = @{$_[0]};
     }
 
-    open(KARGS, "< /proc/cmdline");
-    my @current_cmdline = split(m/\s+/, <KARGS>);
-    close(KARGS);
+    my $fh = new IO::File('< /proc/cmdline');
+
+    unless (defined($fh)) {
+        die "There is no god damn spoon!";
+    }
+
+    my @current_cmdline = split(m/\s+/, <$fh>);
+    $fh->close();
 
     # Strip out arguments we know we're going to ignore("single", etc)
     foreach my $ignore (@_)

@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Templates.pm,v 1.1.2.14.2.1 2007/10/02 22:01:36 phil Exp $
+# $Id: Templates.pm,v 1.1.2.16.2.1 2007/09/11 21:28:01 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $MARKERS, $QUICK);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.14.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.16.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Spine::Plugin skeleton";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -190,7 +190,7 @@ sub process_template
         $output = catfile($destdir, $output);
     }
 
-    $c->cprint("processing template $template", 3);
+    $c->print(3, "processing template $template");
 
     unless (defined($TT->process($template, $ttdata, $output)))
     {

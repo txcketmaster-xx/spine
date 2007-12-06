@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: PrintData.pm,v 1.1.2.5.2.1 2007/10/02 22:01:36 phil Exp $
+# $Id: PrintData.pm,v 1.1.2.7.2.1 2007/09/11 21:28:00 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -25,9 +25,9 @@ package Spine::Plugin::PrintData;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
-our ($VERSION, $DESCRIPTION, $MODULE, $PRINTDATA, $WITHAUTH);
+our ($VERSION, $DESCRIPTION, $MODULE, $PRINTDATA, $WITHAUTH, $USEYAML);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.5.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.7.2.1 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Features for debugging Spine data";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -38,8 +38,9 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                        'PREPARE' => [ { name => 'printdata',
                                         code => \&printdata } ]
                      },
-            cmdline => { options => { 'printdata|spinaltap' => \$PRINTDATA,
-                                      'with-auth' => \$WITHAUTH } }
+            cmdline => { options => { printdata => \$PRINTDATA,
+                                      'with-auth' => \$WITHAUTH,
+                                      'use-yaml' => \$USEYAML } }
           };
 
 
@@ -63,10 +64,21 @@ sub printdata
         push @{$names}, 'Spine::AuthData';
     }
 
-    require Data::Dumper;
-    $Data::Dumper::Sortkeys = 1;
-    my $d = new Data::Dumper($objects, $names);
-    print $d->Dump();
+    if ($USEYAML) {
+        require YAML;
+        require YAML::Dumper;
+        my $d = new YAML::Dumper(indent_width => 4);
+
+        foreach (@{$objects}) {
+            print $d->dump($_);
+        }
+    }
+    else {
+        require Data::Dumper;
+        $Data::Dumper::Sortkeys = 1;
+        my $d = new Data::Dumper($objects, $names);
+        print $d->Dump();
+    }
 
     return PLUGIN_EXIT;
 }

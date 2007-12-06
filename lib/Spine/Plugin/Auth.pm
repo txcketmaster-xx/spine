@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Auth.pm,v 1.1.2.12.2.2 2007/10/02 22:01:35 phil Exp $
+# $Id: Auth.pm,v 1.1.2.14.2.3 2007/09/13 16:15:16 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.12.2.2 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.14.2.3 $ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Identity Management and Auththentication/Authorization module";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -220,6 +220,10 @@ sub _parse_auth_data
             next;
         }
 
+        #
+        # FIXME  Should the auth stuff be treated as its own config group in
+        #        the v0 SQL structure?
+        #
         my $values = $c->read_keyfile($keyfile);
 
         # read_keyfile() returns an undef when there's an error
@@ -232,6 +236,11 @@ sub _parse_auth_data
         my $acct_ref = { acct_type => $type };
 
         foreach my $value (@{$values}) {
+
+            #
+            # FIXME  This should happen in a parselet.  This can be easily done
+            #        is we have Auth set up it's own parselet chain
+            #
 
             # This chunk of code does the replacement of
             # <$var> stuff the way the rest of spine does
@@ -304,6 +313,10 @@ sub _parse_auth_data
 sub _parse_auth_groups
 {
     my ($c, $directory) = @_;
+
+    #
+    # FIXME
+    #
 
     return 0 unless( -d $directory );
 
@@ -502,7 +515,7 @@ sub _build_user_map
         }
 
         #
-        # If we have an auth_group (e.g. "@websys"), we need
+        # If we have an auth_group (e.g. "@osscode"), we need
         # to resolve that to a list of people and push those
         # people onto the allowed_users list for future iterations
         #
@@ -842,12 +855,20 @@ sub emit_auth_data
         $extra_checks_warn_only = 1;
     }
 
-    if (open(CMD, CMDLINE)) {
-        my $cmdline = <CMD>;
-        close(CMD);
-        if ($cmdline =~ /auth_extra_checks_warn_only/) {
-            $extra_checks_warn_only = 1;
-        }
+    #
+    # FIXME  Evidence that we need a /proc data provider
+    #
+    my $fh = new IO::File(CMDLINE);
+
+    unless (defined($fh)) {
+        die "There is no god damn spoon!";
+    }
+
+    my $cmdline = <$fh>;
+    $fh->close();
+
+    if ($cmdline =~ /auth_extra_checks_warn_only/) {
+        $extra_checks_warn_only = 1;
     }
 
     #
@@ -1121,7 +1142,8 @@ sub _generate_passwd_shadow_home
     # Open both files so that we only have to walk through the list once.
     #
     my $filename = catfile($tmpdir, qw(etc passwd));
-    unless (open(PASSWD, "> $filename"))
+    my $fh = new IO::File("> $filename");
+    unless (defined($fh))
     {
         $c->error("couldn't open $filename: $!",'crit');
         return PLUGIN_FATAL;
@@ -1130,7 +1152,8 @@ sub _generate_passwd_shadow_home
     chmod(0444, $filename);
 
     $filename = catfile($tmpdir, qw(etc shadow));
-    unless (open(SHADOW, "> $filename"))
+    $fh = new IO::File("> $filename");
+    unless (defined($fh))
     {
         $c->error("couldn't open $filename: $!",'crit');
         return PLUGIN_FATAL;
@@ -1250,7 +1273,8 @@ sub _generate_group
     }
 
     my $filename = catfile($tmpdir, qw(etc group));
-    unless (open(GROUP, "> $filename"))
+    my $fh = new IO::File("> $filename");
+    unless (defined($fh))
     {
         $c->error("couldn't open $tmpdir/etc/group",'crit');
         return PLUGIN_FATAL;
@@ -1401,7 +1425,8 @@ sub _generate_authorized_keys
             $keyfile = catfile($keydir, $user);
         }
 
-        unless (open(KEYS,">$keyfile"))
+        my $fh = new IO::File("> $keyfile");
+        unless (defined($fh))
         {
             $c->error("couldn't open $keyfile",'crit');
             $errors++;
@@ -1465,27 +1490,32 @@ sub _copy_skel_dir
 
     my @entries;
 
-    unless (opendir(DIR,$src))
+    #
+    # All these directory calls should be replaced with calls to the
+    # Spine::ConfigSource API
+    #
+
+    my $dir = new IO::Dir($src);
+    unless (defined($dir))
     {
         $c->error("Couldn't open dir ($src)", 'crit');
         return 0;
     }
 
-    while (defined(my $d_entry = readdir(DIR))) {
+    while (defined(my $d_entry = $dir->read())) {
         if ($d_entry =~ m/^.{1,2}$/o) {
             next;
         }
         push @entries, $d_entry;
     }
 
-    unless (closedir(DIR))
+    unless ($dir->close())
     {
         $c->error("Couldn't close dir ($src)", 'crit');
         return 0;
     }
 
     foreach my $entry (@entries) {
-
         if ( -d catfile($src, $entry)) {
             mkdir_p(catfile($dst,$entry),755);
             if($entry eq ".ssh") {

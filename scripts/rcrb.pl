@@ -2,7 +2,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: rcrb.pl,v 1.3.4.1 2007/10/02 22:01:38 phil Exp $
+# $Id: rcrb.pl,v 1.3.2.1.2.2 2007/09/13 16:15:17 rtilder Exp $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -33,14 +33,13 @@ use strict;
 use CGI;
 use IO::Dir;
 use Storable qw(nfreeze);
+use YAML;
+use YAML::Dumper;
 
-#my $REPOURL = 'http://repository/spine/';
 my $REPOURL = "http://$ENV{HTTP_HOST}/spine-configballs/";
-#my $SRCDIR  = '/fls1/vol1/websys-config-repo';
 my $SRCDIR  = '/ops/shared/htdocs/spine-configballs';
-#my $DEFAULT = 'websys';
 my $DEFAULT = '';
-my $FILENAME_RE = 'spine-config-?(.*)?-(\d+).(iso\.gz|cramfs)$';
+my $FILENAME_RE = 'spine-config-?(.*)?-(\d+).(iso|db)(\.[bg]z)?$';
 
 #
 # Valid parameter names for this CGI:
@@ -91,7 +90,7 @@ sub get_branch_releases
                         path     => $src,
                         branch   => $1,
                         release  => $2,
-                        type => lc($3) == 'cramfs' ? 'cramfs' : 'isofs' };
+                        type => lc($3) };
         }
     }
 
@@ -174,10 +173,16 @@ if ($action eq 'check') {
     my $latest = pop(@a);
     my %hash = ( latest_release => $latest );
     my $payload = nfreeze(\%hash);
+    my $type = 'application/perl-storable';
+
+    eval {
+        require YAML;
+        $payload = Dump(\%hash);
+        $type = 'text/yaml';
+    };
 
     # Build the response
-    print $q->header(-type => 'application/perl-storable',
-                     -content_length => length($payload));
+    print $q->header(-type => $type, -content_length => length($payload));
     print $payload;
 }
 elsif ($action eq 'gimme') {
