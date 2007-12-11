@@ -146,7 +146,7 @@ sub setup_chain
 
     if (scalar(@{$chain}) < 1) {
         undef $chain;
-        return 0;
+        return SPINE_FAILURE;
     }
 
     $self->{chain} = $chain;

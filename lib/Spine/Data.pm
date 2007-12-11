@@ -487,6 +487,10 @@ sub getvals_as_hash
             return \%vals_as_hash;
         }
     }
+    elsif (ref($self->{$key}) eq 'HASH')
+    {
+        return $self->{$key};
+    }
 
     return undef;
 }

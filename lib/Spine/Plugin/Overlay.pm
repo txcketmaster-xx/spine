@@ -23,7 +23,7 @@ use strict;
 
 package Spine::Plugin::Overlay;
 use base qw(Spine::Plugin);
-use Spine::Constants qw(:plugin);
+use Spine::Constants qw(:basic :plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, $TMPDIR, @ENTRIES);
 
@@ -50,7 +50,6 @@ use File::stat;
 use File::Touch;
 use Fcntl qw(:mode);
 use IO::File;
-use Spine::Constants qw(:basic);
 use Spine::Util qw(do_rsync mkdir_p);
 use Text::Diff;
 
@@ -101,9 +100,9 @@ sub build_overlay
         my $class_overlay = "${dir}/class_overlay/";
 
         unless (file_name_is_absolute($dir)) {
-            $overlay = catfile($croot, $overlay);
+            $overlay = catdir($croot, $overlay);
             $overlay .= '/'; # catfile() removes trailing slashes
-            $class_overlay = catfile($croot, $class_overlay);
+            $class_overlay = catdir($croot, $class_overlay);
             $class_overlay .= '/';
         }
 
@@ -259,7 +258,7 @@ sub apply_overlay
             # the transfer wasn't at least partially successful.  See the
             # rsync man page for more information.  Necessary because /media
             # is read only almost everywhere but the mount point needs to be
-            # created if the filesystem
+            # created on the filesystem.
             #
             # rtilder    Wed Jun  6 14:08:49 PDT 2007
             my $rc = $? >> 8;
