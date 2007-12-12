@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Parser.pm,v 1.1.2.4.2.2 2007/09/11 21:27:58 rtilder Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,7 @@ use strict;
 use base qw(Exporter);
 our ($VERSION, @EXPORT_OK, $CURRENT_DEPTH, $MAX_NESTING_DEPTH);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.4.2.2 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 
 @EXPORT_OK = qw($MAX_NESTING_DEPTH);
 

@@ -1,7 +1,7 @@
 # -*- Mode: perl; cperl-continued-brace-offset: -4; cperl-indent-level: 4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: DescendOrder.pm,v 1.1.2.11.2.1 2007/09/11 21:28:00 rtilder Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -29,7 +29,7 @@ use Spine::Plugin::Interpolate;
 
 our ($VERSION, $DESCRIPTION, $MODULE, $CURRENT_DEPTH, $MAX_NESTING_DEPTH);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.11.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Determines which policies to apply based on the spine-config" .
     " directory hierarchy layout";
 

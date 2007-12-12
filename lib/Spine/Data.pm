@@ -1,7 +1,7 @@
 # -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Data.pm,v 1.47.2.22 2007/09/10 19:05:32 phil Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -41,7 +41,7 @@ our $DEBUG = $ENV{SPINE_DATA_DEBUG} || 0;
 
 my ($DATA_PARSED, $DATA_POPULATED) = (SPINE_NOTRUN, SPINE_NOTRUN);
 
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.47.2.21.2.3 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 
 sub new {
     my $class = shift;

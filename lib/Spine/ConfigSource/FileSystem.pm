@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: FileSystem.pm,v 1.5.2.1.2.2 2007/09/13 16:15:15 rtilder Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@ use IO::File;
 
 
 our ($VERSION, $ERROR);
-$VERSION = sprintf("%d.%02d", q$Revision: 1.5.2.1.2.2 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 
 
 sub new

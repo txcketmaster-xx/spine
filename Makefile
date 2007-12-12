@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.1.4.3.2.1 2007/10/02 22:01:25 phil Exp $
+# $Id$
 # vim:ts=8:sw=8:noet
 
 #

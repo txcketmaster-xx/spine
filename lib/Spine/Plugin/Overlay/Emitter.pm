@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=4:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Overlay.pm,v 1.1.2.10.2.1 2007/10/02 22:01:36 phil Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.10.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Emits the temporary working copy, interpolating variables in file names and symlink targets";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -153,12 +153,12 @@ sub interpolate_and_emit_filesystem_entry
     $target = interpolate_value($C, $target);
 
     if (S_ISDIR($lstat->mode)) {
-        mkdir($target) or die("directories SUCK! $!");
+        mkdir($target) or die("Failed to create directory $target: $!");
     }
     # XXX  Should we have an optional warning for missing link targets?
     elsif (S_ISLNK($lstat->mode)) {
         symlink(interpolate_value($C, readlink($source)), $target)
-            or die("symlinks SUCK! $!");
+            or die("Failed to create symlink $target: SUCK! $!");
     }
     # Since we have to call out to mknod we just do all three
     elsif (S_ISCHR($lstat->mode)
@@ -178,15 +178,16 @@ sub interpolate_and_emit_filesystem_entry
 
         $cmd .= major($lstat->rdev) . ' ' . minor($lstat->rdev);
 
-        system($cmd) || die("Devices SUCK! \"$cmd\": $!");
+        system($cmd) || die("Failed to create device: $target! \"$cmd\": $!");
     }
     elsif (S_ISREG($lstat->mode)) {
-        copy($fname, $target) || die("copies SUCK! $!");
+        copy($fname, $target) || die("Failed to copy $fname to $target: $!");
     }
 
-    chmod($lstat->mode, $target) or die("chmods SUCK! $!");
+    chmod($lstat->mode, $target) or die("Failed to chmod $target: $!");
     # FIXME  Need to support usernames.  Blech
-    chown($lstat->uid, $lstat->gid, $target) or die("chowns SUCK! $!");
+    chown($lstat->uid, $lstat->gid, $target) or die("Failed to chown $target:"
+        . " $!");
 }
 
 

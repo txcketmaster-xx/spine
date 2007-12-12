@@ -2,7 +2,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: rcrb.pl,v 1.3.2.1.2.2 2007/09/13 16:15:17 rtilder Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify

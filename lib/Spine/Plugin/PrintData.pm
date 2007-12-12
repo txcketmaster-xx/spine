@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: PrintData.pm,v 1.1.2.7.2.1 2007/09/11 21:28:00 rtilder Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $PRINTDATA, $WITHAUTH, $USEYAML);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.7.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Features for debugging Spine data";
 
 $MODULE = { author => 'osscode@ticketmaster.com',

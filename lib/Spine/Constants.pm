@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Constants.pm,v 1.1.2.7.2.3 2007/09/13 16:15:15 rtilder Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use base qw(Exporter);
 
 our ($VERSION, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.7.2.3 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 
 my $tmp;
 
