@@ -1,7 +1,7 @@
 # -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Data.pm,v 1.47.2.11.2.3 2007/10/02 22:58:40 phil Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify

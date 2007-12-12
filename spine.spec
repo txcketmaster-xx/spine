@@ -1,4 +1,4 @@
-# $Id: spine.spec,v 1.2.2.23.2.3.2.4 2007/11/19 21:53:39 phil Exp $
+# $Id$
 # vim:ts=8:noet
 
 %define spine_ver		2.0

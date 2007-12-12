@@ -1,4 +1,4 @@
-# $Id: RPM.pm,v 1.6.34.1 2007/10/02 22:01:28 phil Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify

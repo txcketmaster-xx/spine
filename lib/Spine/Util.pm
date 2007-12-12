@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-set-style: BSD; index-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Util.pm,v 1.20.12.10.2.1 2007/10/02 22:01:30 phil Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify

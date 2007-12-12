@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Registry.pm,v 1.1.2.11.2.1 2007/10/02 22:01:29 phil Exp $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -29,7 +29,7 @@ use Spine::Constants qw(:basic :plugin);
 our ($VERSION, $DEBUG, @EXPORT, @EXPORT_OK);
 
 $DEBUG = $ENV{SPINE_REGISTRY_DEBUG} || 0;
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1.2.11.2.1 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 
 @EXPORT_OK = qw(register_plugin create_hook_point add_option get_options
                 add_hook get_hook_point install_method);
