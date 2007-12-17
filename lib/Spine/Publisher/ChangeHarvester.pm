@@ -30,10 +30,11 @@ our $VERSION = sprintf("%d", q$Revision: 1 $ =~ /(\d+)/);
 
 sub new
 {
-    my $self = SVN::Delta::Editor::new(@_);
-    bless $self, $_[0];
+    my $klass = shift;
+    my $self = $klass->SUPER::new(@_);
+    bless($self,$klass);
     $self->{changes} = {};
-    $self->{target_revision} = -1;
+    $self->SUPER::set_target_revision(-1);
     return $self;
 }
 
@@ -49,8 +50,9 @@ sub changed
 sub set_target_revision
 {
     my $self = shift;
+    my $target = shift;
 
-    $self->{target_revision} = shift;
+    $self->SUPER::set_target_revision($target);
 }
 
 sub open_root
@@ -59,7 +61,7 @@ sub open_root
     my $self = shift;
     print STDERR "open_root\n" if $self->{_debug};
 
-    return $self;
+    return [ $self, undef ];
 }
 
 sub delete_entry
@@ -97,7 +99,7 @@ sub change_dir_prop
     # @_ == (dir_baton, name, value, pool)
     my ($self, $dir_baton, $name, $value) = @_;
 
-    print STDERR "change_dir_prop: $path($name == \"$value\")\n" if $self->{_debug};
+    print STDERR "change_dir_prop: ($name == \"$value\")\n" if $self->{_debug};
     $self->changed($dir_baton->[1]);
 }
 
@@ -106,11 +108,10 @@ sub add_file
     # @_ == (path, parent_baton, copy_path, copy_revision, file_pool)
     my $self = shift;
     my $path = shift;
-    $self->changed($path);
 
     print STDERR "add_file: $path\n" if $self->{_debug};
+    $self->changed($path);
 
-    return [$self, $path];
 }
 
 sub open_file
@@ -118,11 +119,10 @@ sub open_file
     # @_ == (path, parent_baton, base_revision, file_pool)
     my $self = shift;
     my $path = shift;
-    $self->changed($path);
 
     print STDERR "open_file: $path\n" if $self->{_debug};
+    $self->changed($path);
 
-    return [$self, $path];
 }
 
 sub change_file_prop
@@ -130,7 +130,7 @@ sub change_file_prop
     # @_ == (file_baton, name, value, pool)
     my ($self, $file_baton, $name, $value) = @_;
 
-    print STDERR "change_file_prop: $path($name == \"$value\")\n" if $self->{_debug};
+    print STDERR "change_file_prop: ($name == \"$value\")\n" if $self->{_debug};
     $self->changed($file_baton->[1]);
 }
 
