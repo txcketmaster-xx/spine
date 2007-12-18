@@ -1,104 +1,197 @@
 #!/usr/bin/perl
 
+# -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
+# vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
+
+#
+# Post-commit hook to gather metadata about keys and write a data-dictionary
+# for your repository.
+#
+# This is simply an IN-PROGRESS-BEING-WRITTEN script... it's not yet
+# intended to be functional.
+#
+# pdibowitz Mon Dec 17 17:30:23 PST 2007
+#
+#
+
 use strict;
 use warnings;
 
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
+use SVN::Ra;
+use IO::Scalar;
+use YAML::Syck;
+use Data::Dumper;
 
 use lib '../lib/';
 use Spine::Publisher::ChangeHarvester;
 
-#my $repo = shift;
-my $repo = '/home/phil/work/repo';
+use constant DATA_FILE => '/tmp/spine.metadata';
+use constant REPO_PATH => '/home/phil/work/repo';
+
+my $debug = 1;
+
+sub debug
+{
+    my $msg = shift;
+    print STDERR "DEBUG: $msg\n" if ($debug);
+}
+
+sub read_existing_data
+{
+    my $data = {};
+    if (-e DATA_FILE) {
+        $data = YAML::Syck::LoadFile(DATA_FILE);
+    } else {
+        $data->{rev} = 1;
+    }
+    return $data;
+}
+
+sub generate_delta
+{
+    my ($repo_path, $base_rev, $rev) = @_;
+    # Create our various objects for generating the diff
+    my $repos_ptr = SVN::Repos::open($repo_path);
+    my $fs_ptr = SVN::Repos::fs($repos_ptr);
+    my $root = SVN::Fs::revision_root($fs_ptr, $rev);
+    my $base_root = SVN::Fs::revision_root($fs_ptr, $base_rev);
+    my $editor = new Spine::Publisher::ChangeHarvester();
+
+    #
+    # HERE YE! HERE YE! READ THIS NOW!!!
+    #
+    # The docs for the svn perl bindings are WRONG in MANY places. This code
+    # works thanks to digging into all of the XS code in the perl-bindings and
+    # the svn libraries themselves. All relevent data has been put here for
+    # ease of future coders who need to work on this, or any other perl-svn
+    # code. READ IT!
+    #
+    # The C code expects the following 14 arguments
+    # svn_repos_dir_delta(src_root,src_parent_dir,src_entry,
+    #			tgt_root,tgt_path,
+    #			editor,edit_baton,
+    #			authz_read_func,authz_read_baton,
+    #			text_deltas,recurse,entry_props,ignore_ancestry,pool);
+    #			base root, base_dir, arg3
+    #
+    # However, the perl code DOES NOT accept all of these arguements. It fills
+    # in many of them for you, as the docs indicate. However, the ones which
+    # are required aren't exactly as described in the docs.... here is the
+    # mapping.  Perl arg number starts at 0 because that's the way XS works
+    # (you access arguments using ST(0) - ST(n). However, the c code is called
+    # using the variables arg1 - arg14. Hence those are numbered 1-14 here.
+    #
+    # PERL_ARG#  C_ARG  ARG 
+    # 0          1      base root
+    # 1          2      base dir
+    # 2          3      base entry    *** SEE NOTE 1 BELOW!!!
+    # 3          4      tgt root
+    # 4          5      tgt dir
+    # 5          6      editor
+    #            7      e baton       *** SEE NOTE 2 BELOW!!!
+    #            8      authz func
+    # 6          9      authz baton   *** SEE NOTE 3 BELOW!!!
+    # 7-10       10-13  flags
+    #            14     apr pool      *** APR pools are automagically handled
+    #                                     by the perl code
+    # 
+    # NOTE 1: Despite the docs, base_entry CANNOT BE UNDEF!! It MUST be
+    #         defined or you will segfault.
+    #
+    # NOTE 2: You pass in an editor (SVN::Delta::Editor) object ONLY. The perl
+    #         code will call make_editor for you, thus generating an
+    #         editor_baton. You CAN NOT pass an editor baton in!
+    #
+    # NOTE 3: The perl code has it's own authz callback function which it
+    #         passes in - the baton you pass in is actually YOUR OWN CALLBACK
+    #         - they're call back will pass your call back in as it's baton,
+    #         and then call your callback for you. This means YOU DO NOT GET A
+    #         BATON.
+    #
+ 
+                            # base_root, base_dir, base_entry
+    SVN::Repos::dir_delta(  $base_root, '', '',
+                            # target_root, target_dir
+                            $root, '',
+                            # editor
+                            $editor,
+                            # authzcb_baton
+                            undef,
+                            # 4 flags
+                            0, 1, 0, 0);
+
+    return $editor;
+}
+
+sub grab_config_keys
+{
+    my $editor = shift;
+
+    my $keys = {};
+    foreach my $e (keys(%{$editor->{changes}})) {
+        if ($e =~ /(?<!rubix\-)config\//) {
+            $keys->{$e} = undef;
+        }
+    }
+    return $keys;
+}
+
+sub process_changed_keys
+{
+    my ($keys, $rev, $repo, $data) = @_;
+
+    my $ra = new SVN::Ra($repo);
+    my $fh = new IO::Scalar;
+
+    foreach my $k (keys(%{$keys})) {
+        debug("------KEY: $k");
+        eval {$ra->get_file($k, $rev, $fh);};
+        next if ($@ || !defined($fh->sref));
+        foreach my $line (split(/\n/,${$fh->sref})) {
+            next unless ($line =~ /^# spine_(\w+): (.*)$/);
+            #md == metadata
+            my $md_key = $1;
+            my $md_val = $2;
+            debug("Adding $k for $md_key\n");
+            $data->{$k}->{$md_key} = $md_val;
+        }
+        $fh->close();
+    }
+    $data->{rev} = $rev;
+}
+
+
+# Some basic variables
+my $repo_path = REPO_PATH;
+my $repo = 'file://' . $repo_path;
 my $rev = shift;
-#my $rev = '18100';
 
-#my $POOL = SVN::Pool->new_default();
+# Read in current metadata DB
+my $data = read_existing_data();
 
-my $repos_ptr = SVN::Repos::open($repo);
-my $fs_ptr = SVN::Repos::fs($repos_ptr);
-my $root = SVN::Fs::revision_root($fs_ptr, $rev);
-my $base_root = SVN::Fs::revision_root($fs_ptr, $rev - 1);
-#my $editor = new Spine::Publisher::ChangeHarvester(_debug => 1);
-my $editor = new Spine::Publisher::ChangeHarvester();
+# Get our base revision from there
+my $base_rev = $data->{rev};
+#my $base_rev = $rev - 100;
 
-my $baton;
-#my ($e_ptr, $e_baton) = SVN::Delta::Editor->new($editor);
+debug("base_rev: $base_rev, rev: $rev");
 
-sub foo {
-	return 1;
-}
+my $editor = generate_delta($repo_path, $base_rev, $rev);
 
-#
-# HERE YE! HERE YE! READ THIS NOW!!!
-#
-# The docs for the svn perl bindings are WRONG in MANY places. This code works
-# thanks to digging into all of the XS code in the perl-bindings and the svn
-# libraries themselves. All relevent data has been put here for ease of future
-# coders who need to work on this, or any other perl-svn code. READ IT!
-#
-# The C code expects the following 14 arguments
-# svn_repos_dir_delta(src_root,src_parent_dir,src_entry,
-#			tgt_root,tgt_path,
-#			editor,edit_baton,
-#			authz_read_func,authz_read_baton,
-#			text_deltas,recurse,entry_props,ignore_ancestry,pool);
-#			base root, base_dir, arg3
-#
-# However, the perl code DOES NOT accept all of these arguements. It fills in
-# many of them for you, as the docs indicate. However, the ones which are
-# required aren't exactly as described in the docs.... here is the mapping.
-# Perl arg number starts at 0 because that's the way XS works (you access
-# arguments using ST(0) - ST(n). However, the c code is called using the
-# variables arg1 - arg14. Hence those are numbered 1-14 here.
-#
-# PERL_ARG#  C_ARG  ARG 
-# 0          1      base root
-# 1          2      base dir
-# 2          3      base entry    *** SEE NOTE 1 BELOW!!!
-# 3          4      tgt root
-# 4          5      tgt dir
-# 5          6      editor
-#            7      e baton       *** SEE NOTE 2 BELOW!!!
-#            8      authz func
-# 6          9      authz baton   *** SEE NOTE 3 BELOW!!!
-# 7-10       10-13  flags
-#            14     apr pool      *** APR pools are automagically handled
-#                                     by the perl code
-# 
-# NOTE 1: Despite the docs, base_entry CANNOT BE UNDEF!! It MUST be defined
-#         or you will segfault.
-#
-# NOTE 2: You pass in an editor (SVN::Delta::Editor) object ONLY. The perl
-#         code will call make_editor for you, thus generating an editor_baton.
-#         You CAN NOT pass an editor baton in!
-#
-# NOTE 3: The perl code has it's own authz callback function which it passes
-#         in - the baton you pass in is actually YOUR OWN CALLBACK - they're
-#         call back will pass your call back in as it's baton, and then call
-#         your callback for you. This means YOU DO NOT GET A BATON.
-#
+my $keys = grab_config_keys($editor);
 
-                        # base_root, base_dir, base_entry
-SVN::Repos::dir_delta(  $base_root, '', '',
-			# target_root, target_dir
-			$root, '',
-			# editor
-			$editor,
-			# authzcb_baton
-			undef,
-			# 4 flags
-			0, 1, 0, 0);
-
-my $keys = {};
-foreach my $e (keys(%{$editor->{changes}})) {
-	if ($e =~ /(?<!rubix\-)config\//) {
-		$keys->{$e} = undef;
-	}
-}
+# Free tons of memory...
 $editor->{changes} = undef;
 
-use Data::Dumper;
-print Dumper($keys);
+if (scalar(keys(%$keys)) == 0) {
+	print "No keys changed\n";
+	exit;
+}
+
+print Dumper($data);
+process_changed_keys($keys, $rev, $repo, $data);
+print Dumper($data);
+
+YAML::Syck::DumpFile(DATA_FILE, $data);
