@@ -31,7 +31,7 @@ use Spine::Publisher::ChangeHarvester;
 use constant DATA_FILE => '/tmp/spine.metadata';
 use constant REPO_PATH => '/home/phil/work/repo';
 
-my $debug = 1;
+my $debug = 0;
 
 sub debug
 {
@@ -39,6 +39,9 @@ sub debug
     print STDERR "DEBUG: $msg\n" if ($debug);
 }
 
+#
+# Read in our state file so we don't have to parse the whole tree each time
+#
 sub read_existing_data
 {
     my $data = {};
@@ -50,6 +53,9 @@ sub read_existing_data
     return $data;
 }
 
+#
+# Generate a list of things that changed between the last release and this one
+#
 sub generate_delta
 {
     my ($repo_path, $base_rev, $rev) = @_;
@@ -126,6 +132,9 @@ sub generate_delta
     return $editor;
 }
 
+#
+# Given a list of chagnes, return only those we care about
+#
 sub grab_config_keys
 {
     my $editor = shift;
@@ -139,6 +148,9 @@ sub grab_config_keys
     return $keys;
 }
 
+#
+# Given a list of spine keys, process them for metadata
+#
 sub process_changed_keys
 {
     my ($keys, $rev, $repo, $data) = @_;
@@ -160,21 +172,44 @@ sub process_changed_keys
         }
         $fh->close();
     }
+    debug("Updating DB rev to $rev");
     $data->{rev} = $rev;
 }
 
+#
+# Flush updated metadata to the DB
+#
+sub update_data_file
+{
+    my $data = shift;
+    YAML::Syck::DumpFile(DATA_FILE, $data);
+}
+
+
+#
+# MAIN
+#
 
 # Some basic variables
 my $repo_path = REPO_PATH;
 my $repo = 'file://' . $repo_path;
 my $rev = shift;
 
+unless (defined($rev)) {
+    print STDERR "No revision passed in!\n";
+    exit 1;
+}
+
 # Read in current metadata DB
 my $data = read_existing_data();
 
 # Get our base revision from there
 my $base_rev = $data->{rev};
-#my $base_rev = $rev - 100;
+
+if ($base_rev == $rev) {
+    debug("Base rev and rev are the same");
+    exit;
+}
 
 debug("base_rev: $base_rev, rev: $rev");
 
@@ -186,12 +221,12 @@ my $keys = grab_config_keys($editor);
 $editor->{changes} = undef;
 
 if (scalar(keys(%$keys)) == 0) {
-	print "No keys changed\n";
+	debug("No keys changed");
 	exit;
 }
 
-print Dumper($data);
 process_changed_keys($keys, $rev, $repo, $data);
-print Dumper($data);
 
-YAML::Syck::DumpFile(DATA_FILE, $data);
+update_data_file($data);
+
+
