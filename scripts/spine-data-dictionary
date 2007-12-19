@@ -12,7 +12,6 @@
 #
 # pdibowitz Mon Dec 17 17:30:23 PST 2007
 #
-#
 
 use strict;
 use warnings;
@@ -23,6 +22,7 @@ use SVN::Fs;
 use SVN::Ra;
 use IO::Scalar;
 use YAML::Syck;
+use File::Basename;
 use Data::Dumper;
 
 use lib '../lib/';
@@ -31,7 +31,7 @@ use Spine::Publisher::ChangeHarvester;
 use constant DATA_FILE => '/tmp/spine.metadata';
 use constant REPO_PATH => '/home/phil/work/repo';
 
-my $debug = 0;
+my $debug = 1;
 
 sub debug
 {
@@ -148,6 +148,26 @@ sub grab_config_keys
     return $keys;
 }
 
+sub process_val
+{
+    my ($data, $key, $md_key, $md_val) = @_;
+
+    if ($$md_key eq 'tags') {
+        my @array = split(/\s*,\s*/,$$md_val);
+        $$md_val = \@array;
+
+        foreach my $tag (@{$$md_val}) {
+            unless (exists($data->{'tagmap'}->{$tag})) {
+                $data->{'tagmap'}->{$tag} = {};
+            }
+            my $keyname = basename($key);
+            $data->{'tagmap'}->{$tag}->{$keyname} = undef;
+        }
+    }
+
+    $data->{$key}->{$$md_key} = $$md_val;
+}
+
 #
 # Given a list of spine keys, process them for metadata
 #
@@ -155,6 +175,11 @@ sub process_changed_keys
 {
     my ($keys, $rev, $repo, $data) = @_;
 
+    # As far as I can tell, there's no "get_file" equivalent
+    # in SVN::Fs or any other "local" module and there's
+    # no equivalent of the functions we use in SVN::Fs in SVN::Ra
+    # so despite the fact they're a bit overlapping, we really do
+    # need both.
     my $ra = new SVN::Ra($repo);
     my $fh = new IO::Scalar;
 
@@ -163,10 +188,11 @@ sub process_changed_keys
         eval {$ra->get_file($k, $rev, $fh);};
         next if ($@ || !defined($fh->sref));
         foreach my $line (split(/\n/,${$fh->sref})) {
-            next unless ($line =~ /^# spine_(\w+): (.*)$/);
-            #md == metadata
+            next unless ($line =~ /^# spine_(\w+):\s*(.*)$/);
+            # md == metadata
             my $md_key = $1;
             my $md_val = $2;
+            process_val($data, $k, \$md_key, \$md_val);
             debug("Adding $k for $md_key\n");
             $data->{$k}->{$md_key} = $md_val;
         }
@@ -195,6 +221,7 @@ my $repo_path = REPO_PATH;
 my $repo = 'file://' . $repo_path;
 my $rev = shift;
 
+# Make sure we have a revision
 unless (defined($rev)) {
     print STDERR "No revision passed in!\n";
     exit 1;
@@ -206,27 +233,32 @@ my $data = read_existing_data();
 # Get our base revision from there
 my $base_rev = $data->{rev};
 
+# Make sure we have something to do
 if ($base_rev == $rev) {
     debug("Base rev and rev are the same");
     exit;
 }
-
 debug("base_rev: $base_rev, rev: $rev");
 
+# Generate our delta
 my $editor = generate_delta($repo_path, $base_rev, $rev);
 
+# Grab just the delta we care about
 my $keys = grab_config_keys($editor);
 
 # Free tons of memory...
 $editor->{changes} = undef;
 
+# Make sure there's still something to do
 if (scalar(keys(%$keys)) == 0) {
 	debug("No keys changed");
 	exit;
 }
 
+# Update our structure of metadata
 process_changed_keys($keys, $rev, $repo, $data);
 
+# Write the metadata back to our DB
 update_data_file($data);
 
 
