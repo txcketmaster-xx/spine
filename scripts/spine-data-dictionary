@@ -152,6 +152,8 @@ sub process_val
 {
     my ($data, $key, $md_key, $md_val) = @_;
 
+    my $keyname = basename($key);
+    my $location = dirname($key);
     if ($$md_key eq 'tags') {
         my @array = split(/\s*,\s*/,$$md_val);
         $$md_val = \@array;
@@ -160,12 +162,11 @@ sub process_val
             unless (exists($data->{'tagmap'}->{$tag})) {
                 $data->{'tagmap'}->{$tag} = {};
             }
-            my $keyname = basename($key);
             $data->{'tagmap'}->{$tag}->{$keyname} = undef;
         }
     }
 
-    $data->{$key}->{$$md_key} = $$md_val;
+    $data->{'keys'}->{$keyname}->{$location}->{$$md_key} = $$md_val;
 }
 
 #
@@ -194,7 +195,7 @@ sub process_changed_keys
             my $md_val = $2;
             process_val($data, $k, \$md_key, \$md_val);
             debug("Adding $k for $md_key\n");
-            $data->{$k}->{$md_key} = $md_val;
+            #$data->{$k}->{$md_key} = $md_val;
         }
         $fh->close();
     }

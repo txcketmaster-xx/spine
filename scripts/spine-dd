@@ -1,0 +1,118 @@
+#!/usr/bin/perl
+
+# -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
+# vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
+
+#
+# This is a test-driver for the data dictionary... don't look too closely
+# as it's not much to look at yet. :)
+#
+
+use strict;
+use warnings;
+use Getopt::Long qw(:config bundling);
+use YAML::Syck;
+use Data::Dumper;
+
+use constant METADATA => '/tmp/spine.metadata';
+use constant MODE_LIST_KEYS => 0;
+use constant MODE_LIST_TAGS => 1;
+use constant MODE_KEY_INFO => 2;
+
+
+sub get_metadata
+{
+    # This function will eventually retrieve metadata over HTTP
+    # but this is just testing
+    my $data = YAML::Syck::LoadFile(METADATA);
+
+    return $data;
+}
+
+sub list_keys_from_tag
+{
+    my ($data,$tag) = @_;
+
+    print "The following keys have been tagged with \"$tag\":\n\t";
+    print join("\n\t", keys(%{$data->{'tagmap'}->{$tag}})) . "\n";
+}
+
+sub list_keys
+{
+    my $data = shift;
+
+    print "All Keys (with metadata):\n\t";
+    print join("\n\t", keys(%{$data->{'keys'}})) . "\n";
+}
+
+sub list_tags
+{
+    my $data = shift;
+
+    print "All Tags:\n\t";
+    print join("\n\t", keys(%{$data->{'tagmap'}})) . "\n";
+}
+
+sub list_tags_from_key
+{
+}
+
+sub dump_key
+{
+    my ($data, $key) = @_;
+
+    print "Metadata for key \"$key\"\n";
+    foreach my $loc (keys(%{$data->{'keys'}->{$key}})) {
+        print "  **** LOCATION: $loc\n\t";
+        print Dumper($data->{'keys'}->{$key}->{$loc});
+    }
+}
+
+my $opts = {};
+GetOptions($opts,
+    'debug|d',
+    'list-keys',
+    'tag=s',
+    'list-tags',
+    'key-info|key=s',
+    ) || die("Bad args");
+
+my $mode;
+
+my @modes = qw(list-keys list-tags key-info);
+my $n = 0;
+
+foreach my $mode (@modes) {
+    if (exists($opts->{$mode})) {
+        $n++;
+    }
+}
+
+if ($n > 1) {
+    die("Only one of --list-keys or --list-tags allowed at a time");
+} elsif ($n < 0) {
+    die("No mode options specified");
+} elsif (exists($opts->{'list-keys'})) {
+    $mode = MODE_LIST_KEYS;
+} elsif (exists($opts->{'list-tags'})) {
+    $mode = MODE_LIST_TAGS;
+} elsif (exists($opts->{'key-info'})) {
+    $mode = MODE_KEY_INFO;
+} else {
+    die("Couldn't deteremine mode\n");
+}
+
+my $data = get_metadata();
+
+if ($mode == MODE_LIST_KEYS) {
+    if (exists($opts->{'tag'})) {
+        list_keys_from_tag($data,$opts->{'tag'});
+    } else {
+        list_keys($data);
+    }
+} elsif ($mode == MODE_LIST_TAGS) {
+    list_tags($data);
+} elsif ($mode == MODE_KEY_INFO) {
+    dump_key($data, $opts->{'key-info'});
+}
+
