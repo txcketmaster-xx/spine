@@ -29,6 +29,7 @@ use lib '../lib/';
 use Spine::Publisher::ChangeHarvester;
 
 use constant DATA_FILE => '/tmp/spine.metadata';
+use constant HTML_FILE => '/tmp/spine.html';
 use constant REPO_PATH => '/home/phil/work/repo';
 
 my $debug = 1;
@@ -212,6 +213,128 @@ sub update_data_file
     YAML::Syck::DumpFile(DATA_FILE, $data);
 }
 
+sub print_html_headers
+{
+    my $fh = shift;
+
+    print $fh "<html><body>\n";
+}
+
+sub print_html_footers
+{
+    my $fh = shift;
+
+    print $fh "</body></html>\n";
+}
+
+sub href_array
+{
+    my ($array_ptr, $prefix) = @_;
+    my @array = map {
+        '<a href="#' . $prefix . $_ . '">' . $_ . '</a>';
+        } @{$array_ptr};
+    my $str = join(', ', @array);
+    return \$str;
+}
+
+sub print_key_table
+{
+    my ($fh, $data) = @_;
+
+    print $fh "<h2>Key Table</h2>\n";
+    print $fh "<table border=1 cellpadding=5>\n";
+    print $fh '<tr><th>key</th><th>location</th><th>description</th>'
+        . '<th>tags</th><th>other</th>' . "\n";
+
+    foreach my $key (keys(%{$data->{'keys'}})) {
+        my $key_p = $data->{'keys'}->{$key};
+        my $num_locs = scalar(keys(%{$key_p}));
+        my $rowspan = '';
+        if ($num_locs > 1) {
+            $rowspan = " rowspan=$num_locs";
+        }
+        print $fh "<tr>\n<td$rowspan><a name=\"SK_$key\">$key</a></td>";
+        my $c = 0;
+        foreach my $loc (keys(%{$key_p})) {
+            unless ($c == 0) {
+                print $fh '<tr>';
+            }
+            my $loc_p = $key_p->{$loc};
+            my $description = exists($loc_p->{'description'})
+                ? $loc_p->{'description'} : '';
+            my $tags = exists($loc_p->{'tags'})
+                ? ${href_array($loc_p->{'tags'}, 'ST_')} : '';
+            print $fh "<td>$loc</td><td>"
+                . "$description</td><td>$tags</td><td>";
+            foreach my $md (keys(%{$loc_p})) {
+                next if ($md =~ /^description|tags$/);
+                print $fh "$md: $loc_p->{$md} ";
+            }
+            print $fh "</td></tr>\n";
+            $c++;
+        }
+    }
+
+    print $fh "</table>\n";
+}
+
+sub print_tag_table
+{
+    my ($fh, $data) = @_;
+
+    print $fh "<h2>Tag Table</h2>\n";
+    print $fh "<table border=1 cellpadding=5>\n";
+    print $fh "<tr><th>tag</th><th>keys</th></tr>\n";
+    foreach my $tag (keys(%{$data->{'tagmap'}})) {
+        print $fh '<tr><td><a name="ST_' . $tag . '">' . "$tag</a></td><td>"
+            . ${href_array([ keys(%{ $data->{'tagmap'}->{$tag} }) ], 'SK_')};
+        print $fh "</td></tr>\n";
+    }
+    print $fh "</table>\n";
+}
+
+sub dump_html
+{
+    my $data = shift;
+
+    my $fh = new IO::Handle;
+    open($fh, '>' . HTML_FILE)
+        || die('Failed to open ' . HTML_FILE . ": $!");
+
+    print_html_headers($fh);
+
+    print_key_table($fh, $data);
+    print_tag_table($fh, $data);
+
+    # Quick hack to be able to test the internal-href's on a short page.
+    print $fh <<EOF
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+EOF
+;
+
+    print_html_footers($fh);
+
+    close($fh);
+}
+    
 
 #
 # MAIN
@@ -258,6 +381,9 @@ if (scalar(keys(%$keys)) == 0) {
 
 # Update our structure of metadata
 process_changed_keys($keys, $rev, $repo, $data);
+
+# Write HTML
+dump_html($data);
 
 # Write the metadata back to our DB
 update_data_file($data);
