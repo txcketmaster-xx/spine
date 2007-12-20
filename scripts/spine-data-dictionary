@@ -361,6 +361,9 @@ my $base_rev = $data->{rev};
 if ($base_rev == $rev) {
     debug("Base rev and rev are the same");
     exit;
+} elsif ($base_rev > $rev) {
+    print("Going back in time is bad! No, I will not! You cannot make me!\n");
+    exit 1;
 }
 debug("base_rev: $base_rev, rev: $rev");
 
