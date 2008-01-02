@@ -4,8 +4,12 @@
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
 #
-# This is a test-driver for the data dictionary... don't look too closely
-# as it's not much to look at yet. :)
+# This is the command-line interface to the Spine Data Dictionary. It
+# retrieves the metadata provided by the post-commit hook and provides useful
+# ways to access that data.
+#
+# Written by Phil Dibowitz <phil@ticketmaster.com>
+#   Wed Jan  2 13:20:01 PST 2008
 #
 
 use strict;
@@ -14,17 +18,41 @@ use Getopt::Long qw(:config bundling);
 use YAML::Syck;
 use Data::Dumper;
 
-use constant METADATA => '/tmp/spine.metadata';
+use constant VERSION => '1.0';
+use constant DEFAULT_URI => '/tmp/spine.metadata';
 use constant MODE_LIST_KEYS => 0;
 use constant MODE_LIST_TAGS => 1;
 use constant MODE_KEY_INFO => 2;
 
-
 sub get_metadata
 {
+    my $uri = shift;
+    my $raw;
+
+    if ($uri =~ m/^(?:http|ftp):\/\//) {
+        use LWP::UserAgent;
+        my $ua = new LWP::UserAgent;
+        $ua->timeout(5);
+        $ua->agent('spine-dd');
+        my $response = $ua->get($uri);
+        unless ($response->is_success) {
+            die "Failed to retreive $uri with LWP::Agent: "
+                . $response->code;
+        }
+        $raw = $response->content;
+    } elsif ($uri =~ m/^file:\/\// || $uri =~ m/^\//) {
+        my $filename = $uri;
+        $filename =~ s/^file:\/\///;
+        open(FILE, "<$filename") || die "Can't open $filename: $!";
+        $raw = join('',<FILE>);
+        close(FILE);
+    } else {
+        die "Couldn't determine protocol handler for URI $uri";
+    } 
+
     # This function will eventually retrieve metadata over HTTP
     # but this is just testing
-    my $data = YAML::Syck::LoadFile(METADATA);
+    my $data = YAML::Syck::Load($raw);
 
     return $data;
 }
@@ -68,14 +96,50 @@ sub dump_key
     }
 }
 
+sub usage
+{
+    print "$0 v" . VERSION . "\n\n";
+    print "One of the following modes must be specified.\n\n";
+    print "     --key-info <key>\n";
+    print "         Print information about <key>. Also can be specified as"
+            . " --key.\n\n";
+    print "     --list-keys\n";
+    print "         Print a list of all keys.\n\n";
+    print "     --list-tags\n";
+    print "         Print a lsit of all tags.\n\n";
+    print "And the following options are available.\n\n";
+    print "     -d, --debug\n";
+    print "         Enable debugging.\n\n";
+    print "     -h, --help\n";
+    print "         Print this message and exit.\n\n";
+    print "     -u, --uri <uri>\n";
+    print "         Retreive metadata from <uri>.\n\n";
+    print "     -v, --version\n";
+    print "         Print version and exit.\n\n";
+
+    exit;
+}
+
 my $opts = {};
 GetOptions($opts,
     'debug|d',
-    'list-keys',
-    'tag=s',
-    'list-tags',
+    'help|h',
     'key-info|key=s',
-    ) || die("Bad args");
+    'list-keys',
+    'list-tags',
+    'tag=s',
+    'uri|u=s',
+    'version|v',
+    ) || usage();
+
+if (exists($opts->{'version'})) {
+    print "$0 v" . VERSION . "\n";
+    exit;
+}
+
+if (exists($opts->{'help'})) {
+    usage();
+}
 
 my $mode;
 
@@ -102,7 +166,12 @@ if ($n > 1) {
     die("Couldn't deteremine mode\n");
 }
 
-my $data = get_metadata();
+my $uri = DEFAULT_URI;
+if (exists($opts->{'uri'})) {
+    $uri = $opts->{'uri'};
+}
+
+my $data = get_metadata($uri);
 
 if ($mode == MODE_LIST_KEYS) {
     if (exists($opts->{'tag'})) {
