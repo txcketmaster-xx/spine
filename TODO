@@ -1,0 +1,53 @@
+IN PROGRESS
+ - Data dictionary
+   Post-commit hook looks for specially-formatted comments and builds a database
+   of metadata about keys.
+
+   Post-commit hook then makes this metadata available in raw format as well as
+   building HTML about it
+
+   A command-line utility is able to retreive this raw metadata and provide a
+   queriable interface to it.
+
+
+TO DO SOON
+ - Move to Log::Log4perl
+ - Standarize output
+ - Track errors in template by line
+ - Track errors in config keys by line
+
+
+TO DO
+ - Inventory system
+   A module submits hardware info (from lshw, which uses DMI decode) to a CGI
+
+   A CGI uses data to update hardware invetory data base. The challenge here is
+   to avoid duplicates, but we can handle that fairly simply:
+    * Chassis UUID is our main key. If this is the same, it's the same hardware,
+      so if the hostname changed, the old host can be assumed to have gone away
+      until we see it on new hardware
+    * If the Chassis UUID is different, but it's an existing hostname, we did
+      a chassis replacement. That chassis can be assumed to have gone into a
+      spare/old/RMA pool
+   When a hostname or UUID has "gone away", the data should be retained but
+   marked to not to be shown (until we see it again, thus making it active
+   with new data). By gone away, I mean one of the two above situations.
+
+   Once we handle the problem of duplication, then we simply check for changse
+   (using checksum of all data sent to us as a good start), and then update
+   the database with the latest data
+
+   Another CGI will provide a queriable interface for this data.
+
+
+TO DO, BUT CURRENTLY ON SOMEONE ELSE'S PLATE
+ - PackageManager:: abstraction layer
+   Package management needs to be abstracted. All of Spine::RPM and
+   Spine::RPMPackageManager.pm need to be put behind an abstraction class
+   that provides a generic API for talking to things like apt-get/yum/apt-rpm,
+   etc.
+
+   Currently Richard Pounder is working on this.
+
+
+
