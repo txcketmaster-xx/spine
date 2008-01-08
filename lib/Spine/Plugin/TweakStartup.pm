@@ -54,15 +54,18 @@ sub tweak_startup
 
     my $rval = 0;
 
-    my $init_dir = $c->getval("init_dir");
+    my $init_dir = $c->getval('init_dir');
 
     # Action specific values
-    my $stop = $c->getval("startup_execstop");
+    my $stop = $c->getval('startup_execstop');
     my $services_ignore = $c->getvals('startup_ignore');
-    my $services_on = $c->getvals("startup");
+    my $services_on = $c->getvals('startup');
 
     # Data from the previous run
-    my $last_services_on = $l->getvals("startup");
+    my $last_services_on = [];
+    if (defined($l)) {
+        $last_services_on = $l->getvals('startup');
+    }
 
     $DRYRUN = $c->getval('c_dryrun');
     $CHKCONFIG = $c->getval('chkconfig_bin');
@@ -77,11 +80,11 @@ sub tweak_startup
         # scripts in /etc/init.d/.
         next if ( grep(/$service/, @{$services_ignore}) );
 
-        my $status = "off";
-        $status = "on" if ( grep(/^${service}$/, @{$services_on}) );
+        my $status = 'off';
+        $status = 'on' if ( grep(/^${service}$/, @{$services_on}) );
 
 	# Stop daemons that are not supposed to be running.
-	if ( ($status eq "off") and ($stop)
+	if ( ($status eq 'off') and ($stop)
                 and (is_service_enabled($c, $service)) )
 	{
 	    $c->cprint("stopping $service", 2);
