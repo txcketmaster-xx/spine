@@ -41,6 +41,8 @@ use UNIVERSAL;
 use YAML::Syck;
 use JSON::Syck;
 
+our $VERSION = sprintf("%d", q$Revision: 1$ =~ /(\d+)/);
+
 our $DEBUG = $ENV{SPINE_DATA_DEBUG} || 0;
 our ($PARSER_FILE, $PARSER_LINE, $KEYTT);
 
@@ -114,8 +116,7 @@ sub _data
     # interference with any later ones
     $KEYTT = undef;
 
-#    chdir($cwd);
-    chdir('/');
+    chdir($cwd);
     return $rc;
 }
 
@@ -488,7 +489,7 @@ sub _convert_lame_to_TT
     foreach my $condition (@querystring) {
         my ($var, $regex) = split(/=/, $condition, 2);
 
-        push @conditions, "c.$var.search(\"$regex\")";
+        push @conditions, "c.$var.search('$regex')";
     }
 
     $new .= join(' AND ', @conditions);
