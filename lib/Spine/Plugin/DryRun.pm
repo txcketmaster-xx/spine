@@ -44,6 +44,10 @@ sub is_dryrun
 {
     my $c = shift;
 
+    unless ($DRYRUN) {
+        return PLUGIN_SUCCESS;
+    }   
+
     # Make sure we don't save state
     $::SAVE_STATE = 0;
 
