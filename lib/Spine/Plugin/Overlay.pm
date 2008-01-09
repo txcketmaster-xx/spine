@@ -207,7 +207,8 @@ sub apply_overlay
         {
             # if the source/dest file is binary, don't bother calculating
             # diffs, since they are likely undisplayable anyways
-            if ( (-B $destfile) || (-B $srcfile) )
+            if ( (-B $destfile && ! -z $destfile)
+                  || (-B $srcfile && ! -z $srcfile) )
             {
                 $c->print(2, "Patching binary file $destfile");
                 next;
