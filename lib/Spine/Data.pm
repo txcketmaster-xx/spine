@@ -529,31 +529,6 @@ sub _TT_hash_search
 
 
 #
-# This evil little bugger is to support odd workarounds in the limitations of
-# the MATCH style syntax.  There's no explicit way to determine if some key
-# *doesn't* exist in the Rubix::Data object.  The conversion to pure TT syntax
-# means that the undef value that is returned when a key doesn't exists() in
-# was never being compared in a regex.  This mean that any weird crap like
-# "^(?!1)" wouldn't return a true value like was desired.  With this slightly
-# tweaked virtual method replacement, we restore the original behaviour when
-# converting keys.
-#
-#
-# FIXME  This should go away as soon as the laggy TM admin groups switch away
-#        from the 1.x tree
-#
-# rtilder    Wed Jan  9 13:46:04 PST 2008
-#
-sub _TT_lame_scalar_search_wrapper
-{
-    my ($str, $pattern) = @_;
-    $str = '' unless defined($str);
-    return $str unless defined $pattern;
-    return $str =~ /$pattern/;
-}
-
-
-#
 # Process a key file's contents as a template
 #
 # TODO:
@@ -580,14 +555,6 @@ sub _templatize_key
     unless (defined($KEYTT)) {
         Template::Stash->define_vmethod('list', 'search', \&_TT_list_search);
         Template::Stash->define_vmethod('hash', 'search', \&_TT_hash_search);
-        #
-        # FIXME  This should go away as soon as the laggy TM admin groups
-        #        switch away from the 1.x tree
-        #
-        # rtilder    Wed Jan  9 13:46:04 PST 2008
-        #
-        Template::Stash->define_vmethod('scalar', 'search',
-                                        \&_TT_lame_scalar_search_wrapper);
 
         $KEYTT = new Template( { CACHE_SIZE => 0 } );
     }
