@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::TweakStartup;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(exec_initscript);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -40,7 +41,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 use File::Basename;
 
-my ($DRYRUN, $CHKCONFIG, $SERVICE);
+my ($DRYRUN, $CHKCONFIG);
 
 
 sub tweak_startup
@@ -69,7 +70,6 @@ sub tweak_startup
 
     $DRYRUN = $c->getval('c_dryrun');
     $CHKCONFIG = $c->getval('chkconfig_bin');
-    $SERVICE = $c->getval('service_bin');
 
     foreach my $startscript (<$init_dir/*>)
     {
@@ -126,21 +126,6 @@ sub config_init
     if ($result)
     {
         $c->error("failed for $service [$result]", "err");
-        return 0;
-    }
-    return 1;
-}
-
-
-sub exec_initscript
-{
-    my ($c, $service, $function, $report_error) = @_;
-    return 1 if $DRYRUN;
-
-    my $result = `$SERVICE $service $function 2>&1`;
-    if ($? > 0 and $report_error > 0)
-    {
-        $c->error("failed to $function $service", 'err');
         return 0;
     }
     return 1;
