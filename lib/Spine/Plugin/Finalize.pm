@@ -330,16 +330,14 @@ sub determine_smp_disposition
     #
     # rtilder    Tue Apr 24 13:08:41 PDT 2007
     #
-    if (defined($disposition) and $disposition)
+    if (defined($disposition))
     {
-        return $disposition;
-    }
+        # So retarded and yet so entertaining
+        if ($disposition eq $c->getval_last('magic_unified_smp_value')) {
+            return '';
+        }
 
-    # As of RHEL 5, all kernels are SMP capable
-    # FIXME   Super K-LAME
-    if ($c->getval('c_distro') eq 'AS5')
-    {
-        return '';
+        return $disposition;
     }
 
     my $running_smp = 1 if ($running_kernel =~ m/smp$/i);	
