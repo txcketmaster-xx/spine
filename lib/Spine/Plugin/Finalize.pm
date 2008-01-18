@@ -192,18 +192,19 @@ sub boot_loader_config
         }
         undef @new, @old;
 
-        if ($changed)
+        unless ($changed)
         {
             $c->print(3, 'no changes to kernel arguments.');
             return PLUGIN_SUCCESS;
         }
     }
 
-    $new_kernel_args = join(' ', @{$new_kernel_args});
-    $c->print(3, "appending kernel args \[$new_kernel_args\]");
-
     # Get the arguments currently set for the default kernel
     $c->print(3, "detected default kernel args \[$grub_default_info->{args}\]");
+
+    $c->cprint("appending kernel args \[@{$new_kernel_args}\]", 3);
+    $new_kernel_args = join(' ', $grub_default_info->{args},
+                            @{$new_kernel_args});
 
     # Since we may be changing args without changing the kernel we always run
     # through this unless we failed to change the kernel, we don't want to for
@@ -321,11 +322,11 @@ sub determine_smp_disposition
 {
     my ($c, $running_kernel, $grub_default) = @_;
 
-    my $disposition = $c->getval('smp_disposition');
+    my $disposition = $c->getval_last('smp_disposition');
 
     # If it's been explicitly defined, just return it.  This permits overrides
     # for things like the largesmp kernels that are needed for more than 8
-    # cores on on x86_64 boxes like the Sun x4600 servers used for the U.S.
+    # cores on x86_64 boxes like the Sun x4600 servers used for the U.S.
     # TDBs beginning in April 2007. </run on>
     #
     # rtilder    Tue Apr 24 13:08:41 PDT 2007
@@ -345,8 +346,7 @@ sub determine_smp_disposition
     my $processors = $c->getval_last('c_num_procs');
 
     # Use an SMP kernel if we have more than one processor
-    if ( (not $running_smp and $grub_smp)
-         or $processors > 1)
+    if ((not $running_smp and $grub_smp) or $processors > 1)
     {
         $disposition = 'smp';
     }
