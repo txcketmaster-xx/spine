@@ -146,6 +146,13 @@ sub populate
     $self->{c_internals_dir} = 'spine_internals';
     $self->_get_values($self->{c_internals_dir});
 
+    my @dir_list = (ref($self->{'spine_local_internals_dirs'}) eq 'ARRAY')
+        ? @{$self->{'spine_local_internals_dirs'}}
+        : ($self->{'spine_local_internals_dirs'});
+    foreach my $dir (@dir_list) {
+        $self->_get_values($dir);
+    }
+
     #
     # Begin discovery
     #
