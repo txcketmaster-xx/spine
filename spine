@@ -873,7 +873,7 @@ Examples:
 
     spine --profile apply_auth
     spine --action apply_overlay --action process_templates
-    spine --croot /tmp/testconfig some.host.name.tld
+    spine --croot /tmp/testconfig --hostname some.host.name.tld
 
 Notes:
 
