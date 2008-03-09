@@ -33,13 +33,8 @@ $DESCRIPTION = "Spine::Plugin skeleton";
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
-            hooks => { DISCOVERY => {},
-                       PARSE => {},
-                       PREPARE => {},
-                       AUDIT => {},
-                       EMIT => {},
-                       APPLY => {},
-                       CLEAN => {}
+            hooks => { EMIT => [ { name => 'first_run',
+                                    code => \&first_run } ]
                      },
           };
 
@@ -83,7 +78,7 @@ sub first_run
     if ($rval == 0)
     {
 	Spine::Util::touch("${state_dir}/installed");
-	return SPINE_SUCCESS;
+	return PLUGIN_SUCCESS;
     }
     else
     {
