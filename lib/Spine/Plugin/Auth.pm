@@ -1410,7 +1410,7 @@ sub _generate_authorized_keys
 
         $c->print(3, "Adding " . scalar(@keys) . " keys to \"$user\"'s key file");
 
-        foreach (@keys) {
+        foreach (sort @keys) {
             $c->print(7, "Adding to \"$keyfile\": $_");
             unless (print KEYS $_, "\n") {
                 $c->error("Failed to output to $keyfile: $!", 'crit');
