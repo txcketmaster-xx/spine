@@ -91,6 +91,10 @@ sub restart_services
         {
             @file_dependancies = map { $tmpdir . $_ } @fields;
         }
+        else
+        {
+            @file_dependancies = @fields;
+        }
 
         foreach my $file ( @file_dependancies )
         {
