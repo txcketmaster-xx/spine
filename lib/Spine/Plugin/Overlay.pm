@@ -169,6 +169,12 @@ sub apply_overlay
     $DRYRUN = $c->getval('c_dryrun');
     @ENTRIES = ();
 
+    if ($overlay_root eq '')
+    {
+        $c->error('overlay_root key does not exist, no changes will be'
+                    . 'applied!', 'alert');
+    }
+
     unless (-d $tmpdir)
     {
 	$c->error("temp directory [$tmpdir] does not exist", 'crit');
