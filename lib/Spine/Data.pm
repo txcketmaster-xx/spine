@@ -292,11 +292,7 @@ sub _get_values
     my $directory = shift;
     my $keys_dir = $self->getval_last('config_keys_dir') || 'config';
 
-    # Check for the user defined configuration keys directory.
-    if (-d catdir($directory, $keys_dir)) {
-        my $foo = catdir($directory, $keys_dir);
-        $directory = $foo;
-    }
+    $directory = catdir($directory, $keys_dir);
 
     # It's perfectly OK to have an overlay-only tree or directory in the
     # descend order that is only a hierachical organizer that doesn't require
