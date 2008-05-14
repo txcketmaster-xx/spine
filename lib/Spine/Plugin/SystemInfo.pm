@@ -208,6 +208,18 @@ sub is_virtual
 
     $fh->close();
 
+    # We will do an additional check to see if this is a xen based vm.  
+    # very easy to do as we simply check the existance of /proc/xen
+    # based on input, I'm setting this to xen, it could be set to something
+    # like 2 with a pseudo define where 1 = vmware, 2 = xen
+    my $xen_indicator="/proc/xen";
+
+    if ( -d $xen_indicator ) {
+        $c->{c_is_virtual} = "xen";
+    }
+
+
+
     return PLUGIN_SUCCESS;
 }
 
