@@ -336,9 +336,9 @@ sub install_method
         error("Duplcate method in Spine::Data: \"$method_name\"");
         return SPINE_FAILURE;
     }
-    use strict 'refs';
 
     *{$dest} = $coderef;
+    use strict 'refs';
 
     return SPINE_SUCCESS;
 }

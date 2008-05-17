@@ -48,6 +48,10 @@ our ($PARSER_FILE, $PARSER_LINE, $KEYTT);
 
 our ($DATA_PARSED, $DATA_POPULATED) = (SPINE_NOTRUN, SPINE_NOTRUN);
 
+# FIXME, we can't store codrefs within data, so they are here for now
+# note sure that I like this place (this is due to State using storable)
+my $KEYTYPES = {};
+
 sub new {
     my $class = shift;
     my %args = @_;
@@ -195,6 +199,43 @@ sub populate
     return SPINE_SUCCESS;
 }
 
+# Allow keytypes to be added, if detect is a code ref then the buffer is passed with
+# the file name and the key name to the detect function otherwise detect has to be a
+# regex that will be compared to the first lone of the key. parser has to be a code ref.
+#
+# XXX I thought about having this suggest that it could support IO::Handle
+# this would brake templatization of that complex key and also any data sources
+# that end up not being file based.
+sub install_keytype {
+    my $self = shift;
+    my ($name, $detect, $parser) = @_;
+
+    my $keytypes = $KEYTYPES;
+
+    $self->cprint("installing keytype, $name", 3);
+
+    if (exists $keytypes->{$name}) {
+        # TODO decide if this should be a warn or just a print
+        $self->error("install_keytype(): overriding previous keytype, $name", 'warn');
+    }
+
+    if (ref($detect) !~ m/^(?:CODE|)$/) {
+        $self->error("install_keytype(): bad detection type for keytype, $name", 'err');
+        return SPINE_FAILURE;
+    }
+
+    if (ref($parser) ne "CODE") {
+        $self->error("install_keytype(): bad parser code ref for keytype, $name", 'err');
+        return SPINE_FAILURE;
+    }
+
+    $keytypes->{$name} = { detect => $detect,
+                           parser => $parser,};
+
+    return SPINE_SUCCESS;
+
+}
+
 
 sub parse
 {
@@ -292,11 +333,7 @@ sub _get_values
     my $directory = shift;
     my $keys_dir = $self->getval_last('config_keys_dir') || 'config';
 
-    # Check for the user defined configuration keys directory.
-    if (-d catdir($directory, $keys_dir)) {
-        my $foo = catdir($directory, $keys_dir);
-        $directory = $foo;
-    }
+    $directory = catdir($directory, $keys_dir);
 
     # It's perfectly OK to have an overlay-only tree or directory in the
     # descend order that is only a hierachical organizer that doesn't require
@@ -319,32 +356,35 @@ sub _get_values
 
     foreach my $keyfile (sort(@files))
     {
-	# Key names beginning with c_ are reserved for values
-	# that are automatically populated by the this module.
-	my $keyname = basename($keyfile);
-        if ($keyname eq '.' or $keyname eq '..') {
+        # Key names beginning with c_ are reserved for values
+        # that are automatically populated by the this module.
+        my $keyname = basename($keyfile);
+            if ($keyname eq '.' or $keyname eq '..') {
+                next;
+            }
+
+        if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
+            $self->error("ignoring $directory/$keyname because of lame"
+                             . ' file name');
             next;
         }
 
-	if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
-	    $self->error("ignoring $directory/$keyname because of lame"
-                         . ' file name');
-	    next;
-	}
-
-	# Read the contents of a file.  Filename is stored
-	# as the key, where values are the contents.		
-	my $values = $self->_read_keyfile(catfile($directory, $keyfile),
-                                          $keyname);
-
-        if (not defined($values)) {
+    
+        # Read the contents of a file.  Filename is stored
+        # as the key, where value(s) are the contents.      
+        my $value = $self->_read_keyfile(catfile($directory, $keyfile),
+                                              $keyname);
+    
+        if (not defined($value)) {
             return SPINE_FAILURE;
         }
+    
+        if (ref($value) eq 'ARRAY') {
+            push(@{$self->{$keyname}}, @{$value});
+        } else {
+            $self->{$keyname} = $value;
+        }
 
-	foreach my $value (@{$values})
-	{
-	    push(@{$self->{$keyname}}, $value);
-	}
     }
 
     return SPINE_SUCCESS;
@@ -376,6 +416,8 @@ sub _read_keyfile
     my ($file, $keyname) = @_;
     my ($obj, $template, $complex, $buf) = ([], undef, undef, '');
 
+    my $keytypes = $KEYTYPES;
+
     # If the file is a relative path and doesn't exist, try an absolute
     unless (-f $file) {
         unless (file_name_is_absolute($file)) {
@@ -406,7 +448,8 @@ sub _read_keyfile
     (undef, $PARSER_FILE) = split(/^$self->{c_croot}/, $file, 2);
     $self->print(4, "reading key $file");
 
-  LINE: while(<$fh>)
+    my $first_line = undef;
+    LINE: while(<$fh>)
     {
         $PARSER_LINE = $fh->input_line_number();
 
@@ -420,17 +463,17 @@ sub _read_keyfile
             $template = 1;
         }
 
-        # YAML and JSON key files need to have their first line formatted
-        # specifically
-        if ($PARSER_LINE == 1 and m/^#?%(YAML\s+\d+\.\d+|JSON)/o)
+        if ($PARSER_LINE == 1)
         {
-            $complex = $1;
-            $buf = $_ . join('', <$fh>);
-            last LINE;
+            $first_line = $_;
+            chomp($first_line);
         }
 
         # Ignore comments and blank lines.
-        if (m/^\s*$/o or m/^\s*#/o) {
+        # FIXME this is probably bad if we have keytypes that use
+        # other comment structures or the need blank lines...
+        if (m/^\s*$/o or m/^\s*#/o)
+        {
             next LINE;
         }
 
@@ -450,14 +493,29 @@ sub _read_keyfile
     }
 
     # Lastly, we parse the key if it's a complex one
-    if (defined($complex)) {
-        $obj = $self->_parse_complex_key($buf, $file, $complex);
+    my $keytype;
+    foreach (keys %{$keytypes}) {
+        $keytype = $keytypes->{$_};
+        # detect must be a CODE ref, so call it to check
+        if (ref($keytype->{detect}) && &{$keytype->{detect}}($buf, $file)) {
+            $complex = $_;
+        # if it's a SCALAR then we expect it to be a regex
+        } elsif (defined $first_line && $first_line =~ m/$keytype->{detect}/) {
+            $complex = $_;
+        } else {
+            next;
+        }
+        $obj = &{$keytype->{parser}}($self, $buf, $file, $_);
+        last;
     }
-    else {
+                
+    # Only simply return an array of the lines if
+    # this is not a complex obj
+    unless($complex) {
         $obj = [split(m/\n/o, $buf)];
     }
 
-    # _parse_complex_key() handles error reporting
+    # complex key methods should handles and report errors
     unless (defined($obj)) {
         return undef;
     }
@@ -578,78 +636,6 @@ sub _templatize_key
 }
 
 
-#
-# Reads YAML and JSON style keys
-#
-sub _parse_complex_key
-{
-    my $self = shift;
-    my $fh   = shift;
-    my $file = shift;
-    my $method = shift || 'YAML 1.0';
-
-    my $obj = undef;
-    my $buf = undef;
-
-    #
-    # Determine what kind if input we have
-    #
-    if (ref($fh)) {
-        if (UNIVERSAL::isa($fh, 'IO::Handle')) {
-            $buf = join('', <$fh>);
-        }
-        elsif (UNIVERSAL::isa($fh, 'SCALAR')) {
-            $buf = ${$fh};
-        }
-        else {
-            $self->error('Invalid object passed to _parse_complex_key: '
-                         . ref($fh), 'crit');
-            return undef;
-        }
-    }
-    elsif (ref(\$fh) eq 'SCALAR') {
-        $buf = ${$fh};
-    }
-    else {
-        $self->error('Invalid object passed to _parse_complex_key: '
-                     . $fh, 'crit');
-        return undef;
-    }
-
-    #
-    # Now actually try to parse the key
-    #
-    if ($method =~ m/^#?%JSON$/o)
-    {
-        $obj = JSON::Syck::Load($buf);
-    }
-    elsif ($method =~ m/^#?%YAML\s+(\d+\.\d+)$/o)
-    {
-        # Only the YAML v1.0 specification is supported by any YAML parsers
-        # as yet.
-        if ($1 eq '1.0')
-        {
-            $obj = YAML::Syck::Load($buf);
-        }
-        else
-        {
-            $self->error("Invalid YAML version for $file: $1 != 1.0", 'crit');
-        }
-    }
-    else
-    {
-        $self->error("Invalid keyfile format in $file: \"$method\"", 'crit');
-    }
-
-    unless (defined($obj))
-    {
-        $self->error("Failed to load $file!", 'crit');
-    }
-
-    return $obj; # $obj may be undefined here
-}
-
-
 # This is where the fun starts!
 #
 # If we have a reference to a list and the target is a reference to a list
@@ -679,7 +665,6 @@ sub _evaluate_key
                              ref($self->{$keyname}), '".  Replacing with a "',
                              $obj_type, '"');
             }
-            $self->{$keyname} = $obj;
         #}
 
         return $obj;
