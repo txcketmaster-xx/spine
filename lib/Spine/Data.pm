@@ -315,32 +315,33 @@ sub _get_values
 
     foreach my $keyfile (sort(@files))
     {
-	# Key names beginning with c_ are reserved for values
-	# that are automatically populated by the this module.
-	my $keyname = basename($keyfile);
+	    # Key names beginning with c_ are reserved for values
+	    # that are automatically populated by the this module.
+	    my $keyname = basename($keyfile);
         if ($keyname eq '.' or $keyname eq '..') {
             next;
         }
 
-	if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
-	    $self->error("ignoring $directory/$keyname because of lame"
+	    if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
+	        $self->error("ignoring $directory/$keyname because of lame"
                          . ' file name');
-	    next;
-	}
+	        next;
+	    }
 
-	# Read the contents of a file.  Filename is stored
-	# as the key, where values are the contents.		
-	my $values = $self->_read_keyfile(catfile($directory, $keyfile),
-                                          $keyname);
+	    # Read the contents of a file.  Filename is stored
+	    # as the key, where value(s) are the contents.		
+	    my $value = $self->_read_keyfile(catfile($directory, $keyfile),
+                                              $keyname);
 
-        if (not defined($values)) {
+        if (not defined($value)) {
             return SPINE_FAILURE;
         }
 
-	foreach my $value (@{$values})
-	{
-	    push(@{$self->{$keyname}}, $value);
-	}
+        if (ref($value) eq 'ARRAY') {
+	        push(@{$self->{$keyname}}, @{$value});
+        } else {
+            $self->{$keyname} = $value;
+        }
     }
 
     return SPINE_SUCCESS;
@@ -675,7 +676,6 @@ sub _evaluate_key
                              ref($self->{$keyname}), '".  Replacing with a "',
                              $obj_type, '"');
             }
-            $self->{$keyname} = $obj;
         #}
 
         return $obj;
