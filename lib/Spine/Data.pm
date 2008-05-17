@@ -315,22 +315,22 @@ sub _get_values
 
     foreach my $keyfile (sort(@files))
     {
-	    # Key names beginning with c_ are reserved for values
-	    # that are automatically populated by the this module.
-	    my $keyname = basename($keyfile);
+        # Key names beginning with c_ are reserved for values
+        # that are automatically populated by the this module.
+        my $keyname = basename($keyfile);
         if ($keyname eq '.' or $keyname eq '..') {
             next;
         }
 
-	    if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
-	        $self->error("ignoring $directory/$keyname because of lame"
+        if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
+            $self->error("ignoring $directory/$keyname because of lame"
                          . ' file name');
-	        next;
-	    }
+            next;
+       }
 
-	    # Read the contents of a file.  Filename is stored
-	    # as the key, where value(s) are the contents.		
-	    my $value = $self->_read_keyfile(catfile($directory, $keyfile),
+        # Read the contents of a file.  Filename is stored
+        # as the key, where value(s) are the contents.		
+        my $value = $self->_read_keyfile(catfile($directory, $keyfile),
                                               $keyname);
 
         if (not defined($value)) {
@@ -338,7 +338,7 @@ sub _get_values
         }
 
         if (ref($value) eq 'ARRAY') {
-	        push(@{$self->{$keyname}}, @{$value});
+            push(@{$self->{$keyname}}, @{$value});
         } else {
             $self->{$keyname} = $value;
         }
