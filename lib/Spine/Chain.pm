@@ -25,22 +25,10 @@ package Spine::Chain;
 # by either Ryan or Jeff.
 
 use strict;
-use Spine::Constants qw(SPINE_FAILURE SPINE_SUCCESS);
-use base qw(Exporter);
+use Spine::Constants qw(SPINE_FAILURE SPINE_SUCCESS CHAIN_START CHAIN_MIDDLE CHAIN_END);
 
 our ($VERSION, @EXPORT_OK, %EXPORT_TAGS);
 $VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
-
-# Used as chain item names that allow for simple
-# start, middle and end positions
-use constant { CHAIN_START => '{start',
-               CHAIN_MIDDLE => '{middle',
-               CHAIN_END => '{end',
-};
-
-my $tmp = [qw(CHAIN_START CHAIN_MIDDLE CHAIN_END)];
-push @EXPORT_OK, @{$tmp};
-$EXPORT_TAGS{chain} = $tmp;
 
 sub new
 {
@@ -182,7 +170,7 @@ sub _debug
     print STDERR "CHAIN DEBUG: ", @_, "\n";
 }
 
-sub root {
+sub head {
     my $self = shift;
     # if the chain is unsorted or has changed since
     # last sort then we sort and store the head of the
@@ -196,7 +184,7 @@ sub root {
             return undef;
         }
 
-        # Clean out MIDDLE and END place holders
+        # Clean out START, MIDDLE and END place holders
         # Don't really like this, might be better if tsort
         # stored 'last' as well as next.
         my $itr = $self->{head};
@@ -207,8 +195,10 @@ sub root {
                 $itr = $itr->{next};
             }
         }
-        # Clean out START place holder
-        $self->{head} = $self->{head}->{next};
+        # Clean out START place holder.
+        if (defined $self->{head} && $self->{head}->{name} eq CHAIN_START) {
+            $self->{head} = $self->{head}->{next};
+        }
     }
     return $self->{head};
 }

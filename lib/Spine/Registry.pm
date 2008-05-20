@@ -25,6 +25,7 @@ package Spine::Registry;
 use base qw(Spine::Singleton Exporter);
 use Carp qw(cluck);
 use Spine::Constants qw(:basic :plugin);
+use Spine::Chain;
 
 our ($VERSION, $DEBUG, @EXPORT, @EXPORT_OK);
 
@@ -382,7 +383,7 @@ sub new
                        owner => $args{'caller'} ? $args{'caller'} : undef,
                        parameters => $args{parameters} ? $args{parameters} : [],
                        states => {},
-                       hooks => [],
+                       hooks => new Spine::Chain,
                        status => SPINE_NOTRUN,
                        registered => SPINE_NOTRUN }, $klass;
 
@@ -439,7 +440,10 @@ sub install_hook
         $self->debug(5, "\t\tRegistering hook at \"$self->{name}\": ",
                      $hook->{name});
 
-        unless ($self->add_hook($module_name, $hook->{name}, $hook->{code})) {
+        unless ($self->add_hook($module_name, $hook->{name}, $hook->{code},
+                                exists $hook->{position} ? $hook->{position} : undef,
+                                exists $hook->{predecessors} ? $hook->{predecessors} : undef,
+                                exists $hook->{successors} ? $hook->{successors} : undef)) {
             $self->error("Failed to add hook \"${module}::$hook->{name}\" ",
                          "to \"$self->{name}\"");
             return PLUGIN_ERROR;
@@ -449,12 +453,24 @@ sub install_hook
     return SPINE_SUCCESS;
 }
 
+sub head
+{
+    return $_[0]->{hooks}->head;
+}
+
+sub next
+{
+    if (UNIVERSAL::isa($_[0], 'Spine::Registry::HookPoint')) {
+        shift;
+    }
+    return wantarray ? ($_[0]->{next}, $_[0]->{data}) : $_[0]->{next};
+}
 
 sub add_hook
 {
     my $self = shift;
 
-    my ($module, $name, $code_ref) = @_;
+    my ($module, $name, $code_ref, $pos, $pre, $suc) = @_;
 
     # If $module is a reference to a Spine::Plugin object, convert it to a
     # string we can use for better error reporting.
@@ -468,7 +484,7 @@ sub add_hook
                  rc => PLUGIN_ERROR,
                  msg => undef };
 
-    push @{ $self->{hooks} }, $hook;
+    $self->{hooks}->add($name, $hook, $pos, $pre, $suc);
 
     return SPINE_SUCCESS;
 }
@@ -487,7 +503,8 @@ sub run_hooks
         return PLUGIN_FATAL;
     }
 
-    foreach my $hook (@{$self->{hooks}}) {
+    my ($hooks, $hook) = ($self->head, undef);
+    while ($hooks && (($hooks, $hook) = $self->next($hooks))) {
         my $rc = $self->run_hook($hook, @_);
 
         if ($rc == PLUGIN_ERROR) {

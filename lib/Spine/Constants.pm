@@ -59,4 +59,15 @@ push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{basic} = $tmp;
 
 
+# Used as chain item names that allow for simple
+# start, middle and end positions
+use constant { CHAIN_START => '{start',
+               CHAIN_MIDDLE => '{middle',
+               CHAIN_END => '{end',
+};
+$tmp = [qw(CHAIN_START CHAIN_MIDDLE CHAIN_END)];
+push @EXPORT_OK, @{$tmp};
+$EXPORT_TAGS{chain} = $tmp;
+
+
 1;
