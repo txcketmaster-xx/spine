@@ -489,13 +489,14 @@ sub add_hook
     return SPINE_SUCCESS;
 }
 
-
-sub run_hooks
+sub run_hooks_until
 {
     my $self = shift;
+    my $until = shift;
 
     my $errors = 0;
     my $fatal = 0;
+    my $rc;
 
     $self->debug(2, "Running hooks for \"$self->{name}\"");
 
@@ -505,20 +506,35 @@ sub run_hooks
 
     my ($hooks, $hook) = ($self->head, undef);
     while ($hooks && (($hooks, $hook) = $self->next($hooks))) {
-        my $rc = $self->run_hook($hook, @_);
+        $rc = $self->run_hook($hook, @_);
 
         if ($rc == PLUGIN_ERROR) {
+            $self->debug(2, "ERROR while running hook for \"$self->{name}\"");
             $errors++;
         }
-        elsif ($rc == PLUGIN_FATAL) {
+        elsif ($rc == PLUGIN_EXIT) {
+            $self->debug(2, "EXIT while running hook for \"$self->{name}\"");
             $fatal++;
         }
+
+        if ($until & $rc) {
+            $self->debug(3, "Until condition met while running hook for \"$self->{name}\"");
+            last;
+        }
+
     }
 
     if ($errors + $fatal) {
         $self->{status} = SPINE_FAILURE;
     }
 
+    return wantarray ? ($rc, $errors, $fatal) : $rc;
+}
+
+# Done to keep backward compatibility, and it's simple
+sub run_hooks {
+    my $self = shift;
+    my (undef, $errors, $fatal) = $self->run_hooks_until(undef, @_);
     return $errors + $fatal;
 }
 

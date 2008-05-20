@@ -25,7 +25,7 @@ package Spine::Chain;
 # by either Ryan or Jeff.
 
 use strict;
-use Spine::Constants qw(SPINE_FAILURE SPINE_SUCCESS CHAIN_START CHAIN_MIDDLE CHAIN_END);
+use Spine::Constants qw(SPINE_FAILURE SPINE_SUCCESS HOOK_START HOOK_MIDDLE HOOK_END);
 
 our ($VERSION, @EXPORT_OK, %EXPORT_TAGS);
 $VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
@@ -34,20 +34,20 @@ sub new
 {
     my $klass = shift;
     
-    my $self = { chain => [ { name => CHAIN_START, },
-                            { name => CHAIN_MIDDLE,
-                              given_predecessors => [ CHAIN_START ], },
-                            { name => CHAIN_END,
-                              given_predecessors => [ CHAIN_MIDDLE ], }, ],
+    my $self = { chain => [ { name => HOOK_START, },
+                            { name => HOOK_MIDDLE,
+                              given_predecessors => [ HOOK_START ], },
+                            { name => HOOK_END,
+                              given_predecessors => [ HOOK_MIDDLE ], }, ],
                  lookup => {},
                  given_predecessors => {},
                  unclean => undef,
                  count => 0,
                 };
 
-    $self->{lookup}->{+CHAIN_START} = 0;
-    $self->{lookup}->{+CHAIN_MIDDLE} = 1;
-    $self->{lookup}->{+CHAIN_END} = 2;
+    $self->{lookup}->{+HOOK_START} = 0;
+    $self->{lookup}->{+HOOK_MIDDLE} = 1;
+    $self->{lookup}->{+HOOK_END} = 2;
 
     return bless $self, $klass;
 }
@@ -55,7 +55,7 @@ sub new
 # Add to the chain,
 #   name = unique name
 #   what = the item
-#   where = CHAIN_START, CHAIN_MIDDLE, CHAIN_END
+#   where = HOOK_START, HOOK_MIDDLE, HOOK_END
 #   predecessors = array ref of names
 #   successors = array ref of names
 sub add {
@@ -72,7 +72,7 @@ sub add {
 
     # Where is optional
     unless (defined $where) {
-        $where = CHAIN_MIDDLE;
+        $where = HOOK_MIDDLE;
     }
 
     # If we have seen this before we remove the first
@@ -91,10 +91,10 @@ sub add {
     # done using three arrays, but the overhead for tsort is worth
     # the simpler code (IMHO)
     push @{$item->{successors}}, $where;
-    if ( $where eq CHAIN_MIDDLE ) {
-        push @{$item->{given_predecessors}}, CHAIN_START;
-    } elsif ( $where eq CHAIN_END ) {
-        push @{$item->{given_predecessors}}, CHAIN_MIDDLE;
+    if ( $where eq HOOK_MIDDLE ) {
+        push @{$item->{given_predecessors}}, HOOK_START;
+    } elsif ( $where eq HOOK_END ) {
+        push @{$item->{given_predecessors}}, HOOK_MIDDLE;
     }
 
     # time to store our item, make it easy to find it again.
@@ -159,7 +159,7 @@ sub _error
     my $self = shift;
 
     #push @ERROR, join(@_);
-    print STDERR "CHAIN ERROR: ", @_, "\n";
+    print STDERR "HOOK ERROR: ", @_, "\n";
 }
 
 sub _debug
@@ -167,7 +167,7 @@ sub _debug
     my $self = shift;
     my $lvl = shift;
 
-    print STDERR "CHAIN DEBUG: ", @_, "\n";
+    print STDERR "HOOK DEBUG: ", @_, "\n";
 }
 
 sub head {
@@ -196,7 +196,7 @@ sub head {
             }
         }
         # Clean out START place holder.
-        if (defined $self->{head} && $self->{head}->{name} eq CHAIN_START) {
+        if (defined $self->{head} && $self->{head}->{name} eq HOOK_START) {
             $self->{head} = $self->{head}->{next};
         }
     }

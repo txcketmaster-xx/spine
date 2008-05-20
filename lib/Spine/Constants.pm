@@ -36,13 +36,16 @@ my $tmp;
 use constant {
     PLUGIN_ERROR   => 1 << 0,
     PLUGIN_SUCCESS => 1 << 1,
+    PLUGIN_FINAL   => 1 << 2,
     PLUGIN_EXIT    => 1 << 31
 };
 # This must be defined outside of the above hash block of PLUGIN_*.
 # Don't change it.
 use constant PLUGIN_FATAL => PLUGIN_ERROR | PLUGIN_EXIT;
+# Useful when telling a run_hooks to stop for any reason
+use constant PLUGIN_STOP => PLUGIN_FATAL | PLUGIN_FINAL;
 
-$tmp = [qw(PLUGIN_ERROR PLUGIN_EXIT PLUGIN_FATAL PLUGIN_SUCCESS)];
+$tmp = [qw(PLUGIN_ERROR PLUGIN_EXIT PLUGIN_FATAL PLUGIN_SUCCESS PLUGIN_FINAL PLUGIN_STOP)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{plugin} = $tmp;
 
@@ -61,13 +64,13 @@ $EXPORT_TAGS{basic} = $tmp;
 
 # Used as chain item names that allow for simple
 # start, middle and end positions
-use constant { CHAIN_START => '{start',
-               CHAIN_MIDDLE => '{middle',
-               CHAIN_END => '{end',
+use constant { HOOK_START => '{start',
+               HOOK_MIDDLE => '{middle',
+               HOOK_END => '{end',
 };
-$tmp = [qw(CHAIN_START CHAIN_MIDDLE CHAIN_END)];
+$tmp = [qw(HOOK_START HOOK_MIDDLE HOOK_END)];
 push @EXPORT_OK, @{$tmp};
-$EXPORT_TAGS{chain} = $tmp;
-
+$EXPORT_TAGS{hook} = $tmp;
+push @{$EXPORT_TAGS{plugin}}, @{$tmp};
 
 1;

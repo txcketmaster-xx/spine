@@ -413,6 +413,10 @@ PHASE: foreach my $pork ( ( ['PREPARE', "Failed to prepare for emission!"],
                 "encountered errors: \"$hook->{msg}\"\n";
             print STDERR "\tContinuing with run.\n";
         }
+        elsif ($rc == PLUGIN_FINAL) {
+            # The plugin has told us to process no more plugins
+            last;
+        }
         elsif ($rc == PLUGIN_EXIT) {
             #
             # Need a better messaging option.  This message is causing some
