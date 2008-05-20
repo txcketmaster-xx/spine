@@ -29,7 +29,7 @@ use File::Basename;
 use File::Spec::Functions;
 use IO::Dir;
 use IO::File;
-use Spine::Constants qw(:basic);
+use Spine::Constants qw(:basic :plugin);
 use Spine::Registry;
 use Spine::Util;
 use Sys::Syslog;
@@ -44,7 +44,6 @@ use JSON::Syck;
 our $VERSION = sprintf("%d", q$Revision: 1$ =~ /(\d+)/);
 
 our $DEBUG = $ENV{SPINE_DATA_DEBUG} || 0;
-our ($PARSER_FILE, $PARSER_LINE, $KEYTT);
 
 our ($DATA_PARSED, $DATA_POPULATED) = (SPINE_NOTRUN, SPINE_NOTRUN);
 
@@ -91,6 +90,9 @@ sub new {
                                     PARSE/post-descent
                                     PARSE/complete));
 
+    # to be moved out
+    $registry->create_hook_point(qw(PARSE/key));
+
     # XXX Right now, the driver script handles error reporting
     $data_object->_data();
 
@@ -115,10 +117,6 @@ sub _data
         $self->{c_failure} = 'Failure to parse: ' . $self->{c_failure};
         $rc = SPINE_FAILURE;
     }
-
-    # Clean up our Template instance to make certain that we don't have any
-    # interference with any later ones
-    $KEYTT = undef;
 
     chdir($cwd);
     return $rc;
@@ -414,7 +412,7 @@ sub _read_keyfile
 {
     my $self = shift;
     my ($file, $keyname) = @_;
-    my ($obj, $template, $complex, $buf) = ([], undef, undef, '');
+    my ($obj, $template, $buf) = ([], undef, undef, '');
 
     my $keytypes = $KEYTYPES;
 
@@ -444,37 +442,19 @@ sub _read_keyfile
         return undef;
     }
 
-    # I hate this structure so much
-    (undef, $PARSER_FILE) = split(/^$self->{c_croot}/, $file, 2);
     $self->print(4, "reading key $file");
 
     my $first_line = undef;
-    LINE: while(<$fh>)
+    while(<$fh>)
     {
-        $PARSER_LINE = $fh->input_line_number();
-
+        # FIXME this should be removed some time
         $_ = $self->_convert_lame_to_TT($_);
 
-        # We check this first because we want YAML & JSON files to be
-        # templatable as well.  We flag it as a templatized file for a minor
-        # performance gain
+        # We flag it as a templatized file for a minor
+        # performance gain, XXX I think it might be nice to scrap this?
         if (not defined($template) and m/\[%.+/o)
         {
             $template = 1;
-        }
-
-        if ($PARSER_LINE == 1)
-        {
-            $first_line = $_;
-            chomp($first_line);
-        }
-
-        # Ignore comments and blank lines.
-        # FIXME this is probably bad if we have keytypes that use
-        # other comment structures or the need blank lines...
-        if (m/^\s*$/o or m/^\s*#/o)
-        {
-            next LINE;
         }
 
         $buf .= $_;
@@ -482,45 +462,21 @@ sub _read_keyfile
 
     $fh->close();
 
-    # Pass it to TT
-    if (defined($template)) {
-        $buf = $self->_templatize_key($buf);
-    }
-
-    # _templatize_key() handles error reporting
-    unless (defined($buf)) {
+    # parse the key
+    # HOOKME Parselet expansion
+    my $registry = new Spine::Registry;
+    my $point = $registry->get_hook_point('PARSE/key');
+    $obj = { obj => $buf,
+             file => $file,
+             keyname => $keyname,
+             template => $template};
+    my $rc = $point->run_hooks_until(PLUGIN_STOP, $self, $obj);
+ 
+    # TODO Report Errors
+    unless ($rc == PLUGIN_FINAL) {
         return undef;
     }
-
-    # Lastly, we parse the key if it's a complex one
-    my $keytype;
-    foreach (keys %{$keytypes}) {
-        $keytype = $keytypes->{$_};
-        # detect must be a CODE ref, so call it to check
-        if (ref($keytype->{detect}) && &{$keytype->{detect}}($buf, $file)) {
-            $complex = $_;
-        # if it's a SCALAR then we expect it to be a regex
-        } elsif (defined $first_line && $first_line =~ m/$keytype->{detect}/) {
-            $complex = $_;
-        } else {
-            next;
-        }
-        $obj = &{$keytype->{parser}}($self, $buf, $file, $_);
-        last;
-    }
-                
-    # Only simply return an array of the lines if
-    # this is not a complex obj
-    unless($complex) {
-        $obj = [split(m/\n/o, $buf)];
-    }
-
-    # complex key methods should handles and report errors
-    unless (defined($obj)) {
-        return undef;
-    }
-
-    return $self->_evaluate_key($obj, $keyname);
+    return $obj->{obj};
 }
 
 
@@ -561,171 +517,6 @@ sub _convert_lame_to_TT
     $new .= " \%]\n";
     return $new;
 }
-
-
-#
-# Provides the same functionality as
-# http://template-toolkit.org/docs/manual/VMethods.html#method_search but on
-# a list of scalars
-#
-sub _TT_list_search
-{
-    my ($list, $pattern) = @_;
-    my $rc = 0;
-
-    return undef unless defined($list) and defined($pattern);
-
-    foreach my $str (@{$list}) {
-        $rc++ if $str =~ qr/$pattern/o;
-    }
-
-    return $rc;
-}
-
-
-#
-# Throws a TT exception for ease of tracking
-#
-sub _TT_hash_search
-{
-    die (Template::Exception->new('Spine::Data',
-                                  'Attempting to call search() on a complex config key'));
-}
-
-
-#
-# Process a key file's contents as a template
-#
-# TODO:
-#
-#   - Make it possible for plugins to register $ttdata key/value pairs
-#   - Ditto for registering TT virtual methods from plugins
-#
-sub _templatize_key
-{
-    my $self = shift;
-    my $template = shift;
-    my $output = shift;
-    my $ttdata = { c => $self };
-
-    unless (defined($output) and ref($output)) {
-        # For some reason, trying to do:
-        #  $output = \$output;
-        #
-        #  sets $output to a circular reference.  LAME!
-        my $wtf = "";
-        $output = \$wtf;
-    }
-
-    unless (defined($KEYTT)) {
-        Template::Stash->define_vmethod('list', 'search', \&_TT_list_search);
-        Template::Stash->define_vmethod('hash', 'search', \&_TT_hash_search);
-
-        $KEYTT = new Template( { CACHE_SIZE => 0 } );
-    }
-
-    # Note the $template is passed in as a reference to make sure it isn't
-    # mistaken for a filename
-    unless (defined($KEYTT->process(\$template, $ttdata, $output))) {
-        $self->error("could not process templatized key $PARSER_FILE: "
-                     . $KEYTT->error(), 'err');
-        return undef;
-    }
-
-    return ${$output};
-}
-
-
-# This is where the fun starts!
-#
-# If we have a reference to a list and the target is a reference to a list
-# then we treat it as an old style config key honouring the old school
-# operators.
-#
-# Otherwise, we don't do anything.  For the moment.
-#
-sub _evaluate_key
-{
-    my $self = shift;
-    my $obj  = shift;
-    my $keyname = shift;
-
-    my $obj_type = ref($obj);
-
-    unless ($obj_type) {
-        $self->error('Non-reference object passed in for evaluation', 'crit');
-        return undef;
-    }
-
-    # Let's handle non-array references first for now.
-    unless ($obj_type eq 'ARRAY') {
-        #if (defined($keyname)) {
-            if (exists($self->{$keyname})) {
-                $self->print(0, "$keyname already exists and is a \"",
-                             ref($self->{$keyname}), '".  Replacing with a "',
-                             $obj_type, '"');
-            }
-        #}
-
-        return $obj;
-    }
-
-    # Handle original style keys and their control characters appropriately
-    #if (defined($keyname)) {
-        if (exists($self->{$keyname})) {
-            my $existing = ref($self->{$keyname});
-            unless ($existing eq 'ARRAY') {
-                $self->error("Mismatched types for $keyname: It seems that "
-                             . "you're trying to use a list on a \""
-                             . lc($existing) . '"', 'crit');
-                return undef;
-            }
-        } else {
-            # Don't create empty keys
-            if ($keyname) {
-                $self->{$keyname} = [];
-            }
-        }
-    #}
-
-    my @final;
-
-    # Now walk the list looking for control characters and interpreting
-    # where necessary.  Otherwise, just append it to the list
-    foreach (@{$obj}) {
-        # Ignore comments and blank lines.
-        if (m/^\s*$/o or m/^\s*#/o) {
-            next;
-        }
-
-        # We allow several metacharacters to manipulate
-        # pre-existing values in a key.  -regex removes
-        # matching values for the key in question.
-        if ($keyname && m/^-(.*)$/o) {
-            next unless defined @{$self->{$keyname}};
-
-            my $rm_regex = $1;
-            @{$self->{$keyname}} = grep(!/$rm_regex/, @{$self->{$keyname}});
-
-            next;
-        }
-
-        # If equals (=) is the first and only character of
-        # a line, clear the array.  This is used to set
-        # absolute values.
-        elsif ($keyname && m/^=\s*$/o) {
-            delete $self->{$keyname} if defined($keyname);
-            next;
-        }
-
-        # If there isn't a control character, just append it.
-        #push @{$self->{$keyname}}, $_;
-        push @final, $_;
-    }
-
-    return \@final;
-}
-
 
 sub get_configdir
 {
@@ -922,7 +713,7 @@ sub set
     #
     # This is ok as long as we're in a key template instance but it's not ok
     # if we're in an overlay template instance.  Ain't life grand?
-    if ($in_template and not defined($KEYTT)) {
+    if ($in_template and not defined($Spine::Plugin::Template::KEYTT)) {
         $self->error("We've got an overlay template that's trying to call "
                      . "Spine::Data::set($key).  This is bad.");
         die (Template::Exception->new('Spine::Data::set()',

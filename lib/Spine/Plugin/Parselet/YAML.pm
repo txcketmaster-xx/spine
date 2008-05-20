@@ -37,8 +37,8 @@ $DESCRIPTION = "Parselet::YAML, processes YAML keys";
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
-            hooks => { 'PLUGIN/Parselet/Parse' => [ { name => "YAML", 
-                                                      code => \&_parse_yaml_key } ],
+            hooks => { 'PARSE/key' => [ { name => "YAML", 
+                                          code => \&_parse_yaml_key } ],
                      },
           };
 

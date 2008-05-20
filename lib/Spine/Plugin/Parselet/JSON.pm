@@ -37,8 +37,8 @@ $DESCRIPTION = "Parselet::JSON, processes JSON keys";
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
-            hooks => { 'PLUGIN/Parselet/Parse' => [ { name => "JSON", 
-                                                      code => \&_parse_json_key } ],
+            hooks => { 'PARSE/key' => [ { name => "JSON", 
+                                          code => \&_parse_json_key } ],
                      },
           };
 
