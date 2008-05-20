@@ -47,10 +47,6 @@ our $DEBUG = $ENV{SPINE_DATA_DEBUG} || 0;
 
 our ($DATA_PARSED, $DATA_POPULATED) = (SPINE_NOTRUN, SPINE_NOTRUN);
 
-# FIXME, we can't store codrefs within data, so they are here for now
-# note sure that I like this place (this is due to State using storable)
-my $KEYTYPES = {};
-
 sub new {
     my $class = shift;
     my %args = @_;
@@ -196,44 +192,6 @@ sub populate
 
     return SPINE_SUCCESS;
 }
-
-# Allow keytypes to be added, if detect is a code ref then the buffer is passed with
-# the file name and the key name to the detect function otherwise detect has to be a
-# regex that will be compared to the first lone of the key. parser has to be a code ref.
-#
-# XXX I thought about having this suggest that it could support IO::Handle
-# this would brake templatization of that complex key and also any data sources
-# that end up not being file based.
-sub install_keytype {
-    my $self = shift;
-    my ($name, $detect, $parser) = @_;
-
-    my $keytypes = $KEYTYPES;
-
-    $self->cprint("installing keytype, $name", 3);
-
-    if (exists $keytypes->{$name}) {
-        # TODO decide if this should be a warn or just a print
-        $self->error("install_keytype(): overriding previous keytype, $name", 'warn');
-    }
-
-    if (ref($detect) !~ m/^(?:CODE|)$/) {
-        $self->error("install_keytype(): bad detection type for keytype, $name", 'err');
-        return SPINE_FAILURE;
-    }
-
-    if (ref($parser) ne "CODE") {
-        $self->error("install_keytype(): bad parser code ref for keytype, $name", 'err');
-        return SPINE_FAILURE;
-    }
-
-    $keytypes->{$name} = { detect => $detect,
-                           parser => $parser,};
-
-    return SPINE_SUCCESS;
-
-}
-
 
 sub parse
 {
@@ -413,8 +371,6 @@ sub _read_keyfile
     my $self = shift;
     my ($file, $keyname) = @_;
     my ($obj, $template, $buf) = ([], undef, undef, '');
-
-    my $keytypes = $KEYTYPES;
 
     # If the file is a relative path and doesn't exist, try an absolute
     unless (-f $file) {
