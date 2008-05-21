@@ -98,7 +98,7 @@ sub add {
     }
 
     # time to store our item, make it easy to find it again.
-    $self->{lookup}->{$name} = push @{$self->{chain}}, $item;
+    $self->{lookup}->{$name} = (push (@{$self->{chain}}, $item) -1);
     $self->{count}++;
     return SPINE_SUCCESS;
 }
@@ -148,7 +148,8 @@ sub _resolve_predecessors {
         foreach (@{$item->{given_predecessors}}) {
             # If we know about our predecessor then we will include it
             if (exists $self->{lookup}->{$_}) {
-                push @{$item->{predecessors}}, $_;
+                $dest_item = $self->{chain}->[$self->{lookup}->{$_}];
+                push @{$item->{predecessors}}, $dest_item;
             }
         }
     }

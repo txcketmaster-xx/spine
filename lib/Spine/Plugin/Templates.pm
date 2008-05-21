@@ -39,7 +39,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                    code => \&process_templates } ],
                       'PARSE/key' => [ { name => "TT",
                                          code => \&_templatize_key,
-                                         position => HOOK_START } ],
+                                         position => HOOK_START ,
+                                         predecessors => ['Init'] } ],
                      },
             cmdline => { _prefix => 'template',
                          options => {
@@ -293,7 +294,7 @@ sub _templatize_key
     my $output = \$wtf;
 
     # Has templatization been detected?
-    unless ($data->{template}) {
+    unless (exists $data->{template}) {
         return PLUGIN_SUCCESS;
     }
 

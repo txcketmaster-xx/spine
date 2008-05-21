@@ -365,67 +365,19 @@ sub read_keyfile
     return wantarray ? @{$values} : $values;
 }
 
-
 sub _read_keyfile
 {
     my $self = shift;
     my ($file, $keyname) = @_;
-    my ($obj, $template, $buf) = ([], undef, undef, '');
-
-    # If the file is a relative path and doesn't exist, try an absolute
-    unless (-f $file) {
-        unless (file_name_is_absolute($file)) {
-            $file = catfile($self->{c_croot}, $file);
-
-            unless (-f $file) {
-                $self->error("Couldn't find file \"$file\"", 'crit');
-                return undef;
-            }
-        }
-    }
-
-    unless (-r $file) {
-        $self->error("Can't read file \"$file\"", 'crit');
-        return undef;
-    }
-
-    # Open a file, read/parse the contents of a file
-    # line by line and store the results in a scalar.
-    my $fh = new IO::File("<$file");
-
-    unless (defined($fh)) {
-        $self->error("Failed to open \"$file\": $!", 'crit');
-        return undef;
-    }
-
-    $self->print(4, "reading key $file");
-
-    my $first_line = undef;
-    while(<$fh>)
-    {
-        # FIXME this should be removed some time
-        $_ = $self->_convert_lame_to_TT($_);
-
-        # We flag it as a templatized file for a minor
-        # performance gain, XXX I think it might be nice to scrap this?
-        if (not defined($template) and m/\[%.+/o)
-        {
-            $template = 1;
-        }
-
-        $buf .= $_;
-    }
-
-    $fh->close();
 
     # parse the key
     # HOOKME Parselet expansion
     my $registry = new Spine::Registry;
     my $point = $registry->get_hook_point('PARSE/key');
-    $obj = { obj => $buf,
-             file => $file,
-             keyname => $keyname,
-             template => $template};
+    my $obj = {
+               file => $file,
+               keyname => $keyname
+    };
     my $rc = $point->run_hooks_until(PLUGIN_STOP, $self, $obj);
  
     # TODO Report Errors
@@ -433,45 +385,6 @@ sub _read_keyfile
         return undef;
     }
     return $obj->{obj};
-}
-
-
-#
-# _convert_lame_to_TT tweaks the lame ass TT-like MATCH syntax I created with
-# actual TT logic so that it can all be processed by TT directly.
-#
-sub _convert_lame_to_TT
-{
-    my $self = shift;
-    my $line = shift;
-
-    # If it's not one of our lame syntax lines, just return it
-    unless ($line =~ m/^\[%(\s*)(IF|MATCH|ELSIF)\s+(.+\s*)+%\]\s*$/o) {
-        return $line;
-    }
-
-    my $new  = "[\%$1"; # $1 should be the amount of whitespace
-    $new .= ($2 eq 'MATCH' or $2 eq 'IF') ? 'IF' : 'ELSIF';
-    $new .= ' ';
-    my $criteria = $3;
-
-    # If there isn't a semi-colon, it's not one of ours
-    unless ($criteria =~ qr/;\s*/) {
-        return $line;
-    }
-
-    my @querystring = split(/;\s*/, $criteria);
-    my @conditions;
-
-    foreach my $condition (@querystring) {
-        my ($var, $regex) = split(/=/, $condition, 2);
-
-        push @conditions, "c.$var.search('$regex')";
-    }
-
-    $new .= join(' AND ', @conditions);
-    $new .= " \%]\n";
-    return $new;
 }
 
 sub get_configdir
