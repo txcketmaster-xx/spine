@@ -175,36 +175,18 @@ sub boot_loader_config
 
     # Do a quick comparison of the two different kernel arguments lists to see
     # if we need to bother changing them
-    if (scalar(@{$grub_default_info->{args_array}}) ==
-           scalar(@{$new_kernel_args}))
+    if (join(' ', sort(@{$new_kernel_args})) eq
+        join(' ', sort(@{$grub_default_info->{args_array}})))
     {
-        my $changed = 0;
-        my @new = sort(@{$new_kernel_args});
-        my @old = sort(@{$grub_default_info->{args_array}});
-
-        for my $i (0 .. $#old)
-        {
-            if ($old[$i] ne $new[$i])
-            {
-                $changed++;
-                last;
-            }
-        }
-        undef @new, @old;
-
-        unless ($changed)
-        {
-            $c->print(3, 'no changes to kernel arguments.');
-            return PLUGIN_SUCCESS;
-        }
+        $c->print(3, 'no changes to kernel arguments.');
+        return PLUGIN_SUCCESS;
     }
 
     # Get the arguments currently set for the default kernel
     $c->print(3, "detected default kernel args \[$grub_default_info->{args}\]");
 
     $c->cprint("appending kernel args \[@{$new_kernel_args}\]", 3);
-    $new_kernel_args = join(' ', $grub_default_info->{args},
-                            @{$new_kernel_args});
+    $new_kernel_args = join(' ', @{$new_kernel_args});
 
     # Since we may be changing args without changing the kernel we always run
     # through this unless we failed to change the kernel, we don't want to for
