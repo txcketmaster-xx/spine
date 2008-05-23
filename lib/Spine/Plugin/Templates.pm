@@ -40,7 +40,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                       'PARSE/key' => [ { name => "TT",
                                          code => \&_templatize_key,
                                          position => HOOK_START ,
-                                         predecessors => ['Init'] } ],
+                                         predecessors => ['Basic_Init'] } ],
                      },
             cmdline => { _prefix => 'template',
                          options => {
