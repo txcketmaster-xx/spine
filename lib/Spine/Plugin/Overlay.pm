@@ -419,7 +419,12 @@ sub find_changed
     unless ($lstat->mode == $dstat->mode
             and $lstat->uid == $dstat->uid
             and $lstat->gid == $dstat->gid
-            and $lstat->rdev == $dstat->rdev
+            # We used to test rdev (type of device), but it's not
+            # a reliable lstat() field in older kernels (i.e. RHEL3), and
+            # thus caused erratic behavior. So we'll comment it out until
+            # such older kernels are not common anymore. All the other tests
+            # should generally be sufficient. See Issue #15. - Phil
+            #and $lstat->rdev == $dstat->rdev
             and $lstat->size == $dstat->size)
     {
         goto changed;
