@@ -55,6 +55,7 @@ use Spine::Util qw(do_rsync mkdir_p);
 use Text::Diff;
 
 my $DRYRUN;
+my $c; 
 
 sub build_overlay
 {
@@ -65,7 +66,7 @@ sub build_overlay
     #
     my $self = __PACKAGE__->new();
 
-    my $c = shift;
+    $c = shift;
     my $croot = $c->getval('c_croot');
     my $tmpdir = $c->getval('c_tmpdir');
     my $tmplink = $c->getval('c_tmplink');
@@ -154,7 +155,7 @@ sub build_overlay
 
 sub apply_overlay
 {
-    my $c = shift;
+    $c = shift;
     my $tmpdir = $c->getval('c_tmpdir');
     my $tmplink = $c->getval('c_tmplink');
     my $overlay_root = $c->getval('overlay_root');
@@ -294,7 +295,8 @@ sub apply_overlay
 
 sub sync_attribs
 {
-    my ($c, $srcfile, $destfile) = @_;
+    $c = shift;
+    my ($srcfile, $destfile) = @_;
 
     my $src_stat = lstat($srcfile);
     my $dest_stat = lstat($destfile);
@@ -351,7 +353,7 @@ sub gid_conv
 
 sub clean_overlay
 {
-    my $c = shift;
+    $c = shift;
     my $tmpdir = $c->getval('c_tmpdir');
     my $tmplink = $c->getval('c_tmplink');
     my $rc = 0;
@@ -414,13 +416,25 @@ sub find_changed
     # rtilder    Tue May  1 11:55:41 PDT 2007
     #
 
+    # rdev seems unreliable on 2.4 kernels
+    my $kernel_version = $c->getval('c_current_kernel_version');
+    my $rdev = 0;
+    if ($kernel_version =~ /^2\.4\./)
+    {
+        $rdev = 1;
+    }
+    elsif ($lstat->rdev == $dstat->rdev)
+    {
+       $rdev = 1;
+    }
+
     # Any change in the important stat data?  We disregard A, C, and M times
     # for the newly created overlay for obvious reasons
     unless ($lstat->mode == $dstat->mode
             and $lstat->uid == $dstat->uid
             and $lstat->gid == $dstat->gid
-            and $lstat->rdev == $dstat->rdev
-            and $lstat->size == $dstat->size)
+            and $lstat->size == $dstat->size
+            and $rdev)
     {
         goto changed;
     }
