@@ -30,6 +30,8 @@ use Spine::Constants qw(SPINE_FAILURE SPINE_SUCCESS HOOK_START HOOK_MIDDLE HOOK_
 our ($VERSION, @EXPORT_OK, %EXPORT_TAGS);
 $VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
 
+our ($HOOK_REGEX) = ('^[:\w\s\d_\.-]+$');
+
 sub new
 {
     my $klass = shift;
@@ -61,7 +63,7 @@ sub new
 sub add {
     my ($self, $name, $what, $where, $predecessors, $successors) = @_;
 
-    if ($name !~ m/^[:\w\s\d_\.-]+$/) {
+    if ($name !~ m/$HOOK_REGEX/o) {
         # TODO: report error and return something more
         die;
         return SPINE_FAILURE;
@@ -189,16 +191,18 @@ sub head {
         # Don't really like this, might be better if tsort
         # stored 'last' as well as next.
         my $itr = $self->{head};
-        while ($itr->{next}) {
-            if ($itr->{next}->{name} =~ m/^{/) {
-                $itr->{next} = $itr->{next}->{next};
-            } else {
+        while ($itr) {
+            if ($itr->{name} !~ m/$HOOK_REGEX/) {
                 $itr = $itr->{next};
+                $self->{head} = $itr;
+                next;
             }
-        }
-        # Clean out START place holder.
-        if (defined $self->{head} && $self->{head}->{name} eq HOOK_START) {
-            $self->{head} = $self->{head}->{next};
+            if (defined $itr->{next} &&
+                $itr->{next}->{name} !~ m/$HOOK_REGEX/) {
+                $itr->{next} = $itr->{next}->{next};
+                next;
+            }
+            $itr = $itr->{next};
         }
     }
     return $self->{head};
