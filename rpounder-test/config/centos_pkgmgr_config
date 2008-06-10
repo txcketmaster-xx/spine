@@ -1,0 +1,25 @@
+#%YAML 1.0
+# The order to run through the sections
+order:
+  - Init:
+      - YUM
+      - RPM
+  - Lookup: YUM
+  - CalcMissing: Default
+  - ResolveInstalled: RPM
+  - ResolveMissing: YUM
+  - CalcRemove: Default
+  - CheckUpdates: YUM 
+  - Report: Default
+  - Install: YUM
+  - Remove: YUM
+  - Update: YUM 
+# Any overides for the default config
+plugin_config:
+  YUM:
+  RPM:
+# The method used to build the
+# information of what to install
+package_config:
+  implementer: basic
+  install-key: packages

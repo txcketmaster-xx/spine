@@ -36,6 +36,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             version => $VERSION,
             hooks => { 'DISCOVERY/populate'  => [ { name => 'sysinfo_init',
                                                     code => \&initialize,
+                                                    lbael => 'SysInfo Init',
                                                     position => HOOK_START, } ],
                      },
 };
@@ -63,7 +64,7 @@ sub initialize {
 
     # Only try to detect the platform if we don't know what it is...
     $platform = $c->getval('c_platform');
-    unless (defined ($platform = $c->getval('c_platform'))) {
+    unless (defined ($platform)) {
         $point = $registry->get_hook_point("Platform");
         # HOOKME, go through the platform plugins until we know what we are
         $rc = $point->run_hooks_until(PLUGIN_STOP, $c);

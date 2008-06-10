@@ -1,0 +1,7 @@
+[% MATCH c_croot=^(?!(dev1|dev2)); %]
+Your MOM!
+[% END %]
+[% IF c.c_croot.search('^(?!(dev1|dev2))'); %]
+Your MOM!
+[% END %]
+test

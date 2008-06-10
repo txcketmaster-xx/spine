@@ -139,19 +139,19 @@ if (not defined($CONFIG))
 {
     if ($cfile ne DEFAULT_CONFIGFILE)
     {
-	print STDERR $Spine::ConfigFile::ERROR;
-	goto failure;
+        print STDERR $Spine::ConfigFile::ERROR;
+        goto failure;
     }
 
     if (-f $cfile and (not -r $cfile))
     {
-	print STDERR "Default config file $cfile exists but isn't readable.\n";
-	goto failure;
+        print STDERR "Default config file $cfile exists but isn't readable.\n";
+        goto failure;
     }
 
     if (not -f DEFAULT_CONFIGFILE)
     {
-	print STDERR "No config file found at default $cfile.  Using hardcoded defaults.\n";
+        print STDERR "No config file found at default $cfile.  Using hardcoded defaults.\n";
 
         $CONFIG = DEFAULT_CONFIG;
     }
@@ -532,9 +532,9 @@ sub write_nodefile
 sub get_lock
 {
     sysopen(LOCK_FH, LOCKFILE, O_RDWR|O_CREAT)
-	|| return undef;
+        || return undef;
     flock(LOCK_FH, LOCK_EX|LOCK_NB)
-	|| return undef;
+        || return undef;
     return *LOCK_FH;
 }
 
@@ -555,7 +555,7 @@ sub ignore_signal
 
     if (-t STDIN and ($signal eq 'INT' or $signal eq 'TERM')) {
         release_lock();
-	exit(1);
+        exit(1);
     }
 
     return 1;
@@ -802,26 +802,26 @@ sub usage
 Spine v$VERSION -- Configuration management system.
 Usage: spine [options]
 
-    --action <action>	
-			Run the specified action(s). Actions are defined
+    --action <action>        
+                        Run the specified action(s). Actions are defined
                         much like profiles in the config file, but begin
                         with 'action_'. The difference is that actions are
                         small pieces that can be stacked together. When using
                         an action or actions, your profile is ignored.
                         However, the DefaultPlugins section of the config is
                         still used to fill in missing phases where possible.
-			You may run multiple actions by repeating this
+                        You may run multiple actions by repeating this
                         option.
 
     --croot <directory>
-			Location of the configuration hierarchy.
-			By default, this path will be relative
-			to the spine executable in config/.
+                        Location of the configuration hierarchy.
+                        By default, this path will be relative
+                        to the spine executable in config/.
 
     --autofqdn
-			Attempt to determine the FQDN. Use this
-			option if /etc/nodename has not been
-			generated.
+                        Attempt to determine the FQDN. Use this
+                        option if /etc/nodename has not been
+                        generated.
 
     --dryrun
                         Do not actually make changes to the system.
@@ -829,12 +829,12 @@ Usage: spine [options]
 
     --printdata
     --spinaltap
-			Only print out the data object and
-			exit. No actions will be run.
+                        Only print out the data object and
+                        exit. No actions will be run.
 
     --profile <profile>
     --actiongroup <profile>
-			Runs the set of plugins defined in any profile
+                        Runs the set of plugins defined in any profile
                         in config file. This replaces v1 actiongroups.
                         The term actiongroup doesn't apply any longer
                         as actions profiles are not strictly groups of
@@ -872,7 +872,7 @@ Usage: spine [options]
                         Use hostname to configure system
 
     --help
-			This help screen.
+                        This help screen.
 
 Examples:
 

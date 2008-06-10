@@ -52,25 +52,7 @@ sub descend_order
 {
     my $c = shift;
 
-    #
-    # FIXME
-    #   As we make the descend order configurable and generic, we should stop
-    #   populating variables that assume a certain descend order.
-    #
-    #   However, sadly, some of these are still in use, so they'll stay for
-    #   now. c_host_dir was used by websys' motd.tt (fixed now), but in
-    #   addition, removing it caused various templates to stop getting
-    #   generated (!!), so clearly other things need it.
-    #
-    #   The network directory is additionally probably used by coresys, so I'm
-    #   leaving it here for now, but it should too go away.
-    #
-    #   Phil    Wed Aug 15 17:39:29 PDT 2007
-    #
-    $c->{c_host_dir} = catfile('host', $c->{c_hostname_f});
-    $c->{c_network_dir} = catfile('network', $c->{c_subnet});
-
-    # Now that we have our primary policies, let's build the full list of
+    # let's build the full list of
     # config groups we're going to need by walking this list and sucking in
     # any "config/include" files' contents we find.
 

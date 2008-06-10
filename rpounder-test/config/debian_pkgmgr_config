@@ -1,0 +1,26 @@
+#%YAML 1.0
+# The order to run through the sections
+order:
+  - Init:
+    - APT
+    - DEB
+  - Lookup: DEB
+  - CalcMissing: Default
+  - ResolveInstalled: DEB
+  - ResolveMissing: APT
+  - CalcRemove: Default
+  - CheckUpdates: APT 
+  - Report: Default
+  - Remove: APT
+  - Update: APT 
+  - Install: APT
+# Any overides for the default config
+plugin_config:
+  APT:
+    state_dir: /var/lib/apt
+  RPM:
+# The method used to build the
+# information of what to install
+package_config:
+  implementer: basic
+  install-key: packages

@@ -58,10 +58,17 @@ sub check_for_linux {
 
     my $uname = $c->getval('uname_bin') || "/bin/uname";
 
-    return PLUGIN_SUCCESS unless  ( -x $uname );
-
+    unless (-x $uname) {
+        $c->cprint('Skipping Linux platform detection, no uname', 4);
+        return PLUGIN_SUCCESS;
+    }
+        
+    
     my $unamedata = qx/$uname -s/;
-    return PLUGIN_SUCCESS unless ($? == 0 && $unamedata =~ m/^linux/i);
+    unless ($? == 0 && $unamedata =~ m/^linux/i) {
+        $c->cprint('uname did not return linux so we assume it is not', 4);
+        return PLUGIN_SUCCESS;
+    } 
     
     $registry->create_hook_point("Platform/linux/Distro");
     $c->{c_platform} = "linux";
@@ -201,6 +208,7 @@ sub basic_distro {
     return PLUGIN_FINAL;
 }
 
+# Get network information from the server
 # TODO IPV6
 # TODO resolve the netcard type
 sub get_ifinfo {
@@ -210,29 +218,41 @@ sub get_ifinfo {
     
     $c->cprint("Getting interface information", 3);
     
-    my ($ifname, $ifhash);
+    my ($ifname, $ifhash, @data);
     my %interfaces;
-    foreach (`$ip addr`) {
+    my @data = qx/$ip addr/;
+    unless ($? == 0) {
+        $c->error("Could not run ($ip addr)", 'err');
+        return PLUGIN_SUCCESS;
+    }
+    foreach (@data) {
         if (m/^([0-9]+):\s+([^\s]+):\s+/) {
             $ifname = $2;
             $ifhash = $interfaces{$ifname} = { number => $1,
                                               v4 => {},
                                               v6 => {},
                                             };
-        } elsif (m/inet\s+((?:[0-9]{1,3}){4})\/([0-9]+)\s.*\s(${ifname}[^\s])*/) {
-            $ifhash->{v4}->{$1} = { subnet => $2,
-                                    label => $3,
-                                    address => $1 };
-            if (m/brd\s+((?:[0-9]{1,3}){4})\s/) {
-                $ifhash->{v4}->{$1}->{brodcast} = $1;
+        } elsif (m/inet\s+((?:[0-9]{1,3}\.?){4})\/([0-9]+)\s/) {
+            my $addr = $1;
+            $ifhash->{v4}->{$addr} = { cidrmask => $2,
+                                       label => $3,
+                                       address => $1 };
+            if (m/brd\s+((?:[0-9]{1,3}\.?){4})\s/) {
+                $ifhash->{v4}->{$addr}->{bcast} = $1;
             }  
             if (m/scope\s+([^\s]+)\s/) {
-                $ifhash->{v4}->{$1}->{scope} = $1;
+                $ifhash->{v4}->{$addr}->{scope} = $1;
             }
             if ($_ !~ m/secondary/) {
-                $ifhash->{v4}->{base} = $interfaces{$ifname}->{v4}->{$1};
+                $ifhash->{v4}->{base} = $interfaces{$ifname}->{v4}->{$addr};
             }
-        } elsif (m/link\/([^\s]+)\s((?:[0-9A-F]:){6})\s/) {
+            my $nobj = new NetAddr::IP($addr."/".$ifhash->{v4}->{$addr}->{cidrmask});
+            unless(exists $ifhash->{v4}->{$addr}->{bcast}) {
+                $ifhash->{v4}->{$addr}->{bcast} = $nobj->broadcast->addr;
+            }
+            $ifhash->{v4}->{$addr}->{network} = $nobj->network->addr;
+            $ifhash->{v4}->{$addr}->{netmask} = $nobj->mask();
+        } elsif (m/link\/([^\s]+)\s((?:[0-9A-Fa-f]{2}:?){6})\s/) {
             $ifhash->{mac} = $2;
             $ifhash->{type} = $1;
         }
@@ -240,17 +260,30 @@ sub get_ifinfo {
      
     $c->{c_ipinterfaces} = \%interfaces;
 
+    # TODO collect route information like interface information
+    # my %routes
+    # foreach (`$ip route show...
+    # then we can change the below code to check this structure
+
     # Skip is something else has chosen the default
     return PLUGIN_SUCCESS if (exists $c->{c_local_ip_address});
 
     # Default to the interface with the default gateway for most things
+    # This works well if your network is controlled by DHCP
     # FIXME: support multiple default routes
-    foreach (`$ip route show`) {
-        if (m/^default.*((?:[0-9]{1,3}){4}).*dev\s+([^\s]+)$/) {
-            if (exists $interfaces{$2}->{v4}->{base}) {
-                $c->{c_local_ip_address} = $interfaces{$2}->{v4}->{base}->{address};
-                $c->{c_local_bcast} = $interfaces{$2}->{v4}->{base}->{broadcast};
-                $c->{c_local_netmask} = $interfaces{$2}->{v4}->{base}->{subnet};
+    my @data = qx/$ip route show/;
+    unless ($? == 0) {
+        $c->error("Could not run ($ip route show)", 'err');
+        return PLUGIN_SUCCESS;
+    }
+    foreach (@data) {
+        if (m/^default.*dev\s*([^\s]*)\s*$/) {
+            if (exists $interfaces{$1}->{v4}->{base}) {
+                $c->{c_local_ip_address} = $interfaces{$1}->{v4}->{base}->{address};
+                $c->{c_local_bcast} = $interfaces{$1}->{v4}->{base}->{bcast};
+                $c->{c_local_network} = $interfaces{$1}->{v4}->{base}->{network};
+                $c->{c_local_netmask} = $interfaces{$1}->{v4}->{base}->{netmask};
+                $c->{c_local_mac_address} = $interfaces{$1}->{mac};
             }
         }
     }

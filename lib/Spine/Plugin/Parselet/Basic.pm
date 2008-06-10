@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::Parselet::Basic;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use File::Spec::Functions;
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;

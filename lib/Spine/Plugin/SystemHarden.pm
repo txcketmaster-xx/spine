@@ -34,7 +34,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { CLEAN => [ { name => 'system_harden',
-                                    code => \&system_harden } ]
+                                    code => \&system_harden,
+                                    position => HOOK_END } ]
                      }
           };
 
@@ -69,7 +70,8 @@ sub system_harden
 
     foreach my $file (@filelist)
     {
-        next if ( grep {/$file/} @{$c->getvals("privfiles")} );
+        # FIXME this have more of an overhead then needed.....
+        next if ( defined $c->getvals("privfiles") && grep {/$file/} @{$c->getvals("privfiles")} );
 
 	$c->cprint("stripping suid/sgid bits from $file", 2);
 

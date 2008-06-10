@@ -1,0 +1,14 @@
+#%YAML 1.0
+title: Escape of the Unicorn
+animations:
+  - title: background sky
+    author: Justyna
+    frames:
+      - file: bg_sky_1.png
+        ms:   500
+      - file: bg_sky_2.png
+        ms:   500
+  - title: background water
+    author: Jacek
+    frames:
+      - file: bg_water.png

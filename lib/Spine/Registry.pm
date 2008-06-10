@@ -35,13 +35,24 @@ $VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 @EXPORT_OK = qw(register_plugin create_hook_point add_option get_options
                 add_hook get_hook_point install_method);
 
+# Will automatically load all hooks in a plugin
+our $AUTOHOOK = 0;
+
 sub _new_instance
 {
     my $klass = shift;
 
+    # XXX: Requested points is used to track points that arrive
+    #      before the hook is registered
+    #      point override is used to alter defaults about hook
+    #      placements
+    #      plugin overrides are used to clear all defaults for all hooks
     return bless { CONFIG => shift,
                    PLUGINS => {},
+                   PLUGIN_OVERRIDE => {},
                    POINTS => {},
+                   REQUESTED_POINTS => {},
+                   POINT_OVERRIDES => {},
                    OPTIONS => {}
                  }, $klass;
 }
@@ -75,6 +86,14 @@ sub create_hook_point
                                                    'caller' => \@caller);
 
         $registry->{POINTS}->{$new_point} = $point;
+
+        if ($AUTOHOOK && exists($registry->{REQUESTED_POINTS}->{$new_point})) {
+            foreach (@{$registry->{REQUESTED_POINTS}->{$new_point}}) {
+                $point->install_hook($_->[0],
+                                     $_->[1]);
+            }
+            delete $registry->{REQUESTED_POINTS}->{$new_point};
+        }
     }
 
     return SPINE_SUCCESS;
@@ -180,14 +199,19 @@ sub register_plugin
         }
     }
 
-    if (0) {
+    if ($AUTOHOOK) {
         # Register this plugin's hooks so that other hooks can manipulate them
         # iffin theys wants to.
         foreach my $hook_point (keys(%{$module->{hooks}})) {
-            # Make sure we don't have erroneous parameters for the hook point
+                debug(5, "hook point name: ($hook_point)");
+            # Track missing hooks, they may arrive later.
             unless (exists($registry->{POINTS}->{$hook_point})) {
-                debug(5, "Invalid hook point name: $hook_point");
-                debug(5, 'Skipping.');
+                unless (exists($registry->{REQUESTED_POINTS}->{$hook_point})) {
+                    $registry->{REQUESTED_POINTS}->{$hook_point} = [];
+                }
+                push @{$registry->{REQUESTED_POINTS}->{$hook_point}}, [ $module_name, $module ];
+                debug(5, "Hook point is not there, maybe later: $hook_point");
+                debug(5, 'Skipping for now.');
                 next;
             }
 
@@ -304,8 +328,12 @@ sub get_hook_point
 
     foreach my $hook_point (@_) {
         unless (exists($registry->{POINTS}->{$hook_point})) {
-            cluck("Invalid hook point \"$hook_point\"");
-            next;
+            # XXX: Now we store requests for hook points they can
+            #      be created when used is needed.
+            unless ($registry->create_hook_point($hook_point)) {
+                cluck("Invalid hook point \"$hook_point\"");
+                next;
+            }
         }
 
         push @points, $registry->{POINTS}->{$hook_point};
@@ -344,6 +372,47 @@ sub install_method
     return SPINE_SUCCESS;
 }
 
+# If called on a plugin name any predecessors, successors or position will
+# be cleared
+sub set_override_plugin_clear {
+    my $registry = shift;
+    my ($plugin, $what) = @_;
+    unless (exists $registry->{PLUGIN_OVERRIDE}->{$plugin}) {
+        $registry->{PLUGIN_OVERRIDE}->{$plugin} = {};
+    }
+    if (defined $what) {
+        $registry->{PLUGIN_OVERRIDE}->{$plugin}->{$plugin}->{$what} = 1;
+    } else {
+        $registry->{PLUGIN_OVERRIDE}->{$plugin}->{$plugin}->{position} = 1;
+        $registry->{PLUGIN_OVERRIDE}->{$plugin}->{$plugin}->{predecessors} = 1;
+        $registry->{PLUGIN_OVERRIDE}->{$plugin}->{$plugin}->{successors} = 1;
+    }
+    return SPINE_SUCCESS;
+}
+
+# Takes a hook point and the name of the hook implementer and allows
+# you to clear the default position, successors and predecessors as
+# well as add or remove them.
+sub set_override_hook {
+    my $registry = shift;
+    my ($hook_point, $hook_name, @items) = @_;
+    unless (exists $registry->{HOOK_OVERRIDE}->{$hook_point}) {
+        $registry->{HOOK_OVERRIDE}->{$hook_point} = {};
+    }
+    my $hook = $registry->{HOOK_OVERRIDE}->{$hook_point};
+    $hook->{$hook_name} = {} unless exists $hook->{$hook_name};
+    $hook = $hook->{$hook_name};
+
+    my ($action, $data);
+    while ($action = shift @items) {
+        if ($action =~ /^clear/) {
+            $hook->{$action} = 1;
+        } elsif ($action =~ m/^(?:add|remove)/) {
+            $hook->{$action} = [] unless exists $hook->{$action};
+            push @{$hook->{$action}}, (shift @items);
+        }
+    }
+}
 
 sub error
 {
@@ -408,6 +477,11 @@ sub register_hooks
         return $self->{registered};
     }
 
+    if ($AUTOHOOK) {
+        $self->{registered} = SPINE_SUCCESS;
+        goto register_hooks_out;
+    }
+
     $self->debug(4, "\tRegistering hooks for hook point \"$self->{name}\"");
 
     # If we've already loaded our plugin lists, make sure we add populate
@@ -440,6 +514,29 @@ sub install_hook
         $self->debug(5, "\t\tRegistering hook at \"$self->{name}\": ",
                      $hook->{name});
 
+        # At this point we apply any hook and plugin overrides
+        if (exists $self->{PLUGIN_OVERRIDE}->{$module}) {
+            delete $hook->{predecessors} if exists $hook->{predecessors};
+            delete $hook->{successors} if exists $hook->{successors};
+            delete $hook->{position} if exists $hook->{position};
+        }
+        if (exists $self->{HOOK_OVERRIDES}->{$self->{name}}->{$hook->{name}}) {
+            my $hoverrides = $self->{HOOK_OVERRIDES}->{$self->{name}}->{$hook->{name}};
+            foreach ('position', 'successors', 'predecessors') {
+                if (exists $hoverrides->{clear} || exists $hoverrides->{"clear_".$_}) {
+                    delete $hook->{$_} if exists $hook->{$_};
+                }
+                if (exists $hoverrides->{"add_".$_}) {
+                    push @{$hook->{$_}}, @{$hoverrides->{"add_".$_}}
+                }
+                if (exists $hoverrides->{"remove_".$_}) {
+                    foreach my $rem (@{$hoverrides->{"remove_".$_}}) {
+                        @{$hook->{$_}} = grep(!/^$rem$/, @{$hook->{$_}});
+                    }
+                }
+            }
+        }
+            
         unless ($self->add_hook($module_name, $hook->{name}, $hook->{code},
                                 exists $hook->{position} ? $hook->{position} : undef,
                                 exists $hook->{predecessors} ? $hook->{predecessors} : undef,
@@ -546,9 +643,9 @@ sub run_hook
     my @parameters = @_;
     my $c = $parameters[0];
 
-    unless ($self->register_hooks() == SPINE_SUCCESS) {
-        return PLUGIN_FATAL;
-    }
+    #unless ($self->register_hooks() == SPINE_SUCCESS) {
+    #    return PLUGIN_FATAL;
+    #}
 
     $self->debug(3, "Running hook: $hook->{name}");
     $self->debug(6, 'Parameters: ', @parameters);
@@ -572,7 +669,8 @@ sub run_hook
     }
 
     my $old_label = $c->{c_label};
-    $c->set_label($hook->{name});
+    # Take a label if one is given as the label else use the name
+    $c->set_label($hook->{label} || $hook->{name});
 
     eval {
         # FIXME  This is going to be fugly to implement.

@@ -1,0 +1,5 @@
+[% c.getval('c_croot') %]
+[% c.getpath('/yamlkey/animations[0]/author') %]
+[% test = c.get_pkg_info('centos_pkgmgr_config','fpp') %]
+[% bash_pkg = test.find("install") %]
+[% test.getval('name',bash_pkg).join(' ') %]

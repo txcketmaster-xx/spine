@@ -34,7 +34,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { 'DISCOVERY/populate' => [ { name => 'dryrun',
-                                                   code => \&is_dryrun } ]
+                                                   code => \&is_dryrun,
+                                                   position => HOOK_START } ]
                      },
             cmdline => { options => { dryrun => \$DRYRUN } }
           };

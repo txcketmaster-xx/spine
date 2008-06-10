@@ -64,6 +64,11 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                        },
           };
 
+sub get_store {
+    return undef unless (exists $CONF->{instance_cfg}->{$_[0]}->{store});
+    return $CONF->{instance_cfg}->{$_[0]}->{store};
+}
+
 sub initialize {
     my $c = shift;
     
@@ -130,6 +135,7 @@ sub apply_changes {
     }
 }
 
+
 # Load the Package Manager config then load instance configs
 sub load_config {
     my $c = shift;
@@ -148,6 +154,13 @@ sub load_config {
         $c->cprint('No "instances" within ('.PKGMGR_CONFKEY.') key', 2);
         return PLUGIN_SUCCESS;
     }
+    $c->cprint("Adding get_pkg_info data function", 2);
+    # TODO catch errors
+    my $method = sub { new Spine::Plugin::PackageManager::DataHelper(@_) };
+    unless ($registry->install_method("get_pkg_info", $method)) {
+        return PLUGIN_ERROR;
+    }
+
     # go through and load instance configs
     foreach my $instance (@{$pc->{instances}}) {
         # We assume that there will be a key for the instance, but
@@ -162,7 +175,8 @@ sub load_config {
         # hopeful something will pick it up.
         $c->cprint("Finding config plugin for ($instance)", 4);
         $point = $registry->get_hook_point("PKGMGR/Config");
-        $rc = $point->run_hooks_until(PLUGIN_STOP, $c, $pic, $instance);
+        # PKGINFO is passed to allow plugins to add functions
+        $rc = $point->run_hooks_until(PLUGIN_STOP, $c, $pic, $instance, $pc);
         if ($rc != PLUGIN_FINAL) {
             # Nothing implemented config for this instance...
             $c->error("Error with config for ($instance)", 'crit');
@@ -304,6 +318,29 @@ sub report {
 
     return PLUGIN_FINAL;
 }
+1;
+
+# small package to be used in things like overlay templates
+package Spine::Plugin::PackageManager::DataHelper;
+use strict;
+use Spine::Plugin::PackageManager;
+sub new {
+    my ($class, $c, $inst) = @_;
+    return undef unless (defined $inst);
+    my $self = bless { }, $class;
+    $self->{store} = Spine::Plugin::PackageManager::get_store($inst);
+    return undef unless defined ($self->{store});
+    return $self;
+}
+
+sub find {
+    shift()->{store}->find_node(@_);
+}
+
+sub getval {
+    shift()->{store}->get_node_val(@_);
+}
+
 1;
 
 # TODO: Something should be made and called something like Spine::Store that
