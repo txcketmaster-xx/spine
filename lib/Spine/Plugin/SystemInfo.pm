@@ -61,22 +61,27 @@ sub initialize {
         return PLUGIN_ERROR;
     }
 
-    $point = $registry->get_hook_point("Platform");
-    # HOOKME, go through the platform plugins until we know what we are
-    $rc = $point->run_hooks_until(PLUGIN_STOP, $c);
-    if ($rc != PLUGIN_FINAL) {
-        # Nothing implemented config for this instance...
-        $c->error("Could not detect the platform", 'crit');
-        return PLUGIN_ERROR;
+    # Only try to detect the platform if we don't know what it is...
+    $platform = $c->getval('c_platform');
+    unless (defined ($platform = $c->getval('c_platform'))) {
+        $point = $registry->get_hook_point("Platform");
+        # HOOKME, go through the platform plugins until we know what we are
+        $rc = $point->run_hooks_until(PLUGIN_STOP, $c);
+        if ($rc != PLUGIN_FINAL) {
+            # Nothing implemented config for this instance...
+            $c->error("Could not detect the platform", 'crit');
+            return PLUGIN_ERROR;
+        }
+        $platform = $c->getval('c_platform');
     }
 
     # c_platform should now have been set...
-    $platform = $c->getval('c_platform');
     unless (defined $platform) {
         $c->error("The platform plugin failed to actually set c_platform", 'crit');
         return PLUGIN_ERROR;
     }
 
+    $registry->create_hook_point("Platform/$platform");
     $point = $registry->get_hook_point("Platform/$platform");
     # HOOKME, go through the platform plugins until we know what we are
     $rc = $point->run_hooks_until(PLUGIN_STOP, $c);

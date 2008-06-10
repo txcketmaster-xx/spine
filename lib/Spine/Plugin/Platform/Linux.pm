@@ -63,8 +63,7 @@ sub check_for_linux {
     my $unamedata = qx/$uname -s/;
     return PLUGIN_SUCCESS unless ($? == 0 && $unamedata =~ m/^linux/i);
     
-    $registry->create_hook_point(qw(Platform/linux
-                                    Platform/linux/Distro));
+    $registry->create_hook_point("Platform/linux/Distro");
     $c->{c_platform} = "linux";
     return PLUGIN_FINAL;
 }
@@ -76,18 +75,21 @@ sub detect_distro {
 
     my $registry = new Spine::Registry();
 
-    my ($point,$rc);
+    my ($distro, $point,$rc);
 
-    $point = $registry->get_hook_point('Platform/linux/Distro');
-    # HOOKME, go through ALL linux distro plugins
-    $rc = $point->run_hooks_until(PLUGIN_STOP, $c);
-    if ($rc != PLUGIN_FINAL) {
-        $c->error("A linux distro plugin failed", 'crit');
-        return PLUGIN_ERROR;
+    # Only work out the distro if we don't know what it is already
+    unless (defined ($distro = $c->getval('c_distro'))) {
+        $point = $registry->get_hook_point('Platform/linux/Distro');
+        # HOOKME, go through ALL linux distro plugins
+        $rc = $point->run_hooks_until(PLUGIN_STOP, $c);
+        if ($rc != PLUGIN_FINAL) {
+            $c->error("A linux distro plugin failed", 'crit');
+            return PLUGIN_ERROR;
+        }
+        $distro = $c->getval('c_distro');
     }
 
     # c_distro should now have been set...
-    my $distro = $c->getval('c_distro');
     unless (defined $distro) {
         $c->error("The linux distro plugin failed to actually set c_distro", 'crit');
         return PLUGIN_ERROR;
