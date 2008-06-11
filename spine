@@ -108,7 +108,8 @@ $SAVE_STATE = 1;
 $DEBUG = $ENV{SPINE_DEBUG} || 0;
 
 # Turn off buffering
-if ($DEBUG) {
+if ($DEBUG)
+{
     select STDERR;
     $| = 1;
     select STDOUT;
@@ -168,31 +169,38 @@ if (defined($CONFIG->{spine}->{PluginPath}))
 # If specific actions were requested, we don't use our profile,
 # we build a new profile of just the actions the user wants.
 #
-if (scalar(@actions) > 0) {
+if (scalar(@actions) > 0)
+{
     $CONFIG->{spine}->{Profile} = '__action';
     # Use a hash for uniqueness
     my $action_profile = {};
     foreach my $action (@actions) {
-        unless (exists $CONFIG->{'action_' . $action}) {
+        unless (exists $CONFIG->{'action_' . $action})
+        {
             print STDERR "Action $action is not a valid action!\n";
             goto failure;
         }
 
         my $action_map = $CONFIG->{'action_' . $action};
 
-        foreach my $phase (keys(%{$action_map})) {
-            unless (exists($action_profile->{$phase})) {
+        foreach my $phase (keys(%{$action_map}))
+        {
+            unless (exists($action_profile->{$phase}))
+            {
                 $action_profile->{$phase} = {};
             }
-            unless ($action_map->{$phase} eq '') {
-              foreach my $method (split(/\s+/, $action_map->{$phase})) {
+            unless ($action_map->{$phase} eq '')
+            {
+              foreach my $method (split(/\s+/, $action_map->{$phase}))
+              {
                   $action_profile->{$phase}->{$method} = undef;
               }
            }
         }
     }
     # Now we actually make our profile
-    foreach my $phase (keys(%{$action_profile})) {
+    foreach my $phase (keys(%{$action_profile}))
+    {
         $CONFIG->{$CONFIG->{spine}->{Profile}}->{$phase} =
             join(' ', keys(%{$action_profile->{$phase}}));
     }
@@ -201,7 +209,8 @@ if (scalar(@actions) > 0) {
 # Prepare our profile - if any phase was left out, we fill it in
 # with defaults, if we have them.
 #
-foreach my $phase (keys(%{$CONFIG->{DefaultPlugins}})) {
+foreach my $phase (keys(%{$CONFIG->{DefaultPlugins}}))
+{
     unless (exists($CONFIG->{$CONFIG->{spine}->{Profile}}->{$phase})) {
         $CONFIG->{$CONFIG->{spine}->{Profile}}->{$phase} =
             $CONFIG->{DefaultPlugins}->{$phase};
@@ -225,7 +234,8 @@ while (my ($phase, $plugins) = each(%{$CONFIG->{$CONFIG->{spine}->{Profile}}})) 
 }
 
 # No plugins loaded?  Not ok!
-unless (scalar(keys(%{$registry->{PLUGINS}}))) {
+unless (scalar(keys(%{$registry->{PLUGINS}})))
+{
     print STDERR "Didn't load any plugins.  Library path or config problem!\n";
     goto failure;
 }
@@ -247,6 +257,7 @@ unless (GetOptions(\%OPTIONS,
                    'release=s',
                    'freeze',
                    'hostname|as=s',
+                   'version', 
                    'last|which|what|huh|wtf')) {
     usage();
     goto failure;
@@ -255,13 +266,15 @@ unless (GetOptions(\%OPTIONS,
 Getopt::Long::Configure('no_pass_through');
 
 # Help option.
-if ($OPTIONS{help}) {
+if ($OPTIONS{help})
+{
     usage();
     goto finished;
 }
 
 # Now we get our plugin options
-unless (GetOptions(%{$registry->get_options()})) {
+unless (GetOptions(%{$registry->get_options()}))
+{
     print STDERR "Invalid option.\n";
     goto failure;
 }
@@ -270,18 +283,37 @@ unless (GetOptions(%{$registry->get_options()})) {
 my $prev_state = new Spine::State($CONFIG);
 $prev_state->load();
 
+if (defined($OPTIONS{version}))
+{
+    print 'Spine version: ', $VERSION, "\n";
+    goto finished;
+}
+
 # If we're asked to report what we're currently configured with, do so and exit
 if (defined($OPTIONS{last}))
 {
-    print 'Last configured with release: ', $prev_state->release();
-    print "\t\tAt: ", ctime($prev_state->run_time());
+    if (defined($prev_state->release()))
+    {
+        print 'Last configured with release: ', $prev_state->release();
+        if (get_frozen_release($CONFIG->{spine}->{StateDir}) == 
+	                                        $prev_state->release())
+        {
+            print ' (frozen)';
+        }
+	print ' at ', ctime($prev_state->run_time());
+    }
+    else
+    {
+        print "No previous config found.\n";
+    }
     goto finished;
 }
 
 # Get our configuration tree location
 my $source = get_source(\%OPTIONS, $CONFIG);
 
-unless (defined($source)) {
+unless (defined($source))
+{
     # Error reporting is handled by get_source()
     goto failure;
 }
