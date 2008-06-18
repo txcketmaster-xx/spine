@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::PackageManager::DEB;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(getbin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;
@@ -35,8 +36,6 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => {
-                       "PKGMGR/ResolveInstalled" => [ { name => 'DEB ResolveInstaledDeps',
-                                                        code => \&_resolve_deps } ],
                        "PKGMGR/Lookup"           => [ { name => 'DEB LookupInstalled',
                                                         code => \&_get_installed } ],
             },
@@ -44,79 +43,6 @@ $MODULE = { author => 'osscode@ticketmaster.com',
           };
 
 our $PKGPLUGNAME = 'DEB';
-
-# For the list of packages that is to be kept on the system
-# work out what packages they need so we don't remove them
-# XXX: build out 'deps'
-sub _resolve_deps {
-    my ($c, $instance_conf, undef, $section) = @_;
-
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }
-
-    # TODO: make this cleaner
-    my $s = $instance_conf->{store};
-
-    my @installed = $s->find_node('installed');
-    my $pkg;
-
-    # build out a hash provides and packages names mapped to package
-    # and a list of what packages depend on
-    my %prov_lookup;
-    my %dep_lookup;
-    my %installed;
-    foreach $pkg ($s->get_node_val([ 'name', 'provides', 'requires'], @installed)){
-        $installed{$pkg->[0]} = undef;
-        foreach (@{$pkg->[1]}) {
-            unless (exists $prov_lookup{$_}) {
-                $prov_lookup{$_} = [];
-            }
-            push @{$prov_lookup{$_}}, $pkg->[0];
-        }
-        $dep_lookup{$pkg->[0]} = $pkg->[2];
-    }
-
-    my %missing = map { $_ => undef } $s->get_node_val('name', $s->find_node('missing'));
-    my @pkgs = $s->get_node_val('name', $s->find_node('install'));
-    my %install = map { $_ => undef } @pkgs;
-    my %processed;
-    while(@pkgs) {
-        my @new_pkgs;
-        foreach (@pkgs) {
-            # We only do installed deps
-            next if (exists $missing{$_});
-            foreach (@{$dep_lookup{$_}}) {
-                # This deals with deps where there is an '|' (OR)
-                foreach (split(/\s*\|\s*/, $_)) {
-                    # have processed this one before.
-                    next if exists $processed{$_};
-                    if (exists $installed{$_}) {
-                        $s->copy_node($s->find_node('installed', 'name', $_),
-                                      $s->create_node('deps'));
-                        push @new_pkgs, $_;
-                        $processed{$_} = undef;
-                        next;
-                    }
-                    foreach $pkg (@{$prov_lookup{$_}}) {
-                        # No point marking a dep for something in the install list
-                        next if exists $install{$pkg};
-                        $s->copy_node($s->find_node('installed', 'name', $pkg),
-                                      $s->create_node('deps'));
-                        # use to resolve it's deps next run;
-                        push @new_pkgs, $pkg;
-                        $processed{$pkg} = undef;
-                    }
-                }
-            }
-        }
-        @pkgs = @new_pkgs;
-    }
-    
-    return PLUGIN_FINAL;
-}
-
 
 # Get information about the installed packages
 sub _get_installed {
@@ -128,7 +54,16 @@ sub _get_installed {
     }
 
     # TODO: remove lameness, at least it's easy
-    my $output = `dpkg-query --showformat='\${status}\t\${Package}\\t\${Architecture}\\t\${Version}\\t\${Provides}\\t\${Pre-Depends}\\t\${Depends}\\n' -W`;
+    my $query_bin = getbin('dpkg-query', $c->getvals('dpkg-query_bin'));
+    unless (defined $query_bin && -x $query_bin) {
+        $c->error('Could not find dpkg-query executable');
+        return PLUGIN_ERROR;
+    }
+    my $output = `$query_bin --showformat='\${status}\t\${Package}\\t\${Architecture}\\t\${Version}\\t\${Provides}\\t\${Pre-Depends}\\t\${Depends}\\n' -W`;
+    unless ($? eq 0) {
+        $c->error('Error running dpkg-query');
+        return PLUGIN_ERROR;
+    }
     my $s = $instance_conf->{store};
 
     foreach (split('\n', $output)) {

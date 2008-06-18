@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::PackageManager::APT;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(getbin);
 use IPC::Open3;
 use File::Spec::Functions;
 
@@ -60,8 +61,6 @@ $MODULE = { author => 'osscode@ticketmaster.com',
           };
 
 our $PKGPLUGNAME = 'APT';
-our $APT_BIN = "/usr/bin/apt-get";
-our $APTCACHE_BIN = "/usr/bin/apt-cache";
 our $DRYRUN = undef; 
 
 sub _report_stderr {
@@ -87,7 +86,7 @@ sub init_apt {
                          state_dir => '/var/state/apt',
                          conf_dir => '/etc/apt',
                          aptget_args => [],
-                         aptget_bin => $c->getval('apt_bin') || $APT_BIN,
+                         aptget_bin => getbin('apt-get', $c->getvals('apt-get_bin')),
                        );
     unless (defined $pic->{package_config}->{PKGPLUGNAME}) {
         $pic->{package_config}->{PKGPLUGNAME} = {};

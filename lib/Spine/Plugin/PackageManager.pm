@@ -52,12 +52,15 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                                     code => \&apply_changes } ],
                        CLEAN                 => [ { name => 'PackageManager Clean',
                                                     code => \&post_tidy } ],
-                       "PKGMGR/CalcMissing"  => [ { name => 'PackageManager Default Diff',
+                       "PKGMGR/CalcMissing"  => [ { name => 'PackageManager CalcMissing',
                                                     code => \&calc_missing } ],
-                       "PKGMGR/CalcRemove"   => [ { name => 'PackageManager Default Diff',
+                       "PKGMGR/CalcRemove"   => [ { name => 'PackageManager CalcRemove',
                                                     code => \&calc_remove } ],
-                       "PKGMGR/Report"       => [ { name => 'PackageManager Default Report',
+                       "PKGMGR/Report"       => [ { name => 'PackageManager Report',
                                                     code => \&report } ],
+                       "PKGMGR/ResolveInstalled" => [ { name => 'PackageManager ResolveInstaled',
+                                                        code => \&resolve_deps } ],
+
                      },
             cmdline => { _prefix => 'pkgmgr',
                          options => { },
@@ -290,6 +293,82 @@ sub calc_remove {
             $s->copy_node($_, $s->create_node('remove'));
         }
     }
+    return PLUGIN_FINAL;
+}
+
+# For the list of packages that is to be kept on the system
+# work out what packages they need so we don't remove them
+# XXX it will not make sure all dpes are met. IF a dep is not
+# installed (which would mean something is broken it will neither
+# notice or report
+sub resolve_deps {
+    my ($c, $instance_conf, undef, $section) = @_;
+
+    # Are we to deal with this?
+    unless (exists $section->{$PKGPLUGNAME}) {
+        return PLUGIN_SUCCESS;
+    }
+
+    # TODO: make this cleaner
+    my $s = $instance_conf->{store};
+
+    my @installed = $s->find_node('installed');
+    my $pkg;
+
+    # build out a hash provides and packages names mapped to package
+    # and a list of what packages depend on
+    my %prov_lookup;
+    my %dep_lookup;
+    my %installed;
+    foreach $pkg ($s->get_node_val([ 'name', 'provides', 'requires'], @installed)){
+        $installed{$pkg->[0]} = undef;
+        foreach (@{$pkg->[1]}) {
+            unless (exists $prov_lookup{$_}) {
+                $prov_lookup{$_} = [];
+            }
+            push @{$prov_lookup{$_}}, $pkg->[0];
+        }
+        $dep_lookup{$pkg->[0]} = $pkg->[2];
+    }
+
+    my %missing = map { $_ => undef } $s->get_node_val('name', $s->find_node('missing'));
+    my @pkgs = $s->get_node_val('name', $s->find_node('install'));
+    my %install = map { $_ => undef } @pkgs;
+    my %processed;
+    while(@pkgs) {
+        my @new_pkgs;
+        foreach (@pkgs) {
+            # We only do installed deps
+            next if (exists $missing{$_});
+            foreach (@{$dep_lookup{$_}}) {
+                # This deals with deps where there is an '|' (OR)
+                # XXX: used in DEB pkgs. Not sure if this should be here
+                #      maybe make it flexable...
+                foreach (split(/\s*\|\s*/, $_)) {
+                    # have processed this one before.
+                    next if exists $processed{$_};
+                    if (exists $installed{$_}) {
+                        $s->copy_node($s->find_node('installed', 'name', $_),
+                                      $s->create_node('deps'));
+                        push @new_pkgs, $_;
+                        $processed{$_} = undef;
+                        next;
+                    }
+                    foreach $pkg (@{$prov_lookup{$_}}) {
+                        # No point marking a dep for something in the install list
+                        next if exists $install{$pkg};
+                        $s->copy_node($s->find_node('installed', 'name', $pkg),
+                                      $s->create_node('deps'));
+                        # use to resolve it's deps next run;
+                        push @new_pkgs, $pkg;
+                        $processed{$pkg} = undef;
+                    }
+                }
+            }
+        }
+        @pkgs = @new_pkgs;
+    }
+    
     return PLUGIN_FINAL;
 }
 

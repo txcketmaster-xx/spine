@@ -25,7 +25,8 @@ package Spine::Plugin::Platform::Linux;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 use Spine::Registry;
-use NetAddr::IP;
+use Spine::Util qw(getbin);
+use Net::IP qw(:PROC);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -56,7 +57,7 @@ sub check_for_linux {
     my $c = shift;
     my $registry = new Spine::Registry();
 
-    my $uname = $c->getval('uname_bin') || "/bin/uname";
+    my $uname = getbin('uname', $c->getvals('uname_bin'));
 
     unless (-x $uname) {
         $c->cprint('Skipping Linux platform detection, no uname', 4);
@@ -175,7 +176,7 @@ sub basic_distro {
             }
         }
         # XXX: is it ok to assume that this is in the path?
-        my $rpm_bin = $c->getval('rpm_bin') || 'rpm';
+        my $rpm_bin = getbin('rpm', $c->getvals('rpm_bin'));
         $data = qx/$rpm_bin -q ${distro}-release/;
         if ($? == 0) {
             $data =~ m/release-(\d+)/;
@@ -214,7 +215,7 @@ sub basic_distro {
 sub get_ifinfo {
     my $c = shift;
     my ($ip_address, $bcast, $netmask, $netcard);
-    my $ip = $c->getval("ip_bin") || "/sbin/ip";
+    my $ip = getbin("ip", $c->getvals('ip_bin'));
     
     $c->cprint("Getting interface information", 3);
     
@@ -233,25 +234,67 @@ sub get_ifinfo {
                                               v6 => {},
                                             };
         } elsif (m/inet\s+((?:[0-9]{1,3}\.?){4})\/([0-9]+)\s/) {
+            # IPv4
             my $addr = $1;
+            my $cidr = $2;
+
             $ifhash->{v4}->{$addr} = { cidrmask => $2,
                                        label => $3,
                                        address => $1 };
             if (m/brd\s+((?:[0-9]{1,3}\.?){4})\s/) {
                 $ifhash->{v4}->{$addr}->{bcast} = $1;
-            }  
+            }
             if (m/scope\s+([^\s]+)\s/) {
                 $ifhash->{v4}->{$addr}->{scope} = $1;
             }
             if ($_ !~ m/secondary/) {
                 $ifhash->{v4}->{base} = $interfaces{$ifname}->{v4}->{$addr};
             }
-            my $nobj = new NetAddr::IP($addr."/".$ifhash->{v4}->{$addr}->{cidrmask});
+
+            my $ipv    = ip_get_version($addr);
+            my $bin_ip = ip_iptobin(ip_expand_address($addr, $ipv), $ipv);
+            my $bin_nm = ip_get_mask($cidr, $ipv);
+            my $bin_bc = ip_last_address_bin($bin_ip, $cidr, $ipv);
+            my $bin_nw = $bin_ip & $bin_nm;
+
             unless(exists $ifhash->{v4}->{$addr}->{bcast}) {
-                $ifhash->{v4}->{$addr}->{bcast} = $nobj->broadcast->addr;
+                $ifhash->{v4}->{$addr}->{bcast} = ip_bintoip($bin_bc, $ipv);
             }
-            $ifhash->{v4}->{$addr}->{network} = $nobj->network->addr;
-            $ifhash->{v4}->{$addr}->{netmask} = $nobj->mask();
+
+            $ifhash->{v4}->{$addr}->{netmask} = ip_bintoip($bin_nm, $ipv);
+            $ifhash->{v4}->{$addr}->{network} = ip_bintoip($bin_nw, $ipv);
+
+        } elsif (m/inet6\s+([^\/]+)\/([0-9]+)\s/) {
+            # IPv6
+            my $addr = $1;
+            my $cidr = $2;
+
+            $ifhash->{v6}->{$addr} = { cidrmask => $2,
+                                       label => $3,
+                                       address => $1 };
+            if (m/brd\s+((?:[0-9]{1,3}\.?){4})\s/) {
+                $ifhash->{v6}->{$addr}->{bcast} = $1;
+            }  
+            if (m/scope\s+([^\s]+)\s/) {
+                $ifhash->{v6}->{$addr}->{scope} = $1;
+            }
+            if ($_ !~ m/secondary/) {
+                $ifhash->{v6}->{base} = $interfaces{$ifname}->{v6}->{$addr};
+            }
+
+            my $ipv    = ip_get_version($addr);
+            my $bin_ip = ip_iptobin(ip_expand_address($addr, $ipv), $ipv);
+            my $bin_nm = ip_get_mask($cidr, $ipv);
+            my $bin_bc = ip_last_address_bin($bin_ip, $cidr, $ipv);
+            my $bin_nw = $bin_ip & $bin_nm;
+
+            unless(exists $ifhash->{v6}->{$addr}->{bcast}) {
+                $ifhash->{v6}->{$addr}->{bcast} = ip_bintoip($bin_bc, $ipv);
+            }
+
+            $ifhash->{v6}->{$addr}->{netmask} = ip_bintoip($bin_nm, $ipv);
+            $ifhash->{v6}->{$addr}->{network} = ip_bintoip($bin_nw, $ipv);
+
         } elsif (m/link\/([^\s]+)\s((?:[0-9A-Fa-f]{2}:?){6})\s/) {
             $ifhash->{mac} = $2;
             $ifhash->{type} = $1;
@@ -295,32 +338,33 @@ sub get_virtual {
 
     $c->{c_is_virtual} = 0;
 
-    my $fh = new IO::File('/sbin/lspci -n |');
+    my $lspci = getbin('lspci', $c->getvals('lspci_bin'));
+    my $fh = new IO::File("$lspci -n |");
 
-    if (not $fh) {
-        $c->{c_failure} = "Failed to run /sbin/lspci: $!";
-        return PLUGIN_FATAL;
-    }
-
-    while (<$fh>) {
-        # 15ad is the vendor ID for VMWare and 0405 is the device ID for their
-        # virtual SVGA adapter so "15ad:0405" is the string we're looking for
-        #
-        # rtilder    Tue Jul 12 13:19:48 PDT 2005
-        if (m/15ad:0405/i) {
-            if (not $c->get_config_group($c->getval('virtual_common_path'))) {
-                # Jesus but I hate how people who like perl use die() calls to
-                # determine whether or not an exception has occured.
-                $fh->close(); # make sure we don't have trailing FDs
-                die "Couldn't include the VM config group!";
-            }
+    if ($fh) {
+        while (<$fh>) {
+            # 15ad is the vendor ID for VMWare and 0405 is the device ID for their
+            # virtual SVGA adapter so "15ad:0405" is the string we're looking for
+            #
+            # rtilder    Tue Jul 12 13:19:48 PDT 2005
+            if (m/15ad:0405/i) {
+                if (not $c->get_config_group($c->getval('virtual_common_path'))) {
+                    # Jesus but I hate how people who like perl use die() calls to
+                    # determine whether or not an exception has occured.
+                    $fh->close(); # make sure we don't have trailing FDs
+                    die "Couldn't include the VM config group!";
+                }
             
-            $c->{c_is_virtual} = "vmware";
-            last;
+                $c->{c_is_virtual} = "vmware";
+                last;
+            }
         }
+        $fh->close();
+    } else {
+        $c->error('Could not check if the host is a vmware virtual, '.
+                  'missing lspci', 'crit');
     }
     
-    $fh->close();
     
     # We will do an additional check to see if this is a xen based vm.  
     # very easy to do as we simply check the existance of /proc/xen

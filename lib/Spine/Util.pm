@@ -31,7 +31,7 @@ use File::Spec::Functions;
 use File::stat;
 use File::Temp;
 use Net::DNS;
-use Template;
+use File::Spec::Functions;
 
 
 use Spine::Constants qw(:basic);
@@ -47,7 +47,7 @@ our $dns_schema = '
                 ';
 
 @EXPORT_OK = qw(mkdir_p makedir safe_copy touch resolve_address do_rsync
-                exec_command exec_initscript);
+                exec_command exec_initscript getbin);
 @EXPORT_FAIL = qw(_old_do_rsync);
 
 
@@ -249,6 +249,31 @@ sub exec_initscript
     return 1;
 }
 
+# FIXME: please find or think of something better
+# take a bin name and a list of suggestions (full paths)
+# if none of the suggestions match then it looks in PATH
+sub getbin
+{
+    my ($bin, @suggest) = @_;
+    my $lookup;
+
+    # Have we been given a good path
+    foreach $lookup (@suggest) {
+        if (-x $lookup) {
+            return $lookup;
+        }
+    }
+
+    # Can we find the damn thing?
+    foreach(split('\s*:\s*', $ENV{PATH})) {
+        if (-x ($lookup = catfile($_, $bin))) {
+            return $lookup;
+        }
+    }
+
+    # never mind.
+    return undef;
+}
 
 sub exec_command
 {

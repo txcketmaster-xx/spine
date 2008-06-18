@@ -37,6 +37,7 @@ package Spine::Plugin::PackageManager::YUM;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 use IPC::Open3;
+use Spine::Util qw(getbin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;
@@ -75,7 +76,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
           };
 
 our $PKGPLUGNAME = 'YUM';
-our $YUM_BIN = "/usr/bin/yum";
+our $YUM_BIN;
 
 sub _report_stderr {
     my ($c, $stderr) = @_;
@@ -91,7 +92,11 @@ sub init_yum {
         return PLUGIN_SUCCESS;
     }
 
-    $YUM_BIN = $c->getval('yum_bin') || $YUM_BIN;
+    $YUM_BIN = getbin('yum', $c->getvals('yum_bin'));
+    unless (defined $YUM_BIN && -x $YUM_BIN) {
+        $c->error("Could not find an yum executable");
+        return PLUGIN_ERROR;
+    }
 
     # TODO: make this read a db/config from the temp location
     # during dryrun
