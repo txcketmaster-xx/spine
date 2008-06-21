@@ -605,7 +605,7 @@ sub _parse_complex_key
         }
     }
     elsif (ref(\$fh) eq 'SCALAR') {
-        $buf = ${$fh};
+        $buf = $fh;
     }
     else {
         $self->error('Invalid object passed to _parse_complex_key: '
@@ -616,11 +616,11 @@ sub _parse_complex_key
     #
     # Now actually try to parse the key
     #
-    if ($method =~ m/^#?%JSON$/o)
+    if ($method =~ m/^JSON$/o)
     {
         $obj = JSON::Syck::Load($buf);
     }
-    elsif ($method =~ m/^#?%YAML\s+(\d+\.\d+)$/o)
+    elsif ($method =~ m/^YAML\s+(\d+\.\d+)$/o)
     {
         # Only the YAML v1.0 specification is supported by any YAML parsers
         # as yet.
