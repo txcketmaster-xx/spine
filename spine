@@ -169,19 +169,31 @@ if (defined($CONFIG->{spine}->{PluginPath}))
 # If specific actions were requested, we don't use our profile,
 # we build a new profile of just the actions the user wants.
 #
+
+#
+# First, we need to build a case insensitive lookup table
+# Back in the pre-GPL days, the old codebase was case insensitive
+# about the then-equivalent of profiles. So we try to provide some
+# backwards compatibility and not make the user know the case
+# of profiles and actions.
+#
+my %lc_config_keys = map { lc($_) => $_ } keys(%$CONFIG);
+
 if (scalar(@actions) > 0)
 {
     $CONFIG->{spine}->{Profile} = '__action';
     # Use a hash for uniqueness
     my $action_profile = {};
     foreach my $action (@actions) {
-        unless (exists $CONFIG->{'action_' . $action})
-        {
+        my $lcaction = lc($action);
+        unless (exists $lc_config_keys{'action_' . $lcaction}) {
             print STDERR "Action $action is not a valid action!\n";
             goto failure;
         }
 
-        my $action_map = $CONFIG->{'action_' . $action};
+        my $real_action_name = $lc_config_keys{'action_' . $lcaction};
+
+        my $action_map = $CONFIG->{$real_action_name};
 
         foreach my $phase (keys(%{$action_map}))
         {
@@ -209,6 +221,11 @@ if (scalar(@actions) > 0)
 # Prepare our profile - if any phase was left out, we fill it in
 # with defaults, if we have them.
 #
+
+# First grab the proper casing
+my $real_profile_name = $lc_config_keys{lc($CONFIG->{spine}->{Profile})};
+$CONFIG->{spine}->{Profile} = $real_profile_name;
+
 foreach my $phase (keys(%{$CONFIG->{DefaultPlugins}}))
 {
     unless (exists($CONFIG->{$CONFIG->{spine}->{Profile}}->{$phase})) {
