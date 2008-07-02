@@ -929,7 +929,7 @@ Notes:
     Spine extracts all the information necessary to configure
     the system from the hostname.  If the hostname is provided
     on the command line and results in a sucessful run, it is
-    stored in /etc/nodefile. The hostname stored in this file
+    stored in /etc/nodename. The hostname stored in this file
     is then used for subsequent runs.
 
 EOF
