@@ -54,7 +54,7 @@ sub get_interfaces
     }
     close INPUT;
 
-    $c->set('ethernet_interfaces', \@ints)
+    $c->set('c_ethernet_interfaces', \@ints);
 
     return PLUGIN_SUCCESS;
 }
