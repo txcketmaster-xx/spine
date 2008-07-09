@@ -176,55 +176,67 @@ sub get_netinfo
     return PLUGIN_SUCCESS;
 }
 
-
+#
+# This function detects if the current system is s Vmware or Xen VM
+# and the subtype of Xen VM (para virt vs. full hardware emmulation.
+#
+# c_is_virtual = 0 for physical, 1 for virtual
+# c_virtual_type = undef for physical, vmware for vmware, xen-para for 
+#                  para-virtualized Xen, and xen-hvm for full hardware
+#                  virtualization under Xen.
+#
 sub is_virtual
 {
+
     my $c = shift;
 
-    $c->{c_is_virtual} = 0;
+    $c->{c_is_virtual}=0;
 
-    my $fh = new IO::File('/sbin/lspci -n |');
-
-    if (not $fh) {
-	$c->{c_failure} = "Failed to run /sbin/lspci: $!";
-	return PLUGIN_FATAL;
-    }
-
-    while (<$fh>) {
-	# 15ad is the vendor ID for VMWare and 0405 is the device ID for their
-	# virtual SVGA adapter so "15ad:0405" is the string we're looking for
-	#
-	# rtilder    Tue Jul 12 13:19:48 PDT 2005
-	if (m/15ad:0405/i) {
-            if (not $c->get_config_group($c->getval('virtual_common_path'))) {
-                # Jesus but I hate how people who like perl use die() calls to
-                # determine whether or not an exception has occured.
-                $fh->close(); # make sure we don't have trailing FDs
-                die "Couldn't include the VM config group!";
-            }
-
-            $c->{c_is_virtual} = 1;
-	    last;
-	}
-    }
-
-    $fh->close();
-
-    # We will do an additional check to see if this is a xen based vm.  
-    # very easy to do as we simply check the existance of /proc/xen
-    # based on input, I'm setting this to xen, it could be set to something
-    # like 2 with a pseudo define where 1 = vmware, 2 = xen
+    # First detect xen-para because it is easy
     my $xen_indicator="/proc/xen";
-
-    if ( -d $xen_indicator ) {
-        $c->{c_is_virtual} = "xen";
+    if ( -d $xen_indicator )
+    {
+        $c->{c_is_virtual} = 1;
+        $c->{c_virtual_type} = "xen-para";
     }
+    else
+    {
+        # We actually have to parse the lspci output now.
+        my $fh = new IO::File('/sbin/lspci -n |');
 
+        if (not $fh)
+        {
+            $c->{c_failure} = "Failed to run /sbin/lspci: $!";
+            return PLUGIN_FATAL;
+        }
 
+        foreach my $line (<$fh>)
+        {
+            # 15ad is the vendor ID for VMWare and 0405 is the device ID for
+            # their virtual SVGA adapte so "15ad:0405" is a VMware VM.
+            #
+            # rtilder Tue Jul 12 13:19:48 PDT 2005
+            if ( $line =~ m/15ad:0405/i )
+            {
+                $c->{c_is_virtual} = 1;
+                $c->{c_virtual_type} = "vmware";
+                last;
+            }
+            # 5853 is the vendor ID for Xen Source (who contribute a lot of
+            # code to the Xen project) and 0001 is the device ID for their
+            # virtual SCSI adapter so "5853:0001" is a Xen HVM
+            if ( $line =~ m/5853:0001/i )
+            {
+                $c->{c_is_virtual} = 1;
+                $c->{c_virtual_type} = "xen-hvm";
+                last;
+            }
+        }
+        $fh->close();
+    }
 
     return PLUGIN_SUCCESS;
 }
-
 
 sub get_distro
 {
@@ -418,7 +430,8 @@ sub get_hardware_platform
 
     my $fh = new IO::File('/usr/sbin/dmidecode |');
 
-    if (not $fh) {
+    if (not $fh)
+    {
         $c->{c_failure} = "Failed to run dmidecode: $!";
         return PLUGIN_FATAL;
     }
@@ -426,16 +439,19 @@ sub get_hardware_platform
     my $sys_section = 0;
     my $hardware_platform = 'UNKNOWN';
 
-    foreach my $line (<$fh>) {
+    foreach my $line (<$fh>)
+    {
         # We need to find the "Product Name:" key under 'DMI type 1'
         # (which is the "System Information" section).
-        if ($line =~ m/DMI type 1/i) {
+        if ($line =~ m/DMI type 1/i)
+        {
             $sys_section = 1;
             next;
         }
 
         # If we are in the sys_section, look for "Product Name:"
-        if ($sys_section and $line =~ m/Product Name:/i) {
+        if ($sys_section and $line =~ m/Product Name:/i)
+        {
             (undef, $hardware_platform) = split(': ', $line, 2);
             $hardware_platform =~ s/^\s+|\s+$//g;
             $hardware_platform = 'UNKNOWN' if $hardware_platform eq '';
@@ -457,7 +473,8 @@ sub get_current_kernel_version
     my $release_file = qq(/proc/sys/kernel/osrelease);
     my $fh = new IO::File("< $release_file");
 
-    unless (defined($fh)) {
+    unless (defined($fh))
+    {
         $c->error("Couldn't open $release_file: $!", 'err');
         return PLUGIN_FATAL;
     }
