@@ -45,6 +45,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                                    code => \&is_virtual },
                                                  { name => 'num_procs',
                                                    code => \&get_num_procs } ,
+                                                 { name => 'hardware_platform',
+                                                   code => \&get_hardware_platform } , 
                                                  { name => 'current_kernel_version',
                                                    code => \&get_current_kernel_version } ]
                      }
@@ -405,6 +407,49 @@ sub get_num_procs
     return PLUGIN_SUCCESS;
 }
 
+#
+# This is a hack until the Hardware plugin is completed to give us
+# some basic idea of what type of system we are running on.
+#
+sub get_hardware_platform
+{
+
+    my $c = shift;
+
+    my $fh = new IO::File('/usr/sbin/dmidecode |');
+
+    if (not $fh) {
+        $c->{c_failure} = "Failed to run dmidecode: $!";
+        return PLUGIN_FATAL;
+    }
+
+    my $sys_section = 0;
+    my $hardware_platform = 'UNKNOWN';
+
+    foreach my $line (<$fh>) {
+        # We need to find the "Product Name:" key under 'DMI type 1'
+        # (which is the "System Information" section).
+        if ($line =~ m/DMI type 1/i) {
+            $sys_section = 1;
+            next;
+        }
+
+        # If we are in the sys_section, look for "Product Name:"
+        if ($sys_section and $line =~ m/Product Name:/i) {
+            (undef, $hardware_platform) = split(': ', $line, 2);
+            $hardware_platform =~ s/^\s+|\s+$//g;
+            $hardware_platform = 'UNKNOWN' if $hardware_platform eq '';
+            last;
+        } 
+
+        # If we enter another DMI section we are done.
+        last if ($sys_section and $line =~ m/DMI type/i);
+    }
+    $fh->close();
+
+    $c->{c_hardware_platform} = $hardware_platform;
+    return PLUGIN_SUCCESS;
+}
 
 sub get_current_kernel_version
 {
