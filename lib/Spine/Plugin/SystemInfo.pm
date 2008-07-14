@@ -27,8 +27,8 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
-$DESCRIPTION = "Spine::Plugin system information harvester";
+$VERSION = sprintf('%d.%02d', q$Revision$ =~ /(\d+)\.(\d+)/);
+$DESCRIPTION = 'Spine::Plugin system information harvester';
 
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
@@ -71,10 +71,10 @@ sub get_sysinfo
 {
     my $c = shift;
     my ($ip_address, $bcast, $netmask, $netcard);
-    my $ifconfig = $c->getval("ifconfig_bin");
-    my $iface = $c->getval("primary_iface");
+    my $ifconfig = $c->getval('ifconfig_bin');
+    my $iface = $c->getval('primary_iface');
 
-    $c->cprint( "retrieving system information", 3);
+    $c->cprint('retrieving system information', 3);
 
     my $platform = `uname`;
     chomp $platform;
@@ -99,7 +99,7 @@ sub get_sysinfo
 	$netcard = 'unknown' unless $netcard;
         close (PCI);
 
-	my $cmd = $ifconfig . " eth" . $iface;
+	my $cmd = $ifconfig . ' eth' . $iface;
 	foreach my $line (`$cmd`)
 	{
 	    if ($line =~
@@ -131,9 +131,9 @@ sub get_sysinfo
 sub get_netinfo
 {
     my $c = shift;
-    my $c_root = $c->getval("c_croot");
+    my $c_root = $c->getval('c_croot');
 
-    $c->print(3, "examining local network");
+    $c->print(3, 'examining local network');
 
     my ($subnet, $network, $netmask, $bcast);
     my $nobj = new NetAddr::IP($c->getval('c_ip_address'));
@@ -178,11 +178,16 @@ sub get_netinfo
 
 #
 # This function detects if the current system is s Vmware or Xen VM
-# and the subtype of Xen VM (para virt vs. full hardware emmulation.
+# and the subtype of Xen VM (para virt vs. full hardware emmulation).
 #
-# c_is_virtual = 0 for physical, 1 for virtual
-# c_virtual_type = undef for physical, vmware for vmware, xen-para for 
-#                  para-virtualized Xen, and xen-hvm for full hardware
+# Variables:
+# c_is_virtual = 0 for physical, 1 for vmware, "xen" for xen-para
+#   DEPRECATED: The c_is_virtual variables is DEPRECATED and only exists
+#               for backwards compatability. It will be removed in future
+#               releases.
+#
+# c_virtual_type = undef for physical, "vmware" for VMWare, "xen-para" for 
+#                  para-virtualized Xen, and "xen-hvm" for full hardware
 #                  virtualization under Xen.
 #
 sub is_virtual
@@ -190,14 +195,14 @@ sub is_virtual
 
     my $c = shift;
 
-    $c->{c_is_virtual}=0;
+    $c->{c_is_virtual} = 0;
 
     # First detect xen-para because it is easy
-    my $xen_indicator="/proc/xen";
+    my $xen_indicator = '/proc/xen';
     if ( -d $xen_indicator )
     {
-        $c->{c_is_virtual} = 1;
-        $c->{c_virtual_type} = "xen-para";
+        $c->{c_is_virtual} = 'xen';
+        $c->{c_virtual_type} = 'xen-para';
     }
     else
     {
@@ -219,7 +224,7 @@ sub is_virtual
             if ( $line =~ m/15ad:0405/i )
             {
                 $c->{c_is_virtual} = 1;
-                $c->{c_virtual_type} = "vmware";
+                $c->{c_virtual_type} = 'vmware';
                 last;
             }
             # 5853 is the vendor ID for Xen Source (who contribute a lot of
@@ -227,8 +232,7 @@ sub is_virtual
             # virtual SCSI adapter so "5853:0001" is a Xen HVM
             if ( $line =~ m/5853:0001/i )
             {
-                $c->{c_is_virtual} = 1;
-                $c->{c_virtual_type} = "xen-hvm";
+                $c->{c_virtual_type} = 'xen-hvm';
                 last;
             }
         }
@@ -260,7 +264,8 @@ sub get_distro
 
         unless ($release_pkgs and $distro_map)
         {
-            die "Either the release_packages or distro_map keys are defined or are empty!  Not good!";
+            die 'Either the release_packages or distro_map keys are defined'
+                . 'or are empty!  Not good!';
         }
     }
 
@@ -301,11 +306,12 @@ sub get_distro
     }
 
     if (scalar(@matches) > 1) {
-        die 'Multiple release packages installed.  DANGER!  ' . join(' ', @matches);
+        die 'Multiple release packages installed.  DANGER!  '
+            . join(' ', @matches);
     }
 
     unless ($release_pkg) {
-        die "No release matching package found!  Not good!";
+        die 'No release matching package found!  Not good!';
     }
 
     my $distro_pkg = pop @matches;
@@ -402,7 +408,7 @@ sub get_num_procs
         my $nprocs = 0;
 
         unless (defined($cpuinfo)) {
-            $c->{c_failure} = "Failed to open /proc/cpuinfo";
+            $c->{c_failure} = 'Failed to open /proc/cpuinfo';
             return PLUGIN_FATAL;
         }
 
