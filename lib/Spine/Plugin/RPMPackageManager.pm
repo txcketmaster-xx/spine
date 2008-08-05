@@ -91,7 +91,7 @@ sub apt_exec
         {
             unless (Spine::Util::mkdir_p(catfile($overlay, $dir)))
             {
-                $c->{c_failure} = "Failed to create directory \"$dir\"";
+                $c->error("Failed to create directory $dir", 'err');
                 return PLUGIN_ERROR;
             }
         }

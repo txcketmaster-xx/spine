@@ -69,7 +69,8 @@ sub new {
 
     if (not defined($data_object->{c_release}))
     {
-        print STDERR "Spine::Data::new(): we require the config release number!";
+        print STDERR 'Spine::Data::new(): we require the config release '
+            . 'number!';
         return undef;
     }
 
@@ -88,8 +89,9 @@ sub new {
                                     PARSE/complete));
 
     # XXX Right now, the driver script handles error reporting
-    $data_object->_data();
-
+    unless ($data_object->_data() == SPINE_SUCCESS) {
+        $data_object->{c_failure} = 1;
+    }
     return $data_object;
 }
 
@@ -103,13 +105,15 @@ sub _data
     chdir($self->{c_croot});
 
     unless ($self->populate() == SPINE_SUCCESS) {
-        $self->{c_failure} = 'Failure to populate: ' . $self->{c_failure};
+        $self->error('Failure to run populate()!', 'crit');
         $rc = SPINE_FAILURE;
     }
 
-    unless ($rc == SPINE_SUCCESS and $self->parse() == SPINE_SUCCESS) {
-        $self->{c_failure} = 'Failure to parse: ' . $self->{c_failure};
-        $rc = SPINE_FAILURE;
+    unless ($rc != SPINE_SUCCESS) {
+        unless ($self->parse() == SPINE_SUCCESS) {
+            $self->error('Failure to run parse()!', 'crit');
+            $rc = SPINE_FAILURE;
+        }
     }
 
     # Clean up our Template instance to make certain that we don't have any
@@ -166,7 +170,8 @@ sub populate
     # errors + failures encountered by plugins
     if ($rc != 0) {
         $DATA_POPULATED = SPINE_FAILURE;
-        $self->{c_failure} = "DISCOVERY/populate failed!";
+        $self->error('DISCOVERY/populate: Failed to run at least one hook!',
+            'crit');
         return SPINE_FAILURE;
     }
 
@@ -186,7 +191,8 @@ sub populate
 
     unless ($rc == 0) {
         $DATA_POPULATED = SPINE_FAILURE;
-        $self->{c_failure} = "DISCOVERY/policy-selection failed!";
+        $self->error('DISCOVERY/policy-selection: Failed to run at least one'
+            . 'hook!', 'crit');
         return SPINE_FAILURE;
     }
 
@@ -209,7 +215,7 @@ sub parse
     # Make sure our discovery phases has been run first since we need a bunch
     # of that info for out parsing.  Most notably the descend order.
     unless ($self->populate() == SPINE_SUCCESS) {
-        $self->{c_failure} = "Can't parse, runtime discovery failed somehow!";
+        $self->error('PARSE: failed to run populate()!', 'crit');
         goto parse_failure;
     }
 
@@ -223,7 +229,8 @@ sub parse
     my $rc = $point->run_hooks($self);
 
     if ($rc != 0) {
-        $self->{c_failure} = "PARSE/initialize failed!";
+        $self->error('PARSE/initialize: Failed to run at least one hook!',
+            'crit');
         goto parse_failure;
     }
 
@@ -237,7 +244,8 @@ sub parse
         $rc = $point->run_hooks($self);
 
         if ($rc != 0) {
-            $self->{c_failure} = "Failed to run at least one PARSE/pre-descent hook";
+            $self->error('PARSE/pre-descent: Failed to run at least one hook!',
+                'crit');
             goto parse_failure;
         }
 
@@ -251,7 +259,8 @@ sub parse
         $rc = $point->run_hooks($self);
 
         if ($rc != 0) {
-            $self->{c_failure} = "Failed to run at least one PARSE/post-descent hook";
+            $self->error('PARSE/post-descent: Failed to run at least one '
+                . 'hook!', 'crit');
             goto parse_failure;
         }
 
@@ -263,7 +272,8 @@ sub parse
     $rc = $point->run_hooks($self);
 
     if ($rc != 0) {
-        $self->{c_failure} = "Failed to run at least one PARSE/complete hook";
+        $self->error('PARSE/complete: Failed to run at least one hook!',
+            'crit');
         goto parse_failure;
     }
 

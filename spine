@@ -152,7 +152,8 @@ if (not defined($CONFIG))
 
     if (not -f DEFAULT_CONFIGFILE)
     {
-	print STDERR "No config file found at default $cfile.  Using hardcoded defaults.\n";
+	print STDERR "No config file found at default $cfile. "
+            . "Using hardcoded defaults.\n";
 
         $CONFIG = DEFAULT_CONFIG;
     }
@@ -394,7 +395,8 @@ my $c = Spine::Data->new(hostname    => $hostname,
 #
 # rtilder  Tue Jun 27 12:23:39 PDT 2006
 if (not defined($c)) {
-    print STDERR "spine initialization: Errors encountered parsing data tree.\n";
+    print STDERR 'spine initialization: Errors encountered parsing '
+        . "data tree.\n";
     goto failure;
 }
 
@@ -402,15 +404,16 @@ if (not defined($c)) {
 # have had a critical parsing error.
 if ($c->getval('c_failure'))
 {
-    print STDERR "spine initialization: Errors encountered parsing data tree.\n";
-    $c->error("failure: " . $c->getval('c_failure'), 'crit');
+    print STDERR 'spine initialization: Errors encountered parsing '
+        . "data tree.\n";
     goto failure;
 }
 
 # A quick sanity check, just to be sure
 if ($c->{c_release} != $source->release())
 {
-    print STDERR "Requested release \"$c->{c_release}\" doesn't match release parsed\n";
+    print STDERR "Requested release \"$c->{c_release}\" doesn't match "
+        . "release parsed\n";
     print STDERR 'from config source "', $source->release(), "\"\n";
     goto failure;
 }
@@ -426,14 +429,14 @@ $state->data($c);
 my $lock_fh = get_lock();
 unless ($lock_fh)
 {
-    $c->error("could not get exclusive lock", 'crit');
+    $c->error('could not get exclusive lock', 'crit');
     goto failure;
 }
 
-PHASE: foreach my $pork ( ( ['PREPARE', "Failed to prepare for emission!"],
-                            ['EMIT', "Failed to emit configuration!"],
-                            ['APPLY', "Failed to apply configuration!"],
-                            ['CLEAN', "Failed to clean up!"] ) ) {
+PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
+                            ['EMIT', 'Failed to emit configuration!'],
+                            ['APPLY', 'Failed to apply configuration!'],
+                            ['CLEAN', 'Failed to clean up!'] ) ) {
     my ($phase, $msg) = @{$pork};
 
     my $point = $registry->get_hook_point($phase);
@@ -663,7 +666,8 @@ sub get_source
                                                       Path   => $options->{croot});
 
         if (not defined($source)) {
-            print STDERR "Failed to initialize config root from command line: $Spine::ConfigSource::FileSystem::ERROR\n";
+            print STDERR 'Failed to initialize config root from command line:'
+                . " $Spine::ConfigSource::FileSystem::ERROR\n";
             print STDERR "Falling back to configuration file settings.\n";
         }
     }
@@ -685,7 +689,8 @@ sub get_source
         eval "require $source_type";
 
         if ($@) {
-            print STDERR "Failed to load the $source_type configuration source: $@\n";
+            print STDERR "Failed to load the $source_type configuration "
+                . "source: $@\n";
             return undef;
         }
 
@@ -711,7 +716,8 @@ sub get_source
         no strict 'refs';
         eval { $foo = ${$source_type . '::ERROR'} };
 
-        print STDERR "Failure to initialize configuration source $source_type: $foo\n";
+        print STDERR 'Failure to initialize configuration source '
+            . "$source_type: $foo\n";
         use strict 'refs';
         return undef;
     }
@@ -758,20 +764,23 @@ sub get_release
     }
 
     if (not defined($release)) {
-        print STDERR "Failed while checking for newer configuration releases: $source->{error}\n";
+        print STDERR 'Failed while checking for newer configuration '
+            . "releases: $source->{error}\n";
         goto release_failed;
     }
 
     if ($release) {
         if (not defined($source->retrieve($release))) {
-            print STDERR "Failed to retrieve latest configuration release: $source->{error}\n";
+            print STDERR 'Failed to retrieve latest configuration release: '
+                . "$source->{error}\n";
             goto release_failed;
         }
     }
 
     if (not defined($source->config_root()))
     {
-        print STDERR "Couldn't mount or find the configuration source: $source->{error}\n";
+        print STDERR 'Couldn\'t mount or find the configuration source: '
+            . "$source->{error}\n";
         goto release_failed;
     }
 

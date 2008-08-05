@@ -71,7 +71,6 @@ sub get_sysinfo
 {
     my $c = shift;
     my ($ip_address, $bcast, $netmask, $netcard);
-    my $ifconfig = $c->getval('ifconfig_bin');
     my $iface = $c->getval('primary_iface');
 
     $c->cprint('retrieving system information', 3);
@@ -87,8 +86,26 @@ sub get_sysinfo
         my %devs = @{$c->getvals('network_device_map')};
 
         # We walk the PCI bus to determine which network card we have
-        open(PCI, '/sbin/lspci |');
-        while (<PCI>) {
+        my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
+        my $fh;
+        if (-f $lspci and -x $lspci)
+        {
+            $fh = new IO::File("$lspci |");
+        }
+        else
+        {
+            $c->error("$lspci not found or not executable!", 'err');
+            return PLUGIN_FATAL;
+        }
+
+        if (not $fh)
+        {
+            $c->error("Failed to run $lspci: $!", 'err');
+            return PLUGIN_FATAL;
+        }
+
+        foreach my $line (<$fh>)
+        {
             next unless m/Ethernet/;
             # FIXME  This is kind of dumb.  We don't provide any kind of
             #        interface to driver mapping and we really should
@@ -96,11 +113,28 @@ sub get_sysinfo
                 $netcard = $card if m/$re/;
             }
 	}
+        $fh->close();
 	$netcard = 'unknown' unless $netcard;
-        close (PCI);
 
-	my $cmd = $ifconfig . ' eth' . $iface;
-	foreach my $line (`$cmd`)
+        my $ifconfig = $c->getval('ifconfig_bin') || qq(/sbin/ifconfig);
+        my $cmd = $ifconfig . ' eth' . $iface;
+        if (-f $ifconfig and -x $ifconfig)
+        {
+            $fh->open("$cmd |");
+        }
+        else
+        {
+            $c->error("$ifconfig not found or not executable!", 'err');
+            return PLUGIN_FATAL;
+        }
+
+        if (not $fh)
+        {
+            $c->error("Failed to run $cmd: $!", 'err');
+            return PLUGIN_FATAL;
+        }
+
+	foreach my $line (<$fh>)
 	{
 	    if ($line =~
 		m/
@@ -114,6 +148,7 @@ sub get_sysinfo
                 $netmask = $3;
 	    }
         }
+        $fh->close();
     }
 
     $c->{c_platform} = $platform;
@@ -139,7 +174,7 @@ sub get_netinfo
     my $nobj = new NetAddr::IP($c->getval('c_ip_address'));
 
     unless (defined($nobj)) {
-        $c->{c_failure} = "No IP address found for $c->{c_hostname_f}";
+        $c->error("No IP address found for $c->{c_hostname_f}", 'err');
         return PLUGIN_FATAL;
     }
 
@@ -169,7 +204,7 @@ sub get_netinfo
 
     unless (defined $c->{c_subnet})
     {
-	$c->{c_failure} = "network for $c->{c_ip_address} is not defined";
+	$c->error("network for $c->{c_ip_address} is not defined", 'err');
 	return PLUGIN_FATAL;
     }
 
@@ -194,6 +229,7 @@ sub is_virtual
 {
 
     my $c = shift;
+    my $xen_indicator = $c->getval('xen_indicator') || qq(/proc/xen);
 
     $c->{c_is_virtual} = 0;
 
@@ -207,11 +243,22 @@ sub is_virtual
     else
     {
         # We actually have to parse the lspci output now.
-        my $fh = new IO::File('/sbin/lspci -n |');
+        my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
+        my $fh;
+
+        if (-f $lspci and -x $lspci)
+        {
+            $fh = new IO::File("$lspci -n |");
+        }
+        else
+        {
+            $c->error("$lspci not found or not executable!", 'err');
+            return PLUGIN_FATAL;
+        }
 
         if (not $fh)
         {
-            $c->{c_failure} = "Failed to run /sbin/lspci: $!";
+            $c->error("Failed to run $lspci: $!", 'err');
             return PLUGIN_FATAL;
         }
 
@@ -409,7 +456,7 @@ sub get_num_procs
         my $nprocs = 0;
 
         unless (defined($cpuinfo)) {
-            $c->{c_failure} = 'Failed to open /proc/cpuinfo';
+            $c->error('Failed to open /proc/cpuinfo', 'err');
             return PLUGIN_FATAL;
         }
 
@@ -439,17 +486,17 @@ sub get_hardware_platform
 
     if (-f $dmidecode and -x $dmidecode)
     {
-        $fh = new IO::File('$dmidecode |');
+        $fh = new IO::File("$dmidecode |");
     }
     else
     {
-        $c->{c_failure} = "$dmidecode not found or not executable.";
+        $c->error("$dmidecode not found or not executable!" , 'err');
         return PLUGIN_FATAL;
     }
 
     if (not $fh)
     {
-        $c->{c_failure} = "Failed to run dmidecode: $!";
+        $c->error("Failed to run $dmidecode: $!", 'err');
         return PLUGIN_FATAL;
     }
 
