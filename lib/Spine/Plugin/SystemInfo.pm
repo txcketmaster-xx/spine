@@ -311,7 +311,8 @@ sub get_distro
     }
 
     unless ($release_pkg) {
-        die 'No release matching package found!  Not good!';
+        die 'No release matching package found!  Not good!  You probably ' .
+            'need to edit the linux_distro_map key!';
     }
 
     my $distro_pkg = pop @matches;
