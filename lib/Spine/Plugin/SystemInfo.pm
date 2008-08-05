@@ -433,8 +433,18 @@ sub get_hardware_platform
 {
 
     my $c = shift;
+    my $dmidecode = $c->getval('dmidecode_bin') || qq(/usr/sbin/dmidecode);
+    my $fh;
 
-    my $fh = new IO::File('/usr/sbin/dmidecode |');
+    if (-f $dmidecode and -x $dmidecode)
+    {
+        $fh = new IO::File('$dmidecode |');
+    }
+    else
+    {
+        $c->{c_failure} = "$dmidecode not found or not executable.";
+        return PLUGIN_FATAL;
+    }
 
     if (not $fh)
     {
