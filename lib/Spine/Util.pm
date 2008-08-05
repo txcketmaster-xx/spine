@@ -175,7 +175,7 @@ sub do_rsync
 	}
     }
 
-    # But we always at --archive, just to be safe
+    # But we always add --archive, just to be safe
     push @rsync_opts, '--archive';
 
     # Process the excludes list.
