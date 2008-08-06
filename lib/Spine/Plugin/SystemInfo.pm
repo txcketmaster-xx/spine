@@ -98,7 +98,7 @@ sub get_sysinfo
             return PLUGIN_FATAL;
         }
 
-        if (not $fh)
+        if (not defined($fh))
         {
             $c->error("Failed to run $lspci: $!", 'err');
             return PLUGIN_FATAL;
@@ -128,7 +128,7 @@ sub get_sysinfo
             return PLUGIN_FATAL;
         }
 
-        if (not $fh)
+        if (not defined($fh))
         {
             $c->error("Failed to run $cmd: $!", 'err');
             return PLUGIN_FATAL;
@@ -256,7 +256,7 @@ sub is_virtual
             return PLUGIN_FATAL;
         }
 
-        if (not $fh)
+        if (not defined($fh))
         {
             $c->error("Failed to run $lspci: $!", 'err');
             return PLUGIN_FATAL;
@@ -494,7 +494,7 @@ sub get_hardware_platform
         return PLUGIN_FATAL;
     }
 
-    if (not $fh)
+    if (not defined($fh))
     {
         $c->error("Failed to run $dmidecode: $!", 'err');
         return PLUGIN_FATAL;
