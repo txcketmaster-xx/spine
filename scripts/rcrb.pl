@@ -170,7 +170,7 @@ if (not defined($releases)) {
 
 # Is someone checking revisions?
 if ($action eq 'check') {
-    my @a = sort(keys(%{$releases}));
+    my @a = sort {$a <=> $b} (keys(%{$releases}));
     my $latest = pop(@a);
     my %hash = ( latest_release => $latest );
     my $payload = nfreeze(\%hash);
