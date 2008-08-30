@@ -283,6 +283,7 @@ class SpineCRAMFSPublisher:
 
         # Set the default config we're going to use
         client_store.config = core.svn_config_get_config(None, pool)
+        client_store.auth_baton = core.svn_auth_open([client.svn_client_get_simple_provider(pool)], pool)
 
         return client_store
 
