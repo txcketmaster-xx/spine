@@ -484,50 +484,59 @@ sub get_hardware_platform
     my $dmidecode = $c->getval('dmidecode_bin') || qq(/usr/sbin/dmidecode);
     my $fh;
 
-    if (-f $dmidecode and -x $dmidecode)
+    # If we are are running on a virtual system just return the 
+    # the virtual_type
+    if (defined $c->{c_virtual_type})
     {
-        $fh = new IO::File("$dmidecode |");
+        $c->{c_hardware_platform} = $c->{c_virtual_type};
     }
     else
     {
-        $c->error("$dmidecode not found or not executable!" , 'err');
-        return PLUGIN_FATAL;
-    }
-
-    if (not defined($fh))
-    {
-        $c->error("Failed to run $dmidecode: $!", 'err');
-        return PLUGIN_FATAL;
-    }
-
-    my $sys_section = 0;
-    my $hardware_platform = 'UNKNOWN';
-
-    foreach my $line (<$fh>)
-    {
-        # We need to find the "Product Name:" key under 'DMI type 1'
-        # (which is the "System Information" section).
-        if ($line =~ m/DMI type 1/i)
+        if (-f $dmidecode and -x $dmidecode)
         {
-            $sys_section = 1;
-            next;
+            $fh = new IO::File("$dmidecode |");
+        }
+        else
+        {
+            $c->error("$dmidecode not found or not executable!" , 'err');
+            return PLUGIN_FATAL;
         }
 
-        # If we are in the sys_section, look for "Product Name:"
-        if ($sys_section and $line =~ m/Product Name:/i)
+        if (not defined($fh))
         {
-            (undef, $hardware_platform) = split(': ', $line, 2);
-            $hardware_platform =~ s/^\s+|\s+$//g;
-            $hardware_platform = 'UNKNOWN' if $hardware_platform eq '';
-            last;
-        } 
+            $c->error("Failed to run $dmidecode: $!", 'err');
+            return PLUGIN_FATAL;
+        }
 
-        # If we enter another DMI section we are done.
-        last if ($sys_section and $line =~ m/DMI type/i);
+        my $sys_section = 0;
+        my $hardware_platform = 'UNKNOWN';
+
+        foreach my $line (<$fh>)
+        {
+            # We need to find the "Product Name:" key under 'DMI type 1'
+            # (which is the "System Information" section).
+            if ($line =~ m/DMI type 1/i)
+            {
+                $sys_section = 1;
+                next;
+            }
+
+            # If we are in the sys_section, look for "Product Name:"
+            if ($sys_section and $line =~ m/Product Name:/i)
+            {
+                (undef, $hardware_platform) = split(': ', $line, 2);
+                $hardware_platform =~ s/^\s+|\s+$//g;
+                $hardware_platform = 'UNKNOWN' if $hardware_platform eq '';
+                last;
+            } 
+
+            # If we enter another DMI section we are done.
+            last if ($sys_section and $line =~ m/DMI type/i);
+        }
+        $fh->close();
+
+        $c->{c_hardware_platform} = $hardware_platform;
     }
-    $fh->close();
-
-    $c->{c_hardware_platform} = $hardware_platform;
     return PLUGIN_SUCCESS;
 }
 
