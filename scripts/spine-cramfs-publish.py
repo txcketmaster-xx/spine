@@ -872,7 +872,7 @@ def main():
     #
     if (not DEBUG):
         try:
-            sys.stderr.close
+            sys.stderr.close()
             sys.stdout.close()
             sys.stdin.close()
 
