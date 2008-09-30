@@ -56,6 +56,7 @@ GetOptions(\%opts,
     'foreground|f',
     'queue|q=i',
     'help|h',
+    'restoreprops|r=s',
     'usage|u',
 ) || die("ERROR: Invalid options");
 
@@ -68,14 +69,6 @@ my $s = new PublisherState();
 
 openlog(APPNAME, "ndelay,pid", "daemon");
 
-# In queue mode, we only modify the work queue and exit.
-
-if (exists $opts{queue})
-{
-    add_to_queue($opts{queue});
-    exit 0;
-}
-
 # Set log level to max verbosity if debug mode, otherwise use the
 # configured value.
 
@@ -84,15 +77,38 @@ if (exists $opts{debug})
 else
 { setlogmask(gen_logmask($c->getval('main.loglevel'))) }
 
+
+# In queue mode, we only modify the work queue and exit.
+
+if (exists $opts{queue})
+{
+    add_to_queue($opts{queue});
+    exit 0;
+}
+
+
+my $svn = svn_init();
+
+# Properties only mode applies properties to the directory specified
+# on the command line.
+
+if (exists $opts{restoreprops})
+{
+    plog(LOG_CRIT, "Specified directory does not exist \"$opts{restoreprops}\"", 1)
+	unless (-d $opts{restoreprops});
+
+    publish_apply_properties( rm_trail_slash($opts{restoreprops} ));
+    exit 0;
+}
+
 # Daemonize.
 
 %SIG = daemon_set_sighandlers();
 daemon_init($c->getval('main.pidfile'), $c->getval('main.user'), 
 	$c->getval('main.group') );
 
-my $svn = svn_init();
-my $repo_url =  $c->getval('svn.repo_url');
-my $working_dir =  $c->getval('svn.working_dir');
+my $repo_url =  rm_trail_slash ( $c->getval('svn.repo_url') );
+my $working_dir =  rm_trail_slash ( $c->getval('svn.working_dir') );
 
 # Clean up the working directory and do a full SVN checkout.
 
@@ -128,26 +144,8 @@ while (not $s->daemon_check_exit)
 	    next;
 	}
 
-	# Apply properties.
-	plog(LOG_DEBUG, "Retrieving SVN properties");
-        my $props = publish_get_props($svn, $working_dir, 
-	    $c->getval('svn.custom_props'), 1);
-
-	my $props_file_list;
-	if ($c->getval('publish.force_all_perms'))
-	{
-	    plog(LOG_INFO, "Generating full file list");
-	    publish_get_full_filelist($working_dir);
-	    $props_file_list = $s->find_list_matches;
-	}
-	else
-	{ $props_file_list = [ keys %{$props} ] }
-	    
-        plog(LOG_INFO, "Applying properties to filesystem");
-        for my $path ( @{$props_file_list} )
-        {
-	    publish_prop_to_fs($path, $props);
-        }
+	# Apply properties from SVN to working directory.
+	publish_apply_properties($working_dir);
 
         plog(LOG_INFO, "Creating gzipped ISO image");
 	write_release_file($revision);
@@ -246,6 +244,13 @@ sub is_int
     return 0;
 }
 
+sub rm_trail_slash
+{
+    my $string = shift;
+    $string =~ s#/+$##g;
+    return $string;
+}
+
 
 sub svn_init
 {
@@ -295,6 +300,32 @@ sub svn_notify_callback
 {
     my ($working_dir, $action, $node_type, $mime, $state, $rev) = @_;
     svn_parse_state($working_dir, $state);
+}
+
+
+sub publish_apply_properties
+{
+    my $dir = shift;
+
+    plog(LOG_INFO, "Retrieving SVN properties from $dir");
+    my $props = publish_get_props($svn, $dir, 
+        $c->getval('svn.custom_props'), 1);
+
+    my $props_file_list;
+    if ($c->getval('publish.force_all_perms'))
+    {
+	plog(LOG_INFO, "Generating full file list");
+	publish_get_full_filelist($dir);
+	$props_file_list = $s->find_list_matches;
+    }
+    else
+    { $props_file_list = [ keys %{$props} ] }
+
+    plog(LOG_INFO, "Applying properties to filesystem");
+    for my $path ( @{$props_file_list} )
+    {
+	publish_prop_to_fs($path, $props);
+    }
 }
 
 
@@ -598,6 +629,11 @@ Usage: spine-publisher [OPTIONS]
 		Queue a release for publishing.  With this option, we exit
 		immediately after executing our addition to the queue.
 
+    -r, --restoreprops <svn_working_dir>
+		Apply SVN properties to filesystem at the specified working
+		directory, then exit.  This is a replacement for the legacy
+		rsvn (restore-spine) tool.
+
     -d, --debug
 		Debugging mode.  This option inherantly forces us to remain in
 		the foreground and output logging messages via both STDOUT
@@ -609,6 +645,8 @@ EOF
 
 
 package PublisherState;
+
+use strict;
 
 sub new
 {
@@ -703,6 +741,7 @@ sub daemon_check_exit
 
 package PublisherConfig;
 
+use strict;
 use Sys::Syslog qw(:macros);
 
 sub new
