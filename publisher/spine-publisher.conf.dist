@@ -1,5 +1,5 @@
 # ===========================================================================
-#  $Id: $
+#  $Id$
 #
 #  spine-publisher.conf.dist -- Default configuration file for Spine's
 #                               configball publisher.
@@ -62,6 +62,10 @@ prop_minordev=spine:minordev
 [publish]
 # Directory where our resulting configballs are placed.
 destdir=/tmp
+
+# The resulting filename of ISO images will be prefixed by this config
+# parameter, i.e. $iso_prefix-$revision.iso.gz.
+iso_prefix=spine-config
 
 # Default uid for files without SVN properties.
 default_uid=0

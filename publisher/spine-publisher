@@ -1,7 +1,7 @@
 #!/usr/bin/perl 
 
 # ===========================================================================
-#  $Id: spine-publisher,v 1.2 2008-09-17 01:06:09 rkhardalian Exp $
+#  $Id$
 #
 #  spine-publisher -- Subversion to ISO9660 config ball publisher for the
 #                     Spine configuration management system.
@@ -409,7 +409,7 @@ sub publish_create_iso
 
     plog(LOG_INFO, "Creating ISO for revision $revision");
 
-    my $iso_filename = "spine-config-" . $revision . ".iso";
+    my $iso_filename = $c->getval('publish.iso_prefix') ."-".$revision. ".iso";
     my $iso_path = $c->getval('publish.destdir') . "/" . $iso_filename;
 
     unlink($iso_path) if (-f $iso_path);
