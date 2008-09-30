@@ -1,0 +1,89 @@
+# ===========================================================================
+#  $Id: $
+#
+#  spine-publisher.conf.dist -- Default configuration file for Spine's
+#                               configball publisher.
+#
+#  Rafi Khardalian <rafi|at|ticketmaster.com> -- Mon Sep 29 19:20:08 PDT 2008
+#
+# ===========================================================================
+
+# By default, the publisher will look for a configfile to be specified 
+# via the command line, followed by /etc/spine-publisher.conf and lastly
+# the current working directory.
+
+[main]
+# Path to your pidfile
+pidfile=/var/run/spine-publisher.pid
+
+# Path to named pipe
+fifo=/var/run/spine-publisher.fifo
+
+# User and group with which to run.  This is mostly symbolic, as you
+# generally need to run as root to be able to properly manipulate
+# properties and apply them to the filesystem.
+user=root
+group=root
+
+# Defines the verbosity level of our logging output. Valid values are 0-7
+# where 7 is the most verbose (DEBUG).  These correspond to the "Levels"
+# section of Sys::Syslog.
+loglevel=7
+
+
+[svn]
+# Username and password are only used for http or svnserve authentication.
+username=default
+password=default
+
+# Repository URL with no trailing slash.  This should be pointed at the
+# top level spine-config directory and can use any valid SVN method.
+repo_url=file:///your/dir/svn/repos/spine-config/trunk
+
+# Temporary directory where SVN checkout/updates are performed for the
+# life of the daemon process.  It is highly recommended that this be
+# an extremely fast filesystem, such as tmpfs.
+working_dir=/mnt/tmpfs/spine-publisher/trunk
+
+# Full list of properties relevant to the publisher. These should match
+# the prop options in this stanza.
+custom_props=spine:ugid, spine:perms, spine:filetype, spine:majordev, spine:minordev
+
+# SVN property names for each property type, as they are stored in your
+# repository.  The defaults are typically fine and should not be changed
+# unless you know exactly what you are doing.
+prop_filetype=spine:filetype
+prop_ugid=spine:ugid
+prop_perms=spine:perms
+prop_majordev=spine:majordev
+prop_minordev=spine:minordev
+
+
+[publish]
+# Directory where our resulting configballs are placed.
+destdir=/tmp
+
+# Default uid for files without SVN properties.
+default_uid=0
+
+# Default gid for files without SVN properties.
+default_gid=0
+
+# Default file permissions for files without SVN properties.
+default_file_perms=0644
+
+# Default directory permissions for directories without SVN properties.
+default_dir_perms=0755
+
+# Apply properties to all overlay files, regardless of whether or not they have
+# been changed within the release in question. Setting this to 0 implies
+# that only files with updated properties between source and destination
+# revisions are updated.  This is actually pretty risky and should only
+# be used if you are encountering significant delays in publishing.
+force_all_perms=1
+
+# Location of mkisofs binary.
+mkisofs_bin=/usr/bin/mkisofs
+
+# Location of gzip binary
+gzip_bin=/bin/gzip

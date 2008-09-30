@@ -1,0 +1,778 @@
+#!/usr/bin/perl 
+
+# ===========================================================================
+#  $Id: spine-publisher,v 1.2 2008-09-17 01:06:09 rkhardalian Exp $
+#
+#  spine-publisher -- Subversion to ISO9660 config ball publisher for the
+#                     Spine configuration management system.
+#
+#  Usage: spine-publisher [OPTIONS]
+#
+#  Rafi Khardalian <rafi|at|ticketmaster.com> -- Tue Sep 16 00:18:31 PDT 2008
+#  
+# ===========================================================================
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# (C) Copyright Ticketmaster, Inc. 2008
+#
+# ===========================================================================
+
+use strict;
+use warnings;
+
+use constant APPNAME => 'spine-publisher';
+use constant VERSION => '2.00';
+use constant EXIT_DIE => 1;
+
+use Fcntl;
+use Getopt::Long qw(:config bundling);
+use POSIX qw(setsid setuid setgid);
+use Sys::Syslog qw(:standard :macros);
+
+use Config::Simple;
+use SVN::Client;
+use SVN::Wc;
+use File::Path;
+use File::Find;
+use Lchown;
+
+# Parse command line options.
+
+my %opts;
+GetOptions(\%opts,
+    'debug|d',
+    'configfile|c=s',
+    'foreground|f',
+    'queue|q=i',
+    'help|h',
+    'usage|u',
+) || die("ERROR: Invalid options");
+
+usage() if (exists $opts{help} or (exists $opts{usage}));
+
+# Initialize variables and syslog.
+
+my $c = new PublisherConfig(plog => \&plog, configfile => $opts{configfile});
+my $s = new PublisherState();
+
+openlog(APPNAME, "ndelay,pid", "daemon");
+
+# In queue mode, we only modify the work queue and exit.
+
+if (exists $opts{queue})
+{
+    add_to_queue($opts{queue});
+    exit 0;
+}
+
+# Set log level to max verbosity if debug mode, otherwise use the
+# configured value.
+
+if (exists $opts{debug})
+{ setlogmask(gen_logmask(7)) }
+else
+{ setlogmask(gen_logmask($c->getval('main.loglevel'))) }
+
+# Daemonize.
+
+%SIG = daemon_set_sighandlers();
+daemon_init($c->getval('main.pidfile'), $c->getval('main.user'), 
+	$c->getval('main.group') );
+
+my $svn = svn_init();
+my $repo_url =  $c->getval('svn.repo_url');
+my $working_dir =  $c->getval('svn.working_dir');
+
+# Clean up the working directory and do a full SVN checkout.
+
+plog(LOG_INFO, "Deleting contents of working directory $working_dir");
+rmtree($working_dir) if ($working_dir =~ m#^/tmp/#);
+
+plog(LOG_INFO, "Beginning initial SVN checkout of $repo_url");
+$svn->checkout($repo_url, $working_dir, 'HEAD', 1);
+plog(LOG_INFO, "Completed initial SVN checkout -- Waiting for requests");
+
+# Main program loop.
+
+while (not $s->daemon_check_exit)
+{
+
+    open(FIFO, "<" . $c->getval('main.fifo')) ||
+	die "ERROR: Could not open named pipe";
+
+    while (my $revision = <FIFO>)
+    {
+	chomp($revision);
+
+	plog(LOG_INFO, "Beginning publishing for $revision");
+
+	# Try an SVN update before doing a full checkout.
+	plog(LOG_INFO, "Executing SVN update of working directory");
+        my $returned_rev = $svn->update($working_dir, $revision, 1);
+
+	unless ($returned_rev == $revision)
+	{
+	    plog(LOG_CRIT, "Update failed -- received revision $returned_rev "
+		. "rather than desired revision $revision");
+	    next;
+	}
+
+	# Apply properties.
+	plog(LOG_DEBUG, "Retrieving SVN properties");
+        my $props = publish_get_props($svn, $working_dir, 
+	    $c->getval('svn.custom_props'), 1);
+
+	my $props_file_list;
+	if ($c->getval('publish.force_all_perms'))
+	{
+	    plog(LOG_INFO, "Generating full file list");
+	    publish_get_full_filelist($working_dir);
+	    $props_file_list = $s->find_list_matches;
+	}
+	else
+	{ $props_file_list = [ keys %{$props} ] }
+	    
+        plog(LOG_INFO, "Applying properties to filesystem");
+        for my $path ( @{$props_file_list} )
+        {
+	    publish_prop_to_fs($path, $props);
+        }
+
+        plog(LOG_INFO, "Creating gzipped ISO image");
+	write_release_file($revision);
+
+	my $isoball = publish_create_iso($revision);
+	publish_gzip_file($isoball) unless (not defined $isoball);
+
+	plog(LOG_INFO, "Completed publishing for $revision");
+
+	$s->reset;
+    }
+
+    close(FIFO);
+}
+
+plog(LOG_NOTICE, "Successfully shut down");
+closelog;
+
+
+# ===========================================================================
+
+sub plog
+{
+    my ($level, $msg, $exit_code) = @_;
+
+    unless ($s->is_daemon)
+    { 
+	print APPNAME . "[$level]: $msg\n" 
+	    if ($level <= $c->getval('main.loglevel'));
+    }
+
+    syslog($level, $msg);
+
+    if (defined $exit_code)
+    { 
+        syslog(LOG_CRIT, "Exiting due to critical error");
+	exit $exit_code;
+    }
+}
+
+
+sub add_to_queue
+{
+    my $revision = shift;
+    my $fifo = $c->getval('main.fifo');
+
+    unless ( -e $fifo )
+    {
+        plog(LOG_CRIT, "Invalid fifo specified", 1);
+    }
+
+    sysopen(QUEUE_FIFO, $fifo, O_RDWR|O_APPEND|O_NONBLOCK);
+    print QUEUE_FIFO $revision . "\n";
+    close(QUEUE_FIFO);
+
+    plog(LOG_INFO, "Added revision $revision to publishing queue");
+}
+
+
+sub write_release_file
+{
+    my $revision = shift;
+    my $release_file = $c->getval('svn.working_dir') . "/Release";
+    unlink($release_file) if (-f $release_file);
+
+    open (RELEASE, "> $release_file")
+	|| plog(LOG_CRIT, "Could not write release file");
+
+    print RELEASE $revision . "\n";
+    close(RELEASE)
+}
+
+
+sub gen_logmask
+{
+    my $loglevel = shift;
+
+    my $logmask = bin2dec( 1 x ($loglevel +1) );
+    return $logmask;
+}
+
+
+
+sub bin2dec
+{
+    return unpack("N", pack("B32", substr("0" x 32 . shift, -32)));
+}
+
+
+sub is_int
+{
+    my $value = shift;
+    if ($value =~ m/^\d+/)
+    { return 1 }
+
+    return 0;
+}
+
+
+sub svn_init
+{
+    my $svn = new SVN::Client(
+        auth => [
+	  SVN::Client::get_simple_provider(),
+	  SVN::Client::get_simple_prompt_provider(\&svn_auth_callback,2),
+	  SVN::Client::get_username_provider(),
+	  SVN::Client::get_ssl_server_trust_prompt_provider(\&svn_ssl_callback)
+        ],
+        notify => \&svn_notify_callback,
+    );
+
+    return $svn;
+}
+
+
+sub svn_auth_callback
+{
+    my ($cred, $realm, $def_username, $may_save, $pool) = @_;
+    $cred->username($c->getval('svn.username'));
+    $cred->password($c->getval('svn.password'));
+}
+
+
+sub svn_ssl_callback
+{
+    my ($cred, $realm, $ifailed, $server_cert_info, $may_save) = @_;
+    return $cred->accepted_failures($ifailed);
+} 
+
+
+sub svn_parse_state
+{
+    my ($working_dir, $state) = @_;
+    my @working_dir_parts = split(/\//, $working_dir);
+
+    if ( ($SVN::Wc::Notify::State::changed == $state) )
+    {
+	$s->file_add_modified($working_dir)	
+	    if grep(/^(overlay|class_overlay)$/, @working_dir_parts);
+    }
+}
+
+
+sub svn_notify_callback
+{
+    my ($working_dir, $action, $node_type, $mime, $state, $rev) = @_;
+    svn_parse_state($working_dir, $state);
+}
+
+
+sub publish_get_props
+{ 
+    my ($svn, $path, $custom_props, $recursive) = @_;
+
+    my %proptree;
+    $recursive = 0 unless (defined $recursive);
+
+    for my $prop (@{$custom_props})
+    {
+        my $result = $svn->propget($prop, $path, 'WORKING', $recursive);
+	for my $file (keys %{$result})
+	{
+	    $proptree{$file}{$prop} = $result->{$file};
+	}
+    }
+
+    return \%proptree;
+}
+
+
+sub publish_prop_to_fs
+{
+    my $path = shift;
+    my $props = shift;
+
+    my @ugid = ($c->getval('publish.default_uid'), 
+			$c->getval('publish.default_gid'));
+
+    my $perms = $c->getval('publish.default_file_perms');
+    $perms = $c->getval('publish.default_dir_perms') if (-d $path);
+
+    my %propscfg = (
+    	filetype => $c->getval('svn.prop_filetype'),
+        ugid => $c->getval('svn.prop_ugid'),
+        perms => $c->getval('svn.prop_perms'),
+        majordev => $c->getval('svn.prop_majordev'),
+        minordev => $c->getval('svn.prop_minordev'),
+    );
+
+    # Is it a device or named pipe?
+    if (exists($props->{$path}{$propscfg{filetype}})) {
+        my ($type, $major, $minor) = (undef, undef, undef);
+
+        $type = 'b' if ($props->{$path}{$propscfg{filetype}}) eq 'block';
+        $type = 'c' if ($props->{$path}{$propscfg{filetype}}) eq 'character';
+        $type = 'p' if ($props->{$path}{$propscfg{filetype}}) eq 'fifo';
+
+        unless (defined($type)) {
+            plog(LOG_CRIT, 'Unsupported device type "' 
+		. $props->{$path}{$propscfg{filetype}}
+                . "\" for \"$path\"", EXIT_DIE);
+        }
+
+        $major = $props->{$path}{$propscfg{majordev}};
+        $minor = $props->{$path}{$propscfg{minordev}};
+
+	unlink($path) if (-e $path);
+        eval { system("/bin/mknod $path $type $major $minor") };
+
+        if ($@) {
+            plog(LOG_ERR, "Failed to create device file \"$path\": $@\n");
+            return undef;
+        }
+    }
+
+    # Set the appropriate permissions
+    if (exists($props->{$path}{$propscfg{perms}})) {
+        $perms = $props->{$path}{$propscfg{perms}};
+    }
+
+    # And the ownership
+    if (exists($props->{$path}{$propscfg{ugid}})) {
+        @ugid = split(/:/, $props->{$path}{$propscfg{ugid}}, 2);
+    }
+
+    unless( is_int($perms) )
+    {
+	plog(LOG_ERR, "Invalid permissions \"$perms\" set on path $path");
+	return 0;
+    }
+
+    unless ( is_int($ugid[0]) and (is_int($ugid[1])) )
+    {
+	plog(LOG_ERR, "Invalid ugid \"$ugid[0]:$ugid[1]\" set on path $path");
+	return 0;
+    }
+
+    if (-l $path)
+    {
+	lchown(@ugid, $path);
+	return 1;
+    }
+
+    my $chmod_count = chmod oct($perms), $path;
+    plog(LOG_ERR, "Failed to chmod \"$path\" with permissions $perms")
+	unless ($chmod_count > 0);
+	
+    my $chown_count = chown @ugid, $path;
+    plog(LOG_ERR, "Failed to chown \"$path\" with uid:gid @ugid")
+	unless ($chown_count > 0);
+
+    return 1;
+}
+
+
+sub publish_create_iso
+{
+    my $revision = shift;
+
+    plog(LOG_INFO, "Creating ISO for revision $revision");
+
+    my $iso_filename = "spine-config-" . $revision . ".iso";
+    my $iso_path = $c->getval('publish.destdir') . "/" . $iso_filename;
+
+    unlink($iso_path) if (-f $iso_path);
+
+    my $cmd = $c->getval('publish.mkisofs_bin') 
+	    . " -m '.svn*'" . " -o " . $iso_path
+            . " -R " . $c->getval('svn.working_dir');
+
+    my $result = `$cmd >/dev/null 2>&1`;
+
+    if ( $? > 0)
+    {
+	plog(LOG_ERR, "Failed to create ISO for revision $revision");
+	return undef;
+    }
+
+    return $iso_path;
+}
+
+
+sub publish_gzip_file
+{
+    my $file = shift;
+
+    my $dest_file = $file . ".gz";
+    unlink($dest_file) if (-f $dest_file);
+
+    my $cmd = $c->getval('publish.gzip_bin') . " " . $file;
+    my $result = `$cmd >/dev/null 2>&1`;
+
+    if ( $? > 0)
+    {
+	plog(LOG_ERR, "Failed to gzip $file: $result");
+	return 0;
+    }
+
+    return 1;
+}
+
+
+sub publish_get_full_filelist
+{
+    my $path = shift;
+    File::Find::find({wanted => \&publish_find_wanted}, $path);
+}
+
+
+sub publish_find_wanted {
+    my ($dev,$ino,$mode,$nlink,$uid,$gid);
+
+    if ( ($File::Find::name =~ /overlay/i ) &&
+         (not  $File::Find::name =~ /\/\.svn/i) )
+    {
+        $s->find_add_match($File::Find::name);
+    }
+}
+
+
+sub daemon_init
+{
+    my ($pidfile, $user, $group) = @_;
+
+    # Do not daemonize if the foreground or debug options are set
+    return 0 if ( exists($opts{'foreground'}) || exists($opts{'debug'}) );
+
+    # Check to make sure we're not already running
+    daemon_check_running($pidfile);
+
+    # Become a daemon
+    $s->is_daemon(1);
+    chdir '/' || plog(LOG_CRIT, "Failed chdir to /: $!", EXIT_DIE);
+    open(STDIN, '/dev/null') ||
+	plog(LOG_CRIT, "Failed read /dev/null: $!", EXIT_DIE);
+    open(STDOUT, '>/dev/null') ||
+	plog(LOG_CRIT, "Failed write to /dev/null: $!", EXIT_DIE);
+    defined(my $pid = fork) ||
+	plog(LOG_CRIT, "Failed fork: $!", EXIT_DIE);
+
+    exit if($pid);
+
+    setsid();
+    open(STDERR, '>&STDOUT') ||
+	plog(LOG_CRIT, "Failed dup stdout: $!", EXIT_DIE);
+
+    daemon_write_pidfile($pidfile);
+    daemon_drop_privs($user, $group, $pidfile); 
+
+    plog(LOG_NOTICE, "Succesfully daemonized");
+}
+
+
+sub daemon_set_sighandlers
+{
+    my %sighandlers = (
+        'INT' => \&daemon_interrupt,
+        'TERM' => \&daemon_interrupt,
+        'ABRT' => \&daemon_interrupt,
+        'QUIT' => \&daemon_interrupt,
+    );
+
+    return %sighandlers;
+}
+
+
+sub daemon_check_running
+{
+    my $pidfile = shift;
+    return 1 unless (-r $pidfile);
+
+    open(PID,"<$pidfile") ||
+	die("ERROR: Failed to open old PID file: $!");
+    my $oldpid = <PID>;
+    close(PID);
+
+    if ( -d "/proc/$oldpid" )
+    { die("ERROR: Already running as pid $oldpid") }
+}
+
+
+sub daemon_write_pidfile
+{
+    my $pidfile = shift;
+
+    unlink($pidfile) if ( -r $pidfile );
+
+    open(PID,">$pidfile") || 
+	plog(LOG_ERR, "Failed opening $pidfile for writing");
+
+    print PID "$$";
+
+    close(PID) || 
+	plog(LOG_ERR, "Failed closing $pidfile");
+}
+
+
+sub daemon_drop_privs
+{
+    my ($user, $group, $pidfile) = @_;
+
+    my ($uid, $gid);
+    if (defined($user))
+    {
+        $uid = getpwnam($user)
+    }
+    if (defined($group))
+    {
+        $gid = getgrnam($group);
+    }
+
+    $uid = $< if (!defined($uid));
+    $gid = $( if (!defined($gid));
+
+    chown($uid, $gid, $pidfile);
+    setuid($uid);
+    setgid($gid);
+}
+
+
+sub daemon_interrupt
+{
+    plog(LOG_NOTICE, "Received exit signal, shutting down");
+    $s->daemon_set_exit;
+}
+
+sub usage
+{
+    print STDERR (<<EOF);
+
+spine-publisher -- Subversion to ISO9660 configball publisher for the Spine
+		   configuration management system.
+
+Usage: spine-publisher [OPTIONS] 
+
+    -c, --configfile <file>
+		Full path to the spine-publisher configuration file.  Specifying
+		this on the command line overrides looking in the default
+		locations, which are /etc/spine-publisher.conf and the current
+		working directory.
+
+    -f, --foreground
+		Remain in the foreground, do not daemonize. Generally only used
+		during intial configuration.  All logging will still occur
+		via syslog.
+
+    -q, --queue <release>
+		Queue a release for publishing.  With this option, we exit
+		immediately after executing our addition to the queue.
+
+    -d, --debug
+		Debugging mode.  This option inherantly forces us to remain in
+		the foreground and output logging messages via both STDOUT
+		and syslog.
+
+EOF
+    exit 0;
+}
+
+
+package PublisherState;
+
+sub new
+{
+    my $class = shift;
+    my %args = @_;
+
+    my $self = bless {
+	%args
+    }, $class;
+
+    return $self;
+}
+
+
+sub reset
+{
+    my $self = shift;
+
+    delete $self->{modified_files};
+    delete $self->{find_matches};
+
+    return 1;
+}
+
+sub file_add_modified
+{
+    my $self = shift;
+    my $file = shift;
+
+    push( @{$self->{modified_files}}, $file );
+}
+
+
+sub file_list_modified
+{
+    my $self = shift;
+    return $self->{modified_files};
+}
+
+
+sub find_add_match
+{
+    my $self = shift;
+    my $file = shift;
+
+    push( @{$self->{find_matches}}, $file );
+}
+
+
+sub find_list_matches
+{
+    my $self = shift;
+    return $self->{find_matches};
+}
+
+
+sub is_daemon
+{
+    my $self = shift;
+    my $set = shift;
+
+    if ( defined $set )
+    { $self->{is_daemon} = $set }
+
+    if ( exists $self->{is_daemon} )
+    { return $self->{is_daemon} }
+    else
+    { return 0 }
+}
+
+
+sub daemon_set_exit
+{
+    my $self = shift;
+    $self->{daemon_exit} = 1;
+}
+
+
+sub daemon_check_exit
+{
+    my $self = shift;
+
+    unless ( exists $self->{daemon_exit} )
+    { $self->{daemon_exit} = 0 }
+
+    return $self->{daemon_exit}
+}
+
+1;
+
+
+
+package PublisherConfig;
+
+use Sys::Syslog qw(:macros);
+
+sub new
+{
+    my $class = shift;
+    my %args = @_;
+    my $configfile;
+
+    my $self = bless {
+	%args
+    }, $class;
+
+    # Look for our configuration file in sensible locations, always
+    # using one specified on the command line first.
+
+    if (defined $self->{configfile})
+    { 
+	die ("ERROR: Invalid config file specified \"$self->{configfile}\"")
+	    unless (-f $self->{configfile});
+
+	$configfile = $self->{configfile};
+    }
+
+    elsif (-f "/etc/spine-publisher.conf")
+    { $configfile = "/etc/spine-publisher.conf" }
+    elsif (-f "spine-publisher.conf")
+    { $configfile = "spine-publisher.conf" }
+    else
+    { die "ERROR: Could not find spine-publisher.conf" }
+	
+    $self->{conf} = new Config::Simple(
+	filename => $configfile,
+	syntax   => "ini",
+    );
+
+    return $self;
+}
+
+
+sub getval
+{
+    my $self = shift;
+    my $key = shift;
+
+    my $value = $self->{conf}->param($key);
+    $value = $self->_interpolate_string($value);
+
+    # Check that the config value requested is available.  If not
+    # we need to exit as to avoid generating potentially broken
+    # configballs.
+
+    if (not defined $value)
+    {
+	$self->{plog}->(LOG_ERR,
+	    "Requested undefined config value: $key -- exiting.", 1);
+    }
+
+    return $value;
+}
+
+
+sub _interpolate_string
+{
+    my $self = shift;
+    my $string = shift;
+
+    # FIXME -- Support interpolated config entries.
+    #$string =~ s/@@([^@]+)@@/$self->{$1}/ge;
+    return $string;
+}
+
+1;
+
