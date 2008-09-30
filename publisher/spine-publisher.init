@@ -1,0 +1,80 @@
+#!/bin/bash
+# 
+# $Id$
+#
+# chkconfig:	2345 99 01
+# description:	Spine Configball Publisher
+#
+# processname: spine-publisher
+# config: /etc/spine-publisher.conf
+# pidfile: /var/run/spine-publisher.pid
+
+# source function library
+. /etc/rc.d/init.d/functions
+
+RETVAL=0
+prog="spine-publisher"
+SPINE_PUB="/usr/bin/spine-publisher"
+PIDFILE="/var/run/spine-publisher.pid"
+OPTIONS="-c /etc/spine-publisher.conf"
+
+start()
+{
+	echo -n $"Starting $prog:"
+	$SPINE_PUB $OPTIONS && success || failure
+	RETVAL=$?
+	[ "$RETVAL" = 0 ] && touch /var/lock/subsys/spine-publisher
+	echo
+}
+
+stop()
+{
+	echo -n $"Stopping $prog:"
+	if [ -r $PIDFILE ] ; then
+		killproc $prog
+	else
+		failure $"Stopping $prog"
+	fi
+	RETVAL=$?
+	[ "$RETVAL" = 0 ] && rm -f /var/lock/subsys/spine-publisher
+	echo
+}
+
+reload()
+{
+	echo -n $"Reloading $prog:"
+	if [ -r $PIDFILE ] ; then
+		kill -HUP `cat $PIDFILE`
+	else
+		failure $"Reloading $prog"
+	fi
+	RETVAL=$?
+	echo
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		sleep 10 
+		start
+		;;
+	reload)
+		reload
+		;;
+	status)
+		status $SPINE_PUB
+		RETVAL=$?
+		;;
+	*)
+		echo $"Usage: $0 {start|stop|restart|reload|status}"
+		RETVAL=1
+		;;
+esac
+exit $RETVAL
+
