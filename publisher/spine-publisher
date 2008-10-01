@@ -116,14 +116,15 @@ plog(LOG_INFO, "Deleting contents of working directory $working_dir");
 rmtree($working_dir) if ($working_dir =~ m#^/tmp/#);
 
 plog(LOG_INFO, "Beginning initial SVN checkout of $repo_url");
-$svn->checkout($repo_url, $working_dir, 'HEAD', 1);
+eval { $svn->checkout($repo_url, $working_dir, 'HEAD', 1) };
+
+if ($@) { plog(LOG_CRIT, "Failed initial SVN checkout: $@", EXIT_DIE) }
 plog(LOG_INFO, "Completed initial SVN checkout -- Waiting for requests");
 
 # Main program loop.
 
 while (not $s->daemon_check_exit)
 {
-
     open(FIFO, "<" . $c->getval('main.fifo')) ||
 	die "ERROR: Could not open named pipe";
 
@@ -134,8 +135,15 @@ while (not $s->daemon_check_exit)
 	plog(LOG_INFO, "Beginning publishing for $revision");
 
 	# Try an SVN update before doing a full checkout.
+	my $returned_rev;
 	plog(LOG_INFO, "Executing SVN update of working directory");
-        my $returned_rev = $svn->update($working_dir, $revision, 1);
+	eval { $returned_rev = $svn->update($working_dir, $revision, 1) };
+
+	if ($@)
+	{
+	    plog(LOG_CRIT, "Failed to update to revision $revision: $@");
+	    next;
+	}
 
 	unless ($returned_rev == $revision)
 	{
@@ -145,7 +153,12 @@ while (not $s->daemon_check_exit)
 	}
 
 	# Apply properties from SVN to working directory.
-	publish_apply_properties($working_dir);
+	my $pub_apply_result = publish_apply_properties($working_dir);
+	if ($pub_apply_result)
+	{
+	    plog(LOG_CRIT, "Failed to apply properties to filesystem");
+	    next; 
+	}
 
         plog(LOG_INFO, "Creating gzipped ISO image");
 	write_release_file($revision);
@@ -311,6 +324,8 @@ sub publish_apply_properties
     my $props = publish_get_props($svn, $dir, 
         $c->getval('svn.custom_props'), 1);
 
+    return 0 if (not defined $props); 
+
     my $props_file_list;
     if ($c->getval('publish.force_all_perms'))
     {
@@ -326,6 +341,8 @@ sub publish_apply_properties
     {
 	publish_prop_to_fs($path, $props);
     }
+
+    return 1;
 }
 
 
@@ -338,7 +355,14 @@ sub publish_get_props
 
     for my $prop (@{$custom_props})
     {
-        my $result = $svn->propget($prop, $path, 'WORKING', $recursive);
+	my $result;
+        eval { $result = $svn->propget($prop, $path, 'WORKING', $recursive) };
+	if ($@)
+	{
+	    plog(LOG_CRIT, "Failed to get props $prop on $path: $@");
+	    return undef;
+	}
+
 	for my $file (keys %{$result})
 	{
 	    $proptree{$file}{$prop} = $result->{$file};
