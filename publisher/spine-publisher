@@ -142,6 +142,7 @@ while (not $s->daemon_check_exit)
 	if ($@)
 	{
 	    plog(LOG_CRIT, "Failed to update to revision $revision: $@");
+	    $svn->cleanup($working_dir);
 	    next;
 	}
 
