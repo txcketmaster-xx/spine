@@ -130,6 +130,7 @@ while (not $s->daemon_check_exit)
 
     while (my $revision = <FIFO>)
     {
+	$s->reset;
 	chomp($revision);
 
 	plog(LOG_INFO, "Beginning publishing for $revision");
@@ -155,7 +156,7 @@ while (not $s->daemon_check_exit)
 
 	# Apply properties from SVN to working directory.
 	my $pub_apply_result = publish_apply_properties($working_dir);
-	if ($pub_apply_result)
+	unless ($pub_apply_result)
 	{
 	    plog(LOG_CRIT, "Failed to apply properties to filesystem");
 	    next; 
@@ -168,8 +169,6 @@ while (not $s->daemon_check_exit)
 	publish_gzip_file($isoball) unless (not defined $isoball);
 
 	plog(LOG_INFO, "Completed publishing for $revision");
-
-	$s->reset;
     }
 
     close(FIFO);
