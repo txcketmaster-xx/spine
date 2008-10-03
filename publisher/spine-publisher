@@ -103,6 +103,7 @@ if (exists $opts{restoreprops})
 
 # Daemonize.
 
+plog(LOG_INFO, "Initializing daemon");
 %SIG = daemon_set_sighandlers();
 daemon_init($c->getval('main.pidfile'), $c->getval('main.user'), 
 	$c->getval('main.group') );
@@ -113,44 +114,47 @@ my $working_dir =  rm_trail_slash ( $c->getval('svn.working_dir') );
 # Clean up the working directory and do a full SVN checkout.
 
 plog(LOG_INFO, "Deleting contents of working directory $working_dir");
-rmtree($working_dir) if ($working_dir =~ m#^/tmp/#);
+rmtree($working_dir);
 
-plog(LOG_INFO, "Beginning initial SVN checkout of $repo_url");
-eval { $svn->checkout($repo_url, $working_dir, 'HEAD', 1) };
+plog(LOG_INFO, "Beginning initial svn checkout of $repo_url");
+my $co_rev;
+eval { $co_rev = $svn->checkout($repo_url, $working_dir, 'HEAD', 1) };
 
-if ($@) { plog(LOG_CRIT, "Failed initial SVN checkout: $@", EXIT_DIE) }
-plog(LOG_INFO, "Completed initial SVN checkout -- Waiting for requests");
+if ($@) { plog(LOG_CRIT, "Failed initial svn checkout: $@", EXIT_DIE) }
+plog(LOG_INFO, "Completed initial svn checkout at revision $co_rev");
 
 # Main program loop.
+plog(LOG_INFO, "Accepting publishing requests");
 
 while (not $s->daemon_check_exit)
 {
     open(FIFO, "<" . $c->getval('main.fifo')) ||
 	die "ERROR: Could not open named pipe";
 
-    while (my $revision = <FIFO>)
+    while (my $rev = <FIFO>)
     {
 	$s->reset;
-	chomp($revision);
+	chomp($rev);
 
-	plog(LOG_INFO, "Beginning publishing for $revision");
+	my $start_time = time();
+	plog(LOG_INFO, "Beginning publishing for revision $rev");
 
 	# Try an SVN update before doing a full checkout.
 	my $returned_rev;
-	plog(LOG_INFO, "Executing SVN update of working directory");
-	eval { $returned_rev = $svn->update($working_dir, $revision, 1) };
+	plog(LOG_INFO, "Executing svn update of working directory");
+	eval { $returned_rev = $svn->update($working_dir, $rev, 1) };
 
 	if ($@)
 	{
-	    plog(LOG_CRIT, "Failed to update to revision $revision: $@");
+	    plog(LOG_CRIT, "Failed to update to revision $rev: $@");
 	    $svn->cleanup($working_dir);
 	    next;
 	}
 
-	unless ($returned_rev == $revision)
+	unless ($returned_rev == $rev)
 	{
 	    plog(LOG_CRIT, "Update failed -- received revision $returned_rev "
-		. "rather than desired revision $revision");
+		. "rather than desired revision $rev");
 	    next;
 	}
 
@@ -162,13 +166,12 @@ while (not $s->daemon_check_exit)
 	    next; 
 	}
 
-        plog(LOG_INFO, "Creating gzipped ISO image");
-	write_release_file($revision);
-
-	my $isoball = publish_create_iso($revision);
+	write_release_file($rev);
+	my $isoball = publish_create_iso($rev);
 	publish_gzip_file($isoball) unless (not defined $isoball);
 
-	plog(LOG_INFO, "Completed publishing for $revision");
+	my $total_time = time() - $start_time;
+	plog(LOG_INFO, "Completed publishing for $rev in $total_time seconds");
     }
 
     close(FIFO);
@@ -202,7 +205,7 @@ sub plog
 
 sub add_to_queue
 {
-    my $revision = shift;
+    my $rev = shift;
     my $fifo = $c->getval('main.fifo');
 
     unless ( -e $fifo )
@@ -211,23 +214,23 @@ sub add_to_queue
     }
 
     sysopen(QUEUE_FIFO, $fifo, O_RDWR|O_APPEND|O_NONBLOCK);
-    print QUEUE_FIFO $revision . "\n";
+    print QUEUE_FIFO $rev . "\n";
     close(QUEUE_FIFO);
 
-    plog(LOG_INFO, "Added revision $revision to publishing queue");
+    plog(LOG_INFO, "Added revision $rev to publishing queue");
 }
 
 
 sub write_release_file
 {
-    my $revision = shift;
+    my $rev = shift;
     my $release_file = $c->getval('svn.working_dir') . "/Release";
     unlink($release_file) if (-f $release_file);
 
     open (RELEASE, "> $release_file")
 	|| plog(LOG_CRIT, "Could not write release file");
 
-    print RELEASE $revision . "\n";
+    print RELEASE $rev . "\n";
     close(RELEASE)
 }
 
@@ -320,7 +323,7 @@ sub publish_apply_properties
 {
     my $dir = shift;
 
-    plog(LOG_INFO, "Retrieving SVN properties from $dir");
+    plog(LOG_INFO, "Retrieving svn properties from $dir");
     my $props = publish_get_props($svn, $dir, 
         $c->getval('svn.custom_props'), 1);
 
@@ -460,11 +463,11 @@ sub publish_prop_to_fs
 
 sub publish_create_iso
 {
-    my $revision = shift;
+    my $rev = shift;
 
-    plog(LOG_INFO, "Creating ISO for revision $revision");
+    plog(LOG_INFO, "Creating ISO for revision $rev");
 
-    my $iso_filename = $c->getval('publish.iso_prefix') ."-".$revision. ".iso";
+    my $iso_filename = $c->getval('publish.iso_prefix') ."-" . $rev . ".iso";
     my $iso_path = $c->getval('publish.destdir') . "/" . $iso_filename;
 
     unlink($iso_path) if (-f $iso_path);
@@ -477,7 +480,7 @@ sub publish_create_iso
 
     if ( $? > 0)
     {
-	plog(LOG_ERR, "Failed to create ISO for revision $revision");
+	plog(LOG_ERR, "Failed to create ISO for revision $rev");
 	return undef;
     }
 
@@ -492,7 +495,10 @@ sub publish_gzip_file
     my $dest_file = $file . ".gz";
     unlink($dest_file) if (-f $dest_file);
 
-    my $cmd = $c->getval('publish.gzip_bin') . " " . $file;
+    # Call gzip with a temporary filename extension, for the purpose
+    # of placing the resulting iso.gz as an atomic operation via rename.
+
+    my $cmd = $c->getval('publish.gzip_bin') . " -S.tmpgz " . $file;
     my $result = `$cmd >/dev/null 2>&1`;
 
     if ( $? > 0)
@@ -501,7 +507,8 @@ sub publish_gzip_file
 	return 0;
     }
 
-    return 1;
+    return 1 if ( rename $file . ".tmpgz", $dest_file );
+    return 0;
 }
 
 
