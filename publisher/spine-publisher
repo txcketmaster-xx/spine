@@ -37,7 +37,7 @@ use constant EXIT_DIE => 1;
 
 use Fcntl;
 use Getopt::Long qw(:config bundling);
-use POSIX qw(setsid setuid setgid);
+use POSIX qw(setsid setuid setgid :sys_wait_h);
 use Sys::Syslog qw(:standard :macros);
 
 use Config::Simple;
@@ -103,7 +103,6 @@ if (exists $opts{restoreprops})
 
 # Daemonize.
 
-plog(LOG_INFO, "Initializing daemon");
 %SIG = daemon_set_sighandlers();
 daemon_init($c->getval('main.pidfile'), $c->getval('main.user'), 
 	$c->getval('main.group') );
@@ -124,7 +123,7 @@ if ($@) { plog(LOG_CRIT, "Failed initial svn checkout: $@", EXIT_DIE) }
 plog(LOG_INFO, "Completed initial svn checkout at revision $co_rev");
 
 # Main program loop.
-plog(LOG_INFO, "Accepting publishing requests");
+plog(LOG_INFO, "Accepting requests");
 
 while (not $s->daemon_check_exit)
 {
@@ -136,6 +135,23 @@ while (not $s->daemon_check_exit)
 	$s->reset;
 	chomp($rev);
 
+	# Fork a child to perform actual publishing.  The SVN client seems
+	# to exit with nothing but "Aborted" reported on the console, even
+	# when running in an eval block.  I suspect the SVN client is setting
+	# an abort signal handler but it is unclear.  It is not easy to 
+	# reproduce, so this will prevent the daemon from dying for now.
+
+	defined (my $pid = fork) ||
+	    plog(LOG_CRIT, "Failed to fork worker child", 1);
+
+        if ($pid > 0)
+	{
+	    my $kid = waitpid $pid, 0;
+	    plog(LOG_ERR, "Failed to publish release $rev", 2) if ($? > 0);
+ 	    next;
+        }
+
+	# Child process.
 	my $start_time = time();
 	plog(LOG_INFO, "Beginning publishing for revision $rev");
 
@@ -172,6 +188,9 @@ while (not $s->daemon_check_exit)
 
 	my $total_time = time() - $start_time;
 	plog(LOG_INFO, "Completed publishing for $rev in $total_time seconds");
+
+	# End child process.
+	exit 0;
     }
 
     close(FIFO);
@@ -559,7 +578,7 @@ sub daemon_init
     daemon_write_pidfile($pidfile);
     daemon_drop_privs($user, $group, $pidfile); 
 
-    plog(LOG_NOTICE, "Succesfully daemonized");
+    plog(LOG_NOTICE, "Initializing");
 }
 
 
