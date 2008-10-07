@@ -1,4 +1,4 @@
-#!/usr/bin/perl 
+#!/usr/bin/perl
 
 # ===========================================================================
 #  $Id$
@@ -9,7 +9,7 @@
 #  Usage: spine-publisher [OPTIONS]
 #
 #  Rafi Khardalian <rafi|at|ticketmaster.com> -- Tue Sep 16 00:18:31 PDT 2008
-#  
+#
 # ===========================================================================
 #
 # This program is free software; you can redistribute it and/or modify
@@ -95,7 +95,7 @@ my $svn = svn_init();
 if (exists $opts{restoreprops})
 {
     plog(LOG_CRIT, "Specified directory does not exist \"$opts{restoreprops}\"", 1)
-	unless (-d $opts{restoreprops});
+        unless (-d $opts{restoreprops});
 
     publish_apply_properties( rm_trail_slash($opts{restoreprops} ));
     exit 0;
@@ -104,8 +104,8 @@ if (exists $opts{restoreprops})
 # Daemonize.
 
 %SIG = daemon_set_sighandlers();
-daemon_init($c->getval('main.pidfile'), $c->getval('main.user'), 
-	$c->getval('main.group') );
+daemon_init($c->getval('main.pidfile'), $c->getval('main.user'),
+        $c->getval('main.group') );
 
 my $repo_url =  rm_trail_slash ( $c->getval('svn.repo_url') );
 my $working_dir =  rm_trail_slash ( $c->getval('svn.working_dir') );
@@ -128,69 +128,69 @@ plog(LOG_INFO, "Accepting requests");
 while (not $s->daemon_check_exit)
 {
     open(FIFO, "<" . $c->getval('main.fifo')) ||
-	die "ERROR: Could not open named pipe";
+        die "ERROR: Could not open named pipe";
 
     while (my $rev = <FIFO>)
     {
-	$s->reset;
-	chomp($rev);
+        $s->reset;
+        chomp($rev);
 
-	# Fork a child to perform actual publishing.  The SVN client seems
-	# to exit with nothing but "Aborted" reported on the console, even
-	# when running in an eval block.  I suspect the SVN client is setting
-	# an abort signal handler but it is unclear.  It is not easy to 
-	# reproduce, so this will prevent the daemon from dying for now.
+        # Fork a child to perform actual publishing.  The SVN client seems
+        # to exit with nothing but "Aborted" reported on the console, even
+        # when running in an eval block.  I suspect the SVN client is setting
+        # an abort signal handler but it is unclear.  It is not easy to
+        # reproduce, so this will prevent the daemon from dying for now.
 
-	defined (my $pid = fork) ||
-	    plog(LOG_CRIT, "Failed to fork worker child", 1);
+        defined (my $pid = fork) ||
+            plog(LOG_CRIT, "Failed to fork worker child", 1);
 
         if ($pid > 0)
-	{
-	    my $kid = waitpid $pid, 0;
-	    plog(LOG_ERR, "Failed to publish release $rev", 2) if ($? > 0);
- 	    next;
+        {
+            my $kid = waitpid $pid, 0;
+            plog(LOG_ERR, "Failed to publish release $rev", 2) if ($? > 0);
+             next;
         }
 
-	# Child process.
-	my $start_time = time();
-	plog(LOG_INFO, "Beginning publishing for revision $rev");
+        # Child process.
+        my $start_time = time();
+        plog(LOG_INFO, "Beginning publishing for revision $rev");
 
-	# Try an SVN update before doing a full checkout.
-	my $returned_rev;
-	plog(LOG_INFO, "Executing svn update of working directory");
-	eval { $returned_rev = $svn->update($working_dir, $rev, 1) };
+        # Try an SVN update before doing a full checkout.
+        my $returned_rev;
+        plog(LOG_INFO, "Executing svn update of working directory");
+        eval { $returned_rev = $svn->update($working_dir, $rev, 1) };
 
-	if ($@)
-	{
-	    plog(LOG_CRIT, "Failed to update to revision $rev: $@");
-	    $svn->cleanup($working_dir);
-	    next;
-	}
+        if ($@)
+        {
+            plog(LOG_CRIT, "Failed to update to revision $rev: $@");
+            $svn->cleanup($working_dir);
+            next;
+        }
 
-	unless ($returned_rev == $rev)
-	{
-	    plog(LOG_CRIT, "Update failed -- received revision $returned_rev "
-		. "rather than desired revision $rev");
-	    next;
-	}
+        unless ($returned_rev == $rev)
+        {
+            plog(LOG_CRIT, "Update failed -- received revision $returned_rev "
+                . "rather than desired revision $rev");
+            next;
+        }
 
-	# Apply properties from SVN to working directory.
-	my $pub_apply_result = publish_apply_properties($working_dir);
-	unless ($pub_apply_result)
-	{
-	    plog(LOG_CRIT, "Failed to apply properties to filesystem");
-	    next; 
-	}
+        # Apply properties from SVN to working directory.
+        my $pub_apply_result = publish_apply_properties($working_dir);
+        unless ($pub_apply_result)
+        {
+            plog(LOG_CRIT, "Failed to apply properties to filesystem");
+            next;
+        }
 
-	write_release_file($rev);
-	my $isoball = publish_create_iso($rev);
-	publish_gzip_file($isoball) unless (not defined $isoball);
+        write_release_file($rev);
+        my $isoball = publish_create_iso($rev);
+        publish_gzip_file($isoball) unless (not defined $isoball);
 
-	my $total_time = time() - $start_time;
-	plog(LOG_INFO, "Completed publishing for $rev in $total_time seconds");
+        my $total_time = time() - $start_time;
+        plog(LOG_INFO, "Completed publishing for $rev in $total_time seconds");
 
-	# End child process.
-	exit 0;
+        # End child process.
+        exit 0;
     }
 
     close(FIFO);
@@ -207,17 +207,17 @@ sub plog
     my ($level, $msg, $exit_code) = @_;
 
     unless ($s->is_daemon)
-    { 
-	print APPNAME . "[$level]: $msg\n" 
-	    if ($level <= $c->getval('main.loglevel'));
+    {
+        print APPNAME . "[$level]: $msg\n"
+            if ($level <= $c->getval('main.loglevel'));
     }
 
     syslog($level, $msg);
 
     if (defined $exit_code)
-    { 
+    {
         syslog(LOG_CRIT, "Exiting due to critical error");
-	exit $exit_code;
+        exit $exit_code;
     }
 }
 
@@ -247,7 +247,7 @@ sub write_release_file
     unlink($release_file) if (-f $release_file);
 
     open (RELEASE, "> $release_file")
-	|| plog(LOG_CRIT, "Could not write release file");
+        || plog(LOG_CRIT, "Could not write release file");
 
     print RELEASE $rev . "\n";
     close(RELEASE)
@@ -291,10 +291,10 @@ sub svn_init
 {
     my $svn = new SVN::Client(
         auth => [
-	  SVN::Client::get_simple_provider(),
-	  SVN::Client::get_simple_prompt_provider(\&svn_auth_callback,2),
-	  SVN::Client::get_username_provider(),
-	  SVN::Client::get_ssl_server_trust_prompt_provider(\&svn_ssl_callback)
+          SVN::Client::get_simple_provider(),
+          SVN::Client::get_simple_prompt_provider(\&svn_auth_callback,2),
+          SVN::Client::get_username_provider(),
+          SVN::Client::get_ssl_server_trust_prompt_provider(\&svn_ssl_callback)
         ],
         notify => \&svn_notify_callback,
     );
@@ -315,7 +315,7 @@ sub svn_ssl_callback
 {
     my ($cred, $realm, $ifailed, $server_cert_info, $may_save) = @_;
     return $cred->accepted_failures($ifailed);
-} 
+}
 
 
 sub svn_parse_state
@@ -325,8 +325,8 @@ sub svn_parse_state
 
     if ( ($SVN::Wc::Notify::State::changed == $state) )
     {
-	$s->file_add_modified($working_dir)	
-	    if grep(/^(overlay|class_overlay)$/, @working_dir_parts);
+        $s->file_add_modified($working_dir)
+            if grep(/^(overlay|class_overlay)$/, @working_dir_parts);
     }
 }
 
@@ -343,17 +343,17 @@ sub publish_apply_properties
     my $dir = shift;
 
     plog(LOG_INFO, "Retrieving svn properties from $dir");
-    my $props = publish_get_props($svn, $dir, 
+    my $props = publish_get_props($svn, $dir,
         $c->getval('svn.custom_props'), 1);
 
-    return 0 if (not defined $props); 
+    return 0 if (not defined $props);
 
     my $props_file_list;
     if ($c->getval('publish.force_all_perms'))
     {
-	plog(LOG_INFO, "Generating full file list");
-	publish_get_full_filelist($dir);
-	$props_file_list = $s->find_list_matches;
+        plog(LOG_INFO, "Generating full file list");
+        publish_get_full_filelist($dir);
+        $props_file_list = $s->find_list_matches;
     }
     else
     { $props_file_list = [ keys %{$props} ] }
@@ -361,7 +361,7 @@ sub publish_apply_properties
     plog(LOG_INFO, "Applying properties to filesystem");
     for my $path ( @{$props_file_list} )
     {
-	publish_prop_to_fs($path, $props);
+        publish_prop_to_fs($path, $props);
     }
 
     return 1;
@@ -369,7 +369,7 @@ sub publish_apply_properties
 
 
 sub publish_get_props
-{ 
+{
     my ($svn, $path, $custom_props, $recursive) = @_;
 
     my %proptree;
@@ -377,18 +377,18 @@ sub publish_get_props
 
     for my $prop (@{$custom_props})
     {
-	my $result;
+        my $result;
         eval { $result = $svn->propget($prop, $path, 'WORKING', $recursive) };
-	if ($@)
-	{
-	    plog(LOG_CRIT, "Failed to get props $prop on $path: $@");
-	    return undef;
-	}
+        if ($@)
+        {
+            plog(LOG_CRIT, "Failed to get props $prop on $path: $@");
+            return undef;
+        }
 
-	for my $file (keys %{$result})
-	{
-	    $proptree{$file}{$prop} = $result->{$file};
-	}
+        for my $file (keys %{$result})
+        {
+            $proptree{$file}{$prop} = $result->{$file};
+        }
     }
 
     return \%proptree;
@@ -400,14 +400,14 @@ sub publish_prop_to_fs
     my $path = shift;
     my $props = shift;
 
-    my @ugid = ($c->getval('publish.default_uid'), 
-			$c->getval('publish.default_gid'));
+    my @ugid = ($c->getval('publish.default_uid'),
+                        $c->getval('publish.default_gid'));
 
     my $perms = $c->getval('publish.default_file_perms');
     $perms = $c->getval('publish.default_dir_perms') if (-d $path);
 
     my %propscfg = (
-    	filetype => $c->getval('svn.prop_filetype'),
+            filetype => $c->getval('svn.prop_filetype'),
         ugid => $c->getval('svn.prop_ugid'),
         perms => $c->getval('svn.prop_perms'),
         majordev => $c->getval('svn.prop_majordev'),
@@ -423,15 +423,15 @@ sub publish_prop_to_fs
         $type = 'p' if ($props->{$path}{$propscfg{filetype}}) eq 'fifo';
 
         unless (defined($type)) {
-            plog(LOG_CRIT, 'Unsupported device type "' 
-		. $props->{$path}{$propscfg{filetype}}
+            plog(LOG_CRIT, 'Unsupported device type "'
+                . $props->{$path}{$propscfg{filetype}}
                 . "\" for \"$path\"", EXIT_DIE);
         }
 
         $major = $props->{$path}{$propscfg{majordev}};
         $minor = $props->{$path}{$propscfg{minordev}};
 
-	unlink($path) if (-e $path);
+        unlink($path) if (-e $path);
         eval { system("/bin/mknod $path $type $major $minor") };
 
         if ($@) {
@@ -452,29 +452,29 @@ sub publish_prop_to_fs
 
     unless( is_int($perms) )
     {
-	plog(LOG_ERR, "Invalid permissions \"$perms\" set on path $path");
-	return 0;
+        plog(LOG_ERR, "Invalid permissions \"$perms\" set on path $path");
+        return 0;
     }
 
     unless ( is_int($ugid[0]) and (is_int($ugid[1])) )
     {
-	plog(LOG_ERR, "Invalid ugid \"$ugid[0]:$ugid[1]\" set on path $path");
-	return 0;
+        plog(LOG_ERR, "Invalid ugid \"$ugid[0]:$ugid[1]\" set on path $path");
+        return 0;
     }
 
     if (-l $path)
     {
-	lchown(@ugid, $path);
-	return 1;
+        lchown(@ugid, $path);
+        return 1;
     }
 
     my $chmod_count = chmod oct($perms), $path;
     plog(LOG_ERR, "Failed to chmod \"$path\" with permissions $perms")
-	unless ($chmod_count > 0);
-	
+        unless ($chmod_count > 0);
+
     my $chown_count = chown @ugid, $path;
     plog(LOG_ERR, "Failed to chown \"$path\" with uid:gid @ugid")
-	unless ($chown_count > 0);
+        unless ($chown_count > 0);
 
     return 1;
 }
@@ -491,16 +491,16 @@ sub publish_create_iso
 
     unlink($iso_path) if (-f $iso_path);
 
-    my $cmd = $c->getval('publish.mkisofs_bin') 
-	    . " -m '.svn*'" . " -o " . $iso_path
+    my $cmd = $c->getval('publish.mkisofs_bin')
+            . " -m '.svn*'" . " -o " . $iso_path
             . " -R " . $c->getval('svn.working_dir');
 
     my $result = `$cmd >/dev/null 2>&1`;
 
     if ( $? > 0)
     {
-	plog(LOG_ERR, "Failed to create ISO for revision $rev");
-	return undef;
+        plog(LOG_ERR, "Failed to create ISO for revision $rev");
+        return undef;
     }
 
     return $iso_path;
@@ -522,8 +522,8 @@ sub publish_gzip_file
 
     if ( $? > 0)
     {
-	plog(LOG_ERR, "Failed to gzip $file: $result");
-	return 0;
+        plog(LOG_ERR, "Failed to gzip $file: $result");
+        return 0;
     }
 
     return 1 if ( rename $file . ".tmpgz", $dest_file );
@@ -563,20 +563,20 @@ sub daemon_init
     $s->is_daemon(1);
     chdir '/' || plog(LOG_CRIT, "Failed chdir to /: $!", EXIT_DIE);
     open(STDIN, '/dev/null') ||
-	plog(LOG_CRIT, "Failed read /dev/null: $!", EXIT_DIE);
+        plog(LOG_CRIT, "Failed read /dev/null: $!", EXIT_DIE);
     open(STDOUT, '>/dev/null') ||
-	plog(LOG_CRIT, "Failed write to /dev/null: $!", EXIT_DIE);
+        plog(LOG_CRIT, "Failed write to /dev/null: $!", EXIT_DIE);
     defined(my $pid = fork) ||
-	plog(LOG_CRIT, "Failed fork: $!", EXIT_DIE);
+        plog(LOG_CRIT, "Failed fork: $!", EXIT_DIE);
 
     exit if($pid);
 
     setsid();
     open(STDERR, '>&STDOUT') ||
-	plog(LOG_CRIT, "Failed dup stdout: $!", EXIT_DIE);
+        plog(LOG_CRIT, "Failed dup stdout: $!", EXIT_DIE);
 
     daemon_write_pidfile($pidfile);
-    daemon_drop_privs($user, $group, $pidfile); 
+    daemon_drop_privs($user, $group, $pidfile);
 
     plog(LOG_NOTICE, "Initializing");
 }
@@ -601,7 +601,7 @@ sub daemon_check_running
     return 1 unless (-r $pidfile);
 
     open(PID,"<$pidfile") ||
-	die("ERROR: Failed to open old PID file: $!");
+        die("ERROR: Failed to open old PID file: $!");
     my $oldpid = <PID>;
     close(PID);
 
@@ -616,13 +616,13 @@ sub daemon_write_pidfile
 
     unlink($pidfile) if ( -r $pidfile );
 
-    open(PID,">$pidfile") || 
-	plog(LOG_ERR, "Failed opening $pidfile for writing");
+    open(PID,">$pidfile") ||
+        plog(LOG_ERR, "Failed opening $pidfile for writing");
 
     print PID "$$";
 
-    close(PID) || 
-	plog(LOG_ERR, "Failed closing $pidfile");
+    close(PID) ||
+        plog(LOG_ERR, "Failed closing $pidfile");
 }
 
 
@@ -660,34 +660,34 @@ sub usage
     print STDERR (<<EOF);
 
 spine-publisher -- Subversion to ISO9660 configball publisher for the Spine
-		   configuration management system.
+                   configuration management system.
 
-Usage: spine-publisher [OPTIONS] 
+Usage: spine-publisher [OPTIONS]
 
     -c, --configfile <file>
-		Full path to the spine-publisher configuration file.  Specifying
-		this on the command line overrides looking in the default
-		locations, which are /etc/spine-publisher.conf and the current
-		working directory.
+                Full path to the spine-publisher configuration file.  Specifying
+                this on the command line overrides looking in the default
+                locations, which are /etc/spine-publisher.conf and the current
+                working directory.
 
     -f, --foreground
-		Remain in the foreground, do not daemonize. Generally only used
-		during intial configuration.  All logging will still occur
-		via syslog.
+                Remain in the foreground, do not daemonize. Generally only used
+                during intial configuration.  All logging will still occur
+                via syslog.
 
     -q, --queue <release>
-		Queue a release for publishing.  With this option, we exit
-		immediately after executing our addition to the queue.
+                Queue a release for publishing.  With this option, we exit
+                immediately after executing our addition to the queue.
 
     -r, --restoreprops <svn_working_dir>
-		Apply SVN properties to filesystem at the specified working
-		directory, then exit.  This is a replacement for the legacy
-		rsvn (restore-spine) tool.
+                Apply SVN properties to filesystem at the specified working
+                directory, then exit.  This is a replacement for the legacy
+                rsvn (restore-spine) tool.
 
     -d, --debug
-		Debugging mode.  This option inherantly forces us to remain in
-		the foreground and output logging messages via both STDOUT
-		and syslog.
+                Debugging mode.  This option inherantly forces us to remain in
+                the foreground and output logging messages via both STDOUT
+                and syslog.
 
 EOF
     exit 0;
@@ -704,7 +704,7 @@ sub new
     my %args = @_;
 
     my $self = bless {
-	%args
+        %args
     }, $class;
 
     return $self;
@@ -801,18 +801,18 @@ sub new
     my $configfile;
 
     my $self = bless {
-	%args
+        %args
     }, $class;
 
     # Look for our configuration file in sensible locations, always
     # using one specified on the command line first.
 
     if (defined $self->{configfile})
-    { 
-	die ("ERROR: Invalid config file specified \"$self->{configfile}\"")
-	    unless (-f $self->{configfile});
+    {
+        die ("ERROR: Invalid config file specified \"$self->{configfile}\"")
+            unless (-f $self->{configfile});
 
-	$configfile = $self->{configfile};
+        $configfile = $self->{configfile};
     }
 
     elsif (-f "/etc/spine-publisher.conf")
@@ -821,10 +821,10 @@ sub new
     { $configfile = "spine-publisher.conf" }
     else
     { die "ERROR: Could not find spine-publisher.conf" }
-	
+
     $self->{conf} = new Config::Simple(
-	filename => $configfile,
-	syntax   => "ini",
+        filename => $configfile,
+        syntax   => "ini",
     );
 
     return $self;
@@ -845,8 +845,8 @@ sub getval
 
     if (not defined $value)
     {
-	$self->{plog}->(LOG_ERR,
-	    "Requested undefined config value: $key -- exiting.", 1);
+        $self->{plog}->(LOG_ERR,
+            "Requested undefined config value: $key -- exiting.", 1);
     }
 
     return $value;
