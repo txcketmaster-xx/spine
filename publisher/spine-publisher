@@ -32,7 +32,6 @@ use strict;
 use warnings;
 
 use constant APPNAME => 'spine-publisher';
-use constant VERSION => '2.00';
 use constant EXIT_DIE => 1;
 
 use Fcntl;
@@ -72,11 +71,8 @@ openlog(APPNAME, "ndelay,pid", "daemon");
 # Set log level to max verbosity if debug mode, otherwise use the
 # configured value.
 
-if (exists $opts{debug})
-{ setlogmask(gen_logmask(7)) }
-else
-{ setlogmask(gen_logmask($c->getval('main.loglevel'))) }
-
+setlogmask(gen_logmask($c->getval('main.loglevel')));
+setlogmask(gen_logmask(7)) if (exists $opts{debug});
 
 # In queue mode, we only modify the work queue and exit.
 
@@ -146,9 +142,10 @@ while (not $s->daemon_check_exit)
 
         if ($pid > 0)
         {
+            # Parent process.
             my $kid = waitpid $pid, 0;
             plog(LOG_ERR, "Failed to publish release $rev", 2) if ($? > 0);
-             next;
+            next;
         }
 
         # Child process.
@@ -250,7 +247,7 @@ sub write_release_file
         || plog(LOG_CRIT, "Could not write release file");
 
     print RELEASE $rev . "\n";
-    close(RELEASE)
+    close(RELEASE);
 }
 
 
@@ -655,12 +652,34 @@ sub daemon_interrupt
     $s->daemon_set_exit;
 }
 
+
+sub get_rev_info
+{
+    my $id = '$Id$';
+    my @id_parts = split(/ /, $id);
+
+    my %rinfo = (
+                    name    => $id_parts[1],
+                    rev     => $id_parts[2],
+                    date    => $id_parts[3],
+                    time    => $id_parts[4],
+                    auth    => $id_parts[5],
+    );
+                    
+    return \%rinfo;
+}
+
+
 sub usage
 {
+    my $rinfo = get_rev_info();
+    my $app = APPNAME;
+    my $rev = $rinfo->{rev};
+
     print STDERR (<<EOF);
 
-spine-publisher -- Subversion to ISO9660 configball publisher for the Spine
-                   configuration management system.
+$app v$rev -- Subversion to ISO9660 configball publisher for the 
+Spine configuration management system.
 
 Usage: spine-publisher [OPTIONS]
 
@@ -692,6 +711,8 @@ Usage: spine-publisher [OPTIONS]
 EOF
     exit 0;
 }
+
+
 
 
 package PublisherState;
