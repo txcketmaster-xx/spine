@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+# -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
+# vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
+
 # ===========================================================================
 #  $Id$
 #
@@ -885,4 +888,3 @@ sub _interpolate_string
 }
 
 1;
-
