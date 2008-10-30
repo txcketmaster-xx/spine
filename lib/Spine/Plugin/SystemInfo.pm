@@ -106,11 +106,11 @@ sub get_sysinfo
 
         foreach my $line (<$fh>)
         {
-            next unless m/Ethernet/;
+            next unless ($line =~ m/Ethernet/);
             # FIXME  This is kind of dumb.  We don't provide any kind of
             #        interface to driver mapping and we really should
             while (my ($re, $card) = each(%devs)) {
-                $netcard = $card if m/$re/;
+                $netcard = $card if ($line =~ m/$re/);
             }
 	}
         $fh->close();
