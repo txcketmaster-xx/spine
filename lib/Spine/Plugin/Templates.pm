@@ -52,7 +52,6 @@ use File::Find;
 use File::stat;
 use Fcntl qw(:mode);
 use Template;
-use Text::Diff;
 use File::Spec::Functions;
 
 my $TT = undef;
