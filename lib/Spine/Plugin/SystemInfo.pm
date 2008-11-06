@@ -264,11 +264,10 @@ sub is_virtual
 
         foreach my $line (<$fh>)
         {
-            # 15ad is the vendor ID for VMWare and 0405 is the device ID for
-            # their virtual SVGA adapte so "15ad:0405" is a VMware VM.
+            # 15ad is the PCI vendor ID for VMWare
             #
-            # rtilder Tue Jul 12 13:19:48 PDT 2005
-            if ( $line =~ m/15ad:0405/i )
+            # rtilder   Thu Nov  6 09:45:33 PST 2008
+            if ( $line =~ m/\s+15ad:[\da-f]{4}/i )
             {
                 $c->{c_is_virtual} = 1;
                 $c->{c_virtual_type} = 'vmware';
@@ -277,7 +276,7 @@ sub is_virtual
             # 5853 is the vendor ID for Xen Source (who contribute a lot of
             # code to the Xen project) and 0001 is the device ID for their
             # virtual SCSI adapter so "5853:0001" is a Xen HVM
-            if ( $line =~ m/5853:0001/i )
+            if ( $line =~ m/\s+5853:[\da-f]{4}/i )
             {
                 $c->{c_virtual_type} = 'xen-hvm';
                 last;
