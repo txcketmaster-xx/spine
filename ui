@@ -74,13 +74,13 @@ sub get_hostname
     # in which case we ask the host server, or prompt the
     # user via dialog box.
 
-    open(PROCPCI, "< /proc/pci");
+    open(LSPCI, "/sbin/lspci |");
     if ($cmdline_hostname)
     {
         $hostname = $cmdline_hostname;
         $cmdline_hostname = undef;
     }
-    elsif ( grep(/VMware Inc/i, <PROCPCI>) && (-x "$VMCMD") )
+    elsif ( grep(/VMware Inc/i, <LSPCI>) && (-x "$VMCMD") )
     {
         $hostname = `$VMCMD --cmd machine.id.get 2>/dev/null`;
         if ($? > 0 ) { $hostname = `$dialogcmd`; }
@@ -93,7 +93,7 @@ sub get_hostname
 
     $hostname = lc($hostname);
 
-    close(PROCPCI);
+    close(LSPCI);
     return $hostname;
 }
 
