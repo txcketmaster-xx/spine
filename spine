@@ -548,10 +548,6 @@ sub read_nodefile
     chomp $hostname;
 
     $hostname =~ s/\s*//g;
-    unless  ( $hostname =~ m/$Spine::Util::dns_schema/xi )
-    {
-        return undef;
-    }
 
     return $hostname;
 }

@@ -35,15 +35,7 @@ use Template;
 
 use Spine::Constants qw(:basic);
 
-our ($VERSION, @EXPORT_OK, @EXPORT_FAIL, $dns_schema);
-
-our $dns_schema = '
-                ([-a-z\d_]+[a-z])(\d+)\.
-                ([-a-z_]{2,})\.
-                ([-a-z_]{2,}\d+)
-                (?:\.([-a-z_]{2,}))
-                (?:\.([-a-z_]+))?
-                ';
+our ($VERSION, @EXPORT_OK, @EXPORT_FAIL);
 
 @EXPORT_OK = qw(mkdir_p makedir safe_copy touch resolve_address do_rsync
                 exec_command exec_initscript);

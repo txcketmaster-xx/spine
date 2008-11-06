@@ -100,15 +100,7 @@ sub get_hostname
 
 sub check_hostname
 {
-    my $hostname = shift;
-    if ( $hostname =~ m/$Spine::Util::dns_schema/xi )
-    {
-	return 1;
-    }
-    else
-    {
-	return 0;
-    }
+    return 1;
 }
 
 
