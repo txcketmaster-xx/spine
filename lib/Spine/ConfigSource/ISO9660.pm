@@ -31,6 +31,7 @@ use LWP::UserAgent;
 use Spine::ConfigSource;
 use Spine::ConfigSource::Cache;
 use Storable qw(thaw);
+use JSON::Syck;
 
 @ISA = qw(Spine::ConfigSource);
 $VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
@@ -284,6 +285,8 @@ sub check_for_update
 
     my $resp = $self->_http_request($check);
 
+    my $version_data = undef;
+
     if (not defined($resp))
     {
         goto check_error;
@@ -291,14 +294,20 @@ sub check_for_update
 
     my $ctype = $resp->header('Content-Type');
 
-    if ($ctype ne 'application/perl-storable')
+    # Deserialize the payload
+    if ($ctype eq 'application/perl-storable')
+    {
+        $version_data = thaw($resp->content);
+    }
+    elsif ($ctype eq 'application/json')
+    {
+        $version_data = JSON::Syck::Load($resp->content);
+    }
+    else
     {
         $self->error("Invalid content type for response for ISO9660::check_for_update: $ctype");
         goto check_error;
     }
-
-    # Deserialize the payload
-    my $version_data = thaw($resp->content);
 
     if (not defined($version_data))
     {
