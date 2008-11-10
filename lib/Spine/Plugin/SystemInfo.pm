@@ -170,41 +170,60 @@ sub get_netinfo
 
     $c->print(3, 'examining local network');
 
-    my ($subnet, $network, $netmask, $bcast);
+    my ($subnet, $network, $netmask, $bcast, @nets);
     my $nobj = new NetAddr::IP($c->getval('c_ip_address'));
 
+    # FIXME  Incorrect and confusing error message here
     unless (defined($nobj)) {
-        $c->error("No IP address found for $c->{c_hostname_f}", 'err');
+        $c->error("No IP address found for \"$c->{c_hostname_f}\"", 'err');
         return PLUGIN_FATAL;
     }
 
+    # Populate an ordered hierarchy of networks that our address is a member
+    # of
+
     foreach my $net (<${c_root}/network/*>)
     {
-	next if ($net =~ m/^\.+/);
+	next unless ($net !~ m/^(?:\d{1,3}\.){3}(?:\d{1,3})-\d{1,2}/);
 	$net = basename($net);
 	$net =~ s@-@/@g;
 
 	my $sobj = new NetAddr::IP($net);
 
-	if ($nobj->within($sobj))
-	{
-	    $net =~ s@/@-@g;
-	    $subnet = $net;
-	    $network = $sobj->network->addr;
-	    $netmask = $sobj->mask();
-	    $bcast = $sobj->broadcast->addr;
-	    last;
-	}
+        unless (defined($sobj)) {
+            $net =~ s@/@-@g;
+            $c->error("Invalid network definition \"$net\"", 'err');
+            return PLUGIN_FATAL
+        }
+
+	if ($nobj->within($sobj)) {
+            push @nets, $sobj;
+        }
     }
 
-    $c->{c_subnet} = $subnet;
-    $c->{c_network} = $network;
-    $c->{c_bcast} = $bcast;
-    $c->{c_netmask} = $netmask;
+    @nets = sort { $a->within($b) and return 1;
+                   $b->within($a) and return -1;
+                   return 0; } @nets;
+
+    my $nobj = @nets[-1];
+
+    $c->{c_subnet} = "$nobj"; # stringification of a NetAddr::IP object
+    $c->{c_network} = $nobj->network->addr;
+    $c->{c_bcast} = $nobj->broadcast->addr;
+    $c->{c_netmask} = $nobj->mask();
+
+    $c->{c_network_hierarchy} = [];
+    foreach my $net (@nets) {
+        $net = "$net";
+        $net =~ s@/@-@g;
+        push @{$c->{c_network_hierarchy}}, $net;
+    }
+
+    $c->print(0, "\t\t\tc_network_hierarchy == \"@{$c->{c_network_hierarchy}}\"");
 
     unless (defined $c->{c_subnet})
     {
-	$c->error("network for $c->{c_ip_address} is not defined", 'err');
+	$c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
 	return PLUGIN_FATAL;
     }
 
@@ -234,56 +253,49 @@ sub is_virtual
     $c->{c_is_virtual} = 0;
 
     # First detect xen-para because it is easy
-    my $xen_indicator = '/proc/xen';
     if ( -d $xen_indicator )
     {
         $c->{c_is_virtual} = 'xen';
         $c->{c_virtual_type} = 'xen-para';
+
+        return PLUGIN_SUCCESS;
     }
-    else
-    {
-        # We actually have to parse the lspci output now.
-        my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
-        my $fh;
 
-        if (-f $lspci and -x $lspci)
-        {
-            $fh = new IO::File("$lspci -n |");
-        }
-        else
-        {
-            $c->error("$lspci not found or not executable!", 'err');
-            return PLUGIN_FATAL;
-        }
+    # We actually have to parse the lspci output now.
+    my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
+    my $fh;
 
-        if (not defined($fh))
-        {
-            $c->error("Failed to run $lspci: $!", 'err');
-            return PLUGIN_FATAL;
-        }
-
-        foreach my $line (<$fh>)
-        {
-            # 15ad is the PCI vendor ID for VMWare
-            #
-            # rtilder   Thu Nov  6 09:45:33 PST 2008
-            if ( $line =~ m/\s+15ad:[\da-f]{4}/i )
-            {
-                $c->{c_is_virtual} = 1;
-                $c->{c_virtual_type} = 'vmware';
-                last;
-            }
-            # 5853 is the vendor ID for Xen Source (who contribute a lot of
-            # code to the Xen project) and 0001 is the device ID for their
-            # virtual SCSI adapter so "5853:0001" is a Xen HVM
-            if ( $line =~ m/\s+5853:[\da-f]{4}/i )
-            {
-                $c->{c_virtual_type} = 'xen-hvm';
-                last;
-            }
-        }
-        $fh->close();
+    if (-f $lspci and -x $lspci) {
+        $fh = new IO::File("$lspci -n |");
+    } else {
+        $c->error("$lspci not found or not executable!", 'err');
+        return PLUGIN_FATAL;
     }
+
+    if (not defined($fh)) {
+        $c->error("Failed to run $lspci: $!", 'err');
+        return PLUGIN_FATAL;
+    }
+
+    foreach my $line (<$fh>) {
+        # 15ad is the PCI vendor ID for VMWare
+        #
+        # rtilder   Thu Nov  6 09:45:33 PST 2008
+        if ( $line =~ m/\s+15ad:[\da-f]{4}/i ) {
+            $c->{c_is_virtual} = 1;
+            $c->{c_virtual_type} = 'vmware';
+            last;
+        }
+        # 5853 is the vendor ID for Xen Source (who contribute a lot of
+        # code to the Xen project) and 0001 is the device ID for their
+        # virtual SCSI adapter so "5853:0001" is a Xen HVM
+        if ( $line =~ m/\s+5853:[\da-f]{4}/i ) {
+            $c->{c_virtual_type} = 'xen-hvm';
+            last;
+        }
+    }
+
+    $fh->close();
 
     return PLUGIN_SUCCESS;
 }
