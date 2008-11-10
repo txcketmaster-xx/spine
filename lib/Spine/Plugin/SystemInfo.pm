@@ -219,7 +219,7 @@ sub get_netinfo
         push @{$c->{c_network_hierarchy}}, $net;
     }
 
-    $c->print(0, "\t\t\tc_network_hierarchy == \"@{$c->{c_network_hierarchy}}\"");
+    $c->print(5, "c_network_hierarchy == \"@{$c->{c_network_hierarchy}}\"");
 
     unless (defined $c->{c_subnet})
     {
