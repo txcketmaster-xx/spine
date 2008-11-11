@@ -52,31 +52,10 @@ sub descend_order
 {
     my $c = shift;
 
-    #
-    # FIXME
-    #   As we make the descend order configurable and generic, we should stop
-    #   populating variables that assume a certain descend order.
-    #
-    #   However, sadly, some of these are still in use, so they'll stay for
-    #   now. c_host_dir was used by websys' motd.tt (fixed now), but in
-    #   addition, removing it caused various templates to stop getting
-    #   generated (!!), so clearly other things need it.
-    #
-    #   The network directory is additionally probably used by coresys, so I'm
-    #   leaving it here for now, but it should too go away.
-    #
-    #   Phil    Wed Aug 15 17:39:29 PDT 2007
-    #
-    $c->{c_host_dir} = catfile('host', $c->{c_hostname_f});
-    $c->{c_network_dir} = catfile('network', $c->{c_subnet});
-
-    # Now that we have our primary policies, let's build the full list of
-    # config groups we're going to need by walking this list and sucking in
-    # any "config/include" files' contents we find.
-
+    # Walk the policy_hierarchy key and build full list by processing 
+    # any "include" or "config/include" files we find.
     foreach my $dir (@{$c->{policy_hierarchy}}) {
         push @{$c->{c_hierarchy}}, get_includes($c, $dir);
-        push @{$c->{c_hierarchy}}, $dir;
     }
 
     return PLUGIN_SUCCESS;
@@ -93,6 +72,11 @@ sub get_includes
     # FIXME  Too deep.  Log something.
     if (++$CURRENT_DEPTH > $MAX_NESTING_DEPTH) {
         goto empty_set;
+    }
+
+    # If we want includes to appear before their children do so now.
+    if ($c->getval_last('include_ordering') eq 'post') {
+        push @included, $directory;
     }
 
     foreach my $path (qw(include config/include)) {
@@ -120,16 +104,13 @@ sub get_includes
             if ($entry =~ m#^/#) {
                 $inc_dir = catfile($c->{c_croot}, $entry);
             }
-
-            my @i = get_includes($c, $inc_dir);
-
-            if ($c->{include_ordering} eq 'post') {
-                push @included, @i, $inc_dir;
-            }
-            else {
-                push @included, $inc_dir, @i;
-            }
+            push @included, @{get_includes($c, $inc_dir)};
         }
+    }
+
+    # If we want includes to appear after their children (default) do so now.
+    if ($c->getval_last('include_ordering') ne 'post') {
+        push @included, $directory;
     }
 
     --$CURRENT_DEPTH;
