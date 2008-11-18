@@ -68,7 +68,7 @@ $DEPTH = 0;
 $MAX_DEPTH = 7;
 
 my @STD_FIELDS = qw(gecos gid group homedir keyopts primary_group shadow shell
-                    skeldir);
+                    skeldir permissions);
 my @PASSWD_FIELDS = qw(gecos homedir shadow shell uid gid);
 
 
@@ -1162,7 +1162,23 @@ sub _generate_passwd_shadow_home
         $s_count++;
 
         my $dir = catfile($tmpdir, $acct->{homedir});
-        mkdir_p($dir, 0755);
+
+        # 
+        # If the account has specific permissions use those
+        # otherwise use the value of the default_homedir_perms key
+        # if set, finally use the code default of 0700 if no other
+        # perms exists.
+        #
+        if (defined $acct->{permissions})
+        {
+            my $perm = $acct->{permissions};
+            mkdir_p($dir, oct($perm));
+        }
+        else
+        {
+            my $perm = $c->getval('auth_default_homedir_perms') || qq(0700);
+            mkdir_p($dir, oct($perm));
+        }
 		
         #
         # As a default, we chown it to root - we'll chown
