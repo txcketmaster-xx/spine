@@ -70,8 +70,6 @@ sub build_overlay
     my $croot = $c->getval('c_croot');
     my $tmpdir = $c->getval('c_tmpdir');
     my $tmplink = $c->getval('c_tmplink');
-    my $class = $c->getval('c_class');
-    my $instance = $c->getval('c_instance');
     my @excludes = @{$c->getvals('build_overlay_excludes')}
         if ($c->getval('build_overlay_excludes'));
     my $masochist = $c->getval_last('masochistic_build_overlay');
@@ -98,49 +96,45 @@ sub build_overlay
     # rtilder    Tue Dec 19 14:11:38 PST 2006
     for my $dir ( @{$c->getvals("c_descend_order")} )
     {
-        my $overlay = "${dir}/overlay/";
-        my $class_overlay = "${dir}/class_overlay/";
-
-        unless (file_name_is_absolute($dir)) {
-            $overlay = catfile($croot, $overlay);
-            $overlay .= '/'; # catfile() removes trailing slashes
-            $class_overlay = catfile($croot, $class_overlay);
-            $class_overlay .= '/';
-        }
-
-        if (-d $overlay)
+        my @overlay_map = ('overlay:/');
+        if ( exists $c->{'overlay_map'} )
         {
-            $c->print(4, "performing overlay from $dir");
-            unless (do_rsync(Config => $c,
-                             Source => $overlay,
-                             Target => $tmpdir,
-                             Excludes => \@excludes)) {
-                $rval++;
-            }
+           @overlay_map = @{$c->getvals("overlay_map")}; 
         }
-        if (-d $class_overlay)
+        for my $element ( @overlay_map )
         {
-            $c->print(4, "performing class overlay from $dir");
-            unless (do_rsync(Config => $c,
-                             Source => $class_overlay,
-                             Target => catfile($tmpdir, $class),
-                             Excludes => \@excludes)) {
-                $rval++;
-            }
-        }
+            (my $overlay, my $target) = split( /:/, $element);
+            my $overlay = "${dir}/${overlay}/";
 
-        # If we've had errors, then we should quit.
-        if ($rval) {
-            unless ($masochist) {
-                return PLUGIN_FATAL;
+            unless (file_name_is_absolute($dir)) {
+                $overlay = catfile($croot, $overlay);
+                $overlay .= '/'; # catfile() removes trailing slashes
             }
 
-            unless ($youve_been_warned) {
-                $youve_been_warned++;
-                $c->print(1, "You're an idiot because you have the ",
-                          'masochistic_build_overlay key set to something ',
-                          'other than 0.');
-                $c->print(1, "Prepare for PAIN!");
+            if ( -d $overlay )
+            {
+                $c->print(4, "performing overlay from $dir");
+                unless (do_rsync(Config => $c,
+                                 Source => $overlay,
+                                 Target => catfile($tmpdir, $target),
+                                 Excludes => \@excludes)) {
+                    $rval++;
+                }
+            }
+
+            # If we've had errors, then we should quit.
+            if ($rval) {
+                unless ($masochist) {
+                    return PLUGIN_FATAL;
+                }
+
+                unless ($youve_been_warned) {
+                    $youve_been_warned++;
+                    $c->print(1, "You're an idiot because you have the ",
+                              'masochistic_build_overlay key set to something ',
+                              'other than 0.');
+                    $c->print(1, "Prepare for PAIN!");
+                }
             }
         }
     }
