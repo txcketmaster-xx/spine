@@ -1084,5 +1084,13 @@ sub debug
     }
 }
 
+sub get_plugin_version
+{
+    my $self = shift;
+    my $plugin_name = shift;
+    my $registry = new Spine::Registry();
+
+    return $registry->get_plugin_version($plugin_name);
+}
 
 1;

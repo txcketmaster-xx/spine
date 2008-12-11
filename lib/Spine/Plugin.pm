@@ -26,7 +26,7 @@ use base qw(Spine::Singleton);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $DEBUG);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 $MODULE = undef;
 

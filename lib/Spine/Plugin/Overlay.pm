@@ -27,8 +27,8 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, $TMPDIR, @ENTRIES);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
-$DESCRIPTION = "Builds the temporary working copy we emit to";
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$DESCRIPTION = "Plugin for creating and processing overlays.";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,

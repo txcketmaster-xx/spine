@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $PRINTDATA, $WITHAUTH);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Features for debugging Spine data";
 
 $MODULE = { author => 'osscode@ticketmaster.com',

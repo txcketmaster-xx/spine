@@ -28,7 +28,7 @@ use Spine::Util qw(exec_initscript);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "A variety of changes to tweak the boot process for the machine";
 
 $MODULE = { author => 'osscode@ticketmaster.com',

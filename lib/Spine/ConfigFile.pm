@@ -30,7 +30,7 @@ use strict;
 package Spine::ConfigFile;
 our ($VERSION, $ERROR, %ConfigKeys);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 use IO::File;
 

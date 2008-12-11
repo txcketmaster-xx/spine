@@ -27,8 +27,8 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $MARKERS, $QUICK);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
-$DESCRIPTION = "Spine::Plugin skeleton";
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$DESCRIPTION = "Plugin for interperolating templates.";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,

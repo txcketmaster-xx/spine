@@ -34,7 +34,7 @@ use Storable qw(thaw);
 use JSON::Syck;
 
 @ISA = qw(Spine::ConfigSource);
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 # See END block at the end of this file.
 my @__MOUNTS;
