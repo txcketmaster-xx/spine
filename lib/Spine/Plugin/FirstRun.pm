@@ -56,10 +56,12 @@ sub first_run
 
     my $dryrun = $c->getval('c_dryrun');
 
-    # Modules.conf is replaced with kernel 2.6.
-    my $modules_conf_file = "/etc/modules.conf";
-    $modules_conf_file = "/etc/modprobe.conf"
-	if (-f "/etc/modprobe.conf");
+    # If FirstRun has already been run, we just return.
+    if ( -f "${state_dir}/installed")
+    {
+        $c->print(2, "skipping, ${state_dir}/installed found");
+        return PLUGIN_SUCCESS;
+    }
 
     for my $service (@{$stop_services})
     {	
@@ -68,15 +70,10 @@ sub first_run
 	    unless ($dryrun);
     }
 
-    return PLUGIN_SUCCESS if (-f "${state_dir}/installed");
-
     $c->print(2, "creating state directory $state_dir");
     unless ($dryrun)
     {
-        mkdir_p("${state_dir}", 0755);
-        safe_copy("/etc/fstab", "${state_dir}/") || $rval++;
-        safe_copy("$modules_conf_file", "${state_dir}/")
-            || $rval++;
+        mkdir_p("${state_dir}", 0755) || $rval++;
     }
 
     if ( exists $c->{'firstrun_mkdirs'} )
@@ -96,8 +93,37 @@ sub first_run
                 
             unless ($dryrun)
             {
-                mkdir_p($dir, oct($mode));
+                mkdir_p($dir, oct($mode)) || $rval++;
                 chown $uid, $gid, $dir;
+            }
+        }
+    }
+
+    if ( exists $c->{'firstrun_cpfiles'} )
+    {
+        for my $element ( @{$c->getvals("firstrun_cpfiles")} )
+        {
+            (my $file, my $dir) = split( /,/, $element);
+            if ( ! -d $dir )
+            {
+                (my $uid, my $gid) = split( /:/, $default_ugid);
+                $c->print(2, "creating directory $dir "
+                    . "[mode $default_mode | owner/group "
+                    . uid_conv($uid) . ":"
+                    . gid_conv($gid) . "]");
+                
+                unless ($dryrun)
+                {
+                    mkdir_p($dir, oct($default_mode)) || $rval++;
+                    chown $uid, $gid, $dir;
+                }
+            }
+
+            $c->print(2, "copying $file to $dir");
+
+            unless ($dryrun)
+            {
+            safe_copy("$file", "$dir") || $rval++;
             }
         }
     }
