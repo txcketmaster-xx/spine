@@ -248,12 +248,12 @@ sub is_virtual
 {
 
     my $c = shift;
-    my $xen_indicator = $c->getval('xen_indicator') || qq(/proc/xen);
+    my $xen_indicator = $c->getval('xen_indicator') || qq(/proc/xen/xenbus);
 
     $c->{c_is_virtual} = 0;
 
     # First detect xen-para because it is easy
-    if ( -d $xen_indicator )
+    if ( -f $xen_indicator )
     {
         $c->{c_is_virtual} = 'xen';
         $c->{c_virtual_type} = 'xen-para';
