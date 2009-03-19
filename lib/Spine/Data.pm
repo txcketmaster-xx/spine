@@ -419,20 +419,15 @@ sub _read_keyfile
 
         $_ = $self->_convert_lame_to_TT($_);
 
-        # We check this first because we want YAML & JSON files to be
-        # templatable as well.  We flag it as a templatized file for a minor
-        # performance gain
-        if (not defined($template) and m/\[%.+/o)
-        {
-            $template = 1;
-        }
-
         # YAML and JSON key files need to have their first line formatted
-        # specifically
+        # specifically, it is then discarded (if it isn't, the JSON
+        # parser throws a syntax error and blows up spine, the YAML
+        # parser just gums up the name of the first item)
         if ($PARSER_LINE == 1 and m/^#?%(YAML\s+\d+\.\d+|JSON)/o)
         {
             $complex = $1;
-            $buf = $_ . join('', <$fh>);
+            $buf = join('', <$fh>);
+            $template = 1 if (not defined($template) and $buf =~ m/\[%.+/o);
             last LINE;
         }
 
@@ -440,6 +435,8 @@ sub _read_keyfile
         if (m/^\s*$/o or m/^\s*#/o) {
             next LINE;
         }
+
+        $template = 1 if (not defined($template) and m/\[%.+/o);
 
         $buf .= $_;
     }
