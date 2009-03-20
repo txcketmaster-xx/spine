@@ -1338,6 +1338,7 @@ sub _generate_authorized_keys
         my @keys;
 
         $keyopts =~ s/(?:\@\@user\@\@)/$person/g;
+        $keyopts =~ s/(?:\@\@gecos\@\@)/$account->{gecos}/g;
 
         if ($keyopts) {
             $keyopts .= ' ';
