@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf('%d.%02d', q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf('%d', q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = 'Spine::Plugin system information harvester';
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -206,6 +206,10 @@ sub get_netinfo
                    return 0; } @nets;
 
     my $nobj = @nets[-1];
+    unless (ref($nobj) eq 'NetAddr::IP') {
+        $c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
+        return PLUGIN_FATAL;
+    }
 
     $c->{c_subnet} = "$nobj"; # stringification of a NetAddr::IP object
     $c->{c_network} = $nobj->network->addr;
@@ -248,12 +252,12 @@ sub is_virtual
 {
 
     my $c = shift;
-    my $xen_indicator = $c->getval('xen_indicator') || qq(/proc/xen);
+    my $xen_indicator = $c->getval('xen_indicator') || qq(/proc/xen/xenbus);
 
     $c->{c_is_virtual} = 0;
 
     # First detect xen-para because it is easy
-    if ( -d $xen_indicator )
+    if ( -f $xen_indicator )
     {
         $c->{c_is_virtual} = 'xen';
         $c->{c_virtual_type} = 'xen-para';

@@ -27,8 +27,8 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, $TMPDIR, @ENTRIES);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
-$DESCRIPTION = "Builds the temporary working copy we emit to";
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$DESCRIPTION = "Plugin for creating and processing overlays.";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
@@ -51,7 +51,7 @@ use File::Touch;
 use Fcntl qw(:mode);
 use IO::File;
 use Spine::Constants qw(:basic);
-use Spine::Util qw(do_rsync mkdir_p);
+use Spine::Util qw(do_rsync mkdir_p octal_conv uid_conv gid_conv);
 use Text::Diff;
 
 my $DRYRUN;
@@ -250,6 +250,8 @@ sub apply_overlay
                       . ' [mode ' . octal_conv($src_stat->mode) . ' |'
                       . ' owner/group ' . uid_conv($src_stat->uid) . ':'
                       . gid_conv($src_stat->gid) . ']');
+
+            $touch->touch($srcfile);
         }
     }
 
@@ -317,31 +319,6 @@ sub sync_attribs
 
     chown $src_stat->uid, $src_stat->gid, $destfile
         unless ($DRYRUN);
-}
-
-
-sub octal_conv
-{
-    my $int = shift;
-    return sprintf "%04o", $int & 07777;
-}
-
-
-sub uid_conv
-{
-    my $uid = shift;
-    my $username = getpwuid($uid);
-    return $username if (defined $username);
-    return $uid;
-}
-
-
-sub gid_conv
-{
-    my $gid = shift;
-    my $group = getgrgid($gid);
-    return $group if (defined $group);
-    return $gid;
 }
 
 

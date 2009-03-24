@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "A quick data discovery plugin that harvests the ethernet interfaces on the machine";
 
 $MODULE = { author => 'Nicolas "Sir Speedy" Simonds <nicolas.simonds@ticketmaster.com>',

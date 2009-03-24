@@ -38,7 +38,7 @@ use Spine::Constants qw(:basic);
 our ($VERSION, @EXPORT_OK, @EXPORT_FAIL);
 
 @EXPORT_OK = qw(mkdir_p makedir safe_copy touch resolve_address do_rsync
-                exec_command exec_initscript);
+                exec_command exec_initscript octal_conv uid_conv gid_conv);
 @EXPORT_FAIL = qw(_old_do_rsync);
 
 
@@ -253,6 +253,31 @@ sub exec_command
         return 0;
     }
     return 1;
+}
+
+
+sub octal_conv
+{
+    my $int = shift;
+    return sprintf "%04o", $int & 07777;
+}
+
+
+sub uid_conv
+{
+    my $uid = shift;
+    my $username = getpwuid($uid);
+    return $username if (defined $username);
+    return $uid;
+}
+
+
+sub gid_conv
+{
+    my $gid = shift;
+    my $group = getgrgid($gid);
+    return $group if (defined $group);
+    return $gid;
 }
 
 1;

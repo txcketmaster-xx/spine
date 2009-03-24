@@ -25,7 +25,7 @@ package Spine::ConfigSource::FileSystem;
 our ($VERSION, @ISA, $ERROR);
 
 @ISA = qw(Spine::ConfigSource);
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 use IO::File;
 use Spine::ConfigSource;

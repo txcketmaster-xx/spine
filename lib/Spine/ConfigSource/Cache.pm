@@ -24,7 +24,7 @@ use strict;
 package Spine::ConfigSource::Cache;
 our ($VERSION, $ERROR);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 
 #

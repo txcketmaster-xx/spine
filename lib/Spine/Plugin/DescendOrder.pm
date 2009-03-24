@@ -29,7 +29,7 @@ use Spine::Plugin::Interpolate;
 
 our ($VERSION, $DESCRIPTION, $MODULE, $CURRENT_DEPTH, $MAX_NESTING_DEPTH);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Determines which policies to apply based on the spine-config" .
     " directory hierarchy layout";
 

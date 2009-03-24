@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Spine::Plugin skeleton";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -39,45 +39,98 @@ $MODULE = { author => 'osscode@ticketmaster.com',
           };
 
 
-use Spine::Util;
+use Spine::Util qw(mkdir_p safe_copy uid_conv gid_conv touch);
 
 sub first_run
 {
     my $c = shift;
     my $rval = 0;
 
-    my $state_dir = $c->getval("state_dir");
-    my $software = $c->getval("software_root");
-    my $class = $c->getval("c_class");
-
+    my $state_dir = $c->{c_config}->{spine}->{StateDir};
     my $service_bin = $c->getval('service_bin');
     my $stop_services = $c->getvals('stop_services');
 
-    # Modules.conf is replaced with kernel 2.6.
-    my $modules_conf_file = "/etc/modules.conf";
-    $modules_conf_file = "/etc/modprobe.conf"
-	if (-f "/etc/modprobe.conf");
+    my $default_ugid = $c->getval('firstrun_default_ugid') || qq(0:0);
+    my $default_mode = $c->getval('firstrun_default_mode')
+        || qq(0755);
+
+    my $dryrun = $c->getval('c_dryrun');
+
+    # If FirstRun has already been run, we just return.
+    if ( -f "${state_dir}/installed")
+    {
+        $c->print(2, "skipping, ${state_dir}/installed found");
+        return PLUGIN_SUCCESS;
+    }
 
     for my $service (@{$stop_services})
     {	
-        $c->cprint("stopping $service", 3);
+        $c->print(2, "stopping $service");
         my $result = `$service_bin $service stop 2>&1`
-	    unless ($c->getval('c_dryrun'));
+	    unless ($dryrun);
     }
 
-    return PLUGIN_SUCCESS if (-f "${state_dir}/installed");
+    $c->print(2, "creating state directory $state_dir");
+    unless ($dryrun)
+    {
+        mkdir_p("${state_dir}", 0755) || $rval++;
+    }
 
-    Spine::Util::mkdir_p("${state_dir}", 0755);
-    Spine::Util::safe_copy("/etc/fstab", "${state_dir}/") || $rval++;
-    Spine::Util::safe_copy("$modules_conf_file", "${state_dir}/") || $rval++;
+    if ( exists $c->{'firstrun_mkdirs'} )
+    {
+        for my $element ( @{$c->getvals("firstrun_mkdirs")} )
+        {
+            (my $dir, my $mode, my $ugid) = split( /,/, $element);
+            $mode = $default_mode unless $mode;
 
-    Spine::Util::mkdir_p("${software}", 0755);
-    Spine::Util::mkdir_p("${class}/local", 0755);
-    Spine::Util::mkdir_p("${class}/shared", 0755);
+            $ugid = $default_ugid unless $ugid;
+            (my $uid, my $gid) = split( /:/, $ugid);
+
+            $c->print(2, "creating directory $dir "
+                . "[mode $mode | owner/group " 
+                . uid_conv($uid) . ":"
+                . gid_conv($gid) . "]");
+                
+            unless ($dryrun)
+            {
+                mkdir_p($dir, oct($mode)) || $rval++;
+                chown $uid, $gid, $dir;
+            }
+        }
+    }
+
+    if ( exists $c->{'firstrun_cpfiles'} )
+    {
+        for my $element ( @{$c->getvals("firstrun_cpfiles")} )
+        {
+            (my $file, my $dir) = split( /,/, $element);
+            if ( ! -d $dir )
+            {
+                (my $uid, my $gid) = split( /:/, $default_ugid);
+                $c->print(2, "creating directory $dir "
+                    . "[mode $default_mode | owner/group "
+                    . uid_conv($uid) . ":"
+                    . gid_conv($gid) . "]");
+                
+                unless ($dryrun)
+                {
+                    mkdir_p($dir, oct($default_mode)) || $rval++;
+                    chown $uid, $gid, $dir;
+                }
+            }
+
+            $c->print(2, "copying $file to $dir");
+
+            unless ($dryrun)
+            {
+            safe_copy("$file", "$dir") || $rval++;
+            }
+        }
+    }
 
     if ($rval == 0)
     {
-	Spine::Util::touch("${state_dir}/installed");
+	touch("${state_dir}/installed") unless ($dryrun);
 	return PLUGIN_SUCCESS;
     }
     else

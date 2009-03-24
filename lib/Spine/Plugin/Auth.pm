@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Identity Management and Auththentication/Authorization module";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -1338,6 +1338,7 @@ sub _generate_authorized_keys
         my @keys;
 
         $keyopts =~ s/(?:\@\@user\@\@)/$person/g;
+        $keyopts =~ s/(?:\@\@gecos\@\@)/$account->{gecos}/g;
 
         if ($keyopts) {
             $keyopts .= ' ';

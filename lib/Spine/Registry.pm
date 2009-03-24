@@ -29,10 +29,10 @@ use Spine::Constants qw(:basic :plugin);
 our ($VERSION, $DEBUG, @EXPORT, @EXPORT_OK);
 
 $DEBUG = $ENV{SPINE_REGISTRY_DEBUG} || 0;
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 @EXPORT_OK = qw(register_plugin create_hook_point add_option get_options
-                add_hook get_hook_point install_method);
+                add_hook get_hook_point install_method get_plugin_version);
 
 sub _new_instance
 {
@@ -45,6 +45,27 @@ sub _new_instance
                  }, $klass;
 }
 
+#
+# Method to retrieve a given plugin's version
+#
+sub get_plugin_version
+{
+    my $registry = Spine::Registry->instance();
+
+    if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
+        shift;
+    }
+
+    my $plugin_name = shift;
+    $plugin_name = 'Spine::Plugin::' . $plugin_name;
+
+    if (exists($registry->{PLUGINS}->{$plugin_name}->{version})) {
+        return $registry->{PLUGINS}->{$plugin_name}->{version};
+    }
+    else {
+        return undef;
+    }
+}
 
 #
 # Adds a new entry in our "points" location that a plugin can hook at.

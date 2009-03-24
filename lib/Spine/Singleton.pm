@@ -25,7 +25,7 @@ package Spine::Singleton;
 
 our ($VERSION);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 #############################################################################
 #
