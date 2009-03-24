@@ -206,10 +206,6 @@ sub get_netinfo
                    return 0; } @nets;
 
     my $nobj = @nets[-1];
-    unless (ref($nobj) eq 'NetAddr::IP') {
-        $c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
-        return PLUGIN_FATAL;
-    }
 
     $c->{c_subnet} = "$nobj"; # stringification of a NetAddr::IP object
     $c->{c_network} = $nobj->network->addr;
