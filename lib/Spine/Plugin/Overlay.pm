@@ -250,8 +250,6 @@ sub apply_overlay
                       . ' [mode ' . octal_conv($src_stat->mode) . ' |'
                       . ' owner/group ' . uid_conv($src_stat->uid) . ':'
                       . gid_conv($src_stat->gid) . ']');
-
-            $touch->touch($srcfile);
         }
     }
 
