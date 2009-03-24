@@ -1,2 +1,0 @@
-# Ignore template processing if name matches regexes
-# specified in this key.  One regex per line, no modifiers.

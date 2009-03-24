@@ -1,3 +1,0 @@
-[% FOREACH line = c.getvals('transport_maps') %]
-  [% line %]
-[%+ END -%]

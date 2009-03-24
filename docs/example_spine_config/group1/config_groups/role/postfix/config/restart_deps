@@ -1,5 +1,0 @@
-/usr/sbin/postmap /etc/postfix/transport_maps:/etc/postfix/transport_maps
-/usr/sbin/postmap /etc/postfix/virtual_aliases:/etc/postfix/virtual_aliases
-/usr/sbin/postmap /etc/postfix/sender_canonical:/etc/postfix/sender_canonical
-/usr/bin/newaliases:/etc/postfix/aliases
-postfix:restart:/etc/postfix/main.cf:/etc/postfix/master.cf

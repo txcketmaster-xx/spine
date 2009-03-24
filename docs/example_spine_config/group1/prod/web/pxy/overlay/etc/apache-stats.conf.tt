@@ -1,6 +1,0 @@
-[%- class = c.getval('c_class') -%]
-ApacheVersion           2
-MulticastChannel        [%+ c.getval("${class}_ganglia_multicast_channel") +%]
-ApacheScoreboardFile    /[% class %]/local/logs/httpd.scoreboard
-RunUserID               tmweb
-CollectionInterval      [%+ c.getval('apache_stats_collection_interval') +%]

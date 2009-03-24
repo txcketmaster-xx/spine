@@ -1,7 +1,0 @@
-gecos:Portmapper RPC user
-homedir:/
-shell:/sbin/nologin
-primary_group:rpc
-shadow:!!
-skeldir:/includes/skel/empty
-type: system

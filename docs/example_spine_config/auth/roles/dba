@@ -1,5 +1,0 @@
-homedir:/<$c_class>/shared/home/dba
-shell:/bin/bash
-gecos:Database Administrator
-shadow:
-primary_group:dba

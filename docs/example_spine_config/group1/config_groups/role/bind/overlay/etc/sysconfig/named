@@ -1,2 +1,0 @@
-ROOTDIR=/chroot/named
-OPTIONS="-c /etc/named.conf"

@@ -1,3 +1,0 @@
-DEVICE=eth3
-BOOTPROTO=static
-ONBOOT=no

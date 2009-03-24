@@ -1,6 +1,0 @@
-[%- class = c.getval('c_class') -%]
-ApacheVersion           1
-MulticastChannel        [%+ c.getval("${class}_ganglia_multicast_channel") +%]
-ApachePIDFile           /[% class %]/local/logs/httpd.pid
-RunUserID               tmweb
-CollectionInterval      [%+ c.getval('apache_stats_collection_interval') +%]
