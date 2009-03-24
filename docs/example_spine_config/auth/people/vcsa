@@ -1,7 +1,0 @@
-gecos:virtual console memory owner
-homedir:/dev
-shell:/sbin/nologin
-primary_group:vcsa
-shadow:*
-skeldir:/includes/skel/empty
-type: system

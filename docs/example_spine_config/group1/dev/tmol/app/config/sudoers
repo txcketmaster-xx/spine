@@ -1,3 +1,0 @@
-web:/bin/rm -rf /app/local/logs /app/local/tpl
-web:/usr/bin/strace *
-web:/usr/bin/killall -9 tail httpd libhttpd.ep cch_logger

@@ -1,5 +1,0 @@
-key:ssh-dss somekeydatahere admin2
-gecos:Admin Two
-homedir:/<$c_class>/shared/home/admin2
-shell:/bin/bash
-primary_group:admin

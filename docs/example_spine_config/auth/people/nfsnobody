@@ -1,6 +1,0 @@
-gecos:Anonymous NFS User
-homedir:/var/lib/nfs
-shell:/sbin/nologin
-primary_group:nfsnobody
-shadow:!!
-type: system

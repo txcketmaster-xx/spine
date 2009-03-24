@@ -1,5 +1,0 @@
-key:ssh-dss somekeydatahere user2
-gecos:User Two
-homedir:/<$c_class>/shared/home/user2
-shell:/bin/bash
-primary_group:users

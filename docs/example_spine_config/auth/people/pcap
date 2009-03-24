@@ -1,4 +1,0 @@
-gecos:PCAP User
-homedir:/var/arpwatch
-shell:/sbin/nologin
-primary_group:pcap

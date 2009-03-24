@@ -1,7 +1,0 @@
-gecos:RPC Service User
-homedir:/var/lib/nfs
-shell:/sbin/nologin
-primary_group:rpcuser
-shadow:!!
-skeldir:/includes/skel/empty
-type: system

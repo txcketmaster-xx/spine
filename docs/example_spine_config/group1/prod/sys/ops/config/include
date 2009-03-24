@@ -1,8 +1,0 @@
-product/sys/ops_common
-role/apache_2.0
-role/netdump_server
-role/syslog-ng_server
-role/provision
-[% MATCH c_cluster=^(?!adm2); %]
-role/rubix_squid_cache
-[% END %]

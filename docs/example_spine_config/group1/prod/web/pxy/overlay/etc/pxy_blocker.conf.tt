@@ -1,7 +1,0 @@
-[%- interval = c.getval('pxy_blocker_max_failures') -%]
-[%- IF interval -%]ConsecutiveFailures=[%- interval -%][%- END +%]
-[%- FOREACH target = c.getvals('pxy_blocker_heartbeat_targets') +%]
-HeartBeatTargets=[%- target +%]
-[%+ END -%]
-[%- timeout = c.getval('pxy_blocker_heartbeat_timeout') -%]
-[%+ IF timeout -%]HeartBeatTimeout=[%- timeout -%][%- END +%]

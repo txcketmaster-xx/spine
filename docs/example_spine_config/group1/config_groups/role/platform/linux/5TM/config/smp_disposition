@@ -1,7 +1,0 @@
-#
-# We need kernel-PAE on 32-bit boxes with 4GB
-# or more of memory
-# -cfb 8/24/07
-[% MATCH c_arch=^(?!x86[-_]64); %]
-PAE
-[% END %]

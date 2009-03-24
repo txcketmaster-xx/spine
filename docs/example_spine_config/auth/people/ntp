@@ -1,6 +1,0 @@
-gecos:NTP User
-homedir:/etc/ntp
-shell:/sbin/nologin
-primary_group:ntp
-skeldir:/includes/skel/empty
-type: system

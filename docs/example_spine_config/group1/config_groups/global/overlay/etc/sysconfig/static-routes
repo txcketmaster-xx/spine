@@ -1,9 +1,0 @@
-# This shit is deprecated.  Here's how I found out:
-#
-# "It's not well documented, but you will see this if you read
-# /etc/sysconfig/network-scripts/ifup-routes
-#
-# -- 
-# Chris Kloiber, RHCT
-# Global Support Services
-# Red Hat, Inc."

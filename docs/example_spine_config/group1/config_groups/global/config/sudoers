@@ -1,5 +1,0 @@
-# User:Command1:Command2:...
-dev:/<$c_class>/shared/init/httpd stop
-dev:/<$c_class>/shared/init/httpd start
-dev:/<$c_class>/shared/init/httpd restart
-dev:/<$c_class>/shared/init/httpd configtest
