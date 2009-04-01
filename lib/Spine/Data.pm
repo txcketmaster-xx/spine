@@ -103,6 +103,7 @@ sub _data
 
     my $cwd = getcwd();
     chdir($self->{c_croot});
+    $self->{c_croot} = getcwd(); 
 
     unless ($self->populate() == SPINE_SUCCESS) {
         $self->error('Failure to run populate()!', 'crit');
