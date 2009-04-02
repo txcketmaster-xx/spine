@@ -89,11 +89,11 @@ sub restart_services
 
         if ($DRYRUN)
         {
-            @file_dependancies = map { $tmpdir . $_ } @fields;
+            @file_dependancies = map { glob($tmpdir . $_) } @fields;
         }
         else
         {
-            @file_dependancies = @fields;
+            @file_dependancies = map { glob($_) } @fields;
         }
 
         foreach my $file ( @file_dependancies )
