@@ -123,7 +123,7 @@ sub first_run
 
             unless ($dryrun)
             {
-            safe_copy("$file", "$dir") || $rval++;
+                safe_copy("$file", "$dir") || $rval++;
             }
         }
     }
