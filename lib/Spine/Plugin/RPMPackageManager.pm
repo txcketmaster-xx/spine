@@ -87,7 +87,8 @@ sub apt_exec
         my $overlay = $c->getval('c_tmpdir');
 
         foreach my $dir (qw(/var/cache/apt/archives/partial
-                            /var/state/apt/lists/partial))
+                            /var/state/apt/lists/partial
+                            /var/lib/apt/lists/partial))
         {
             unless (Spine::Util::mkdir_p(catfile($overlay, $dir)))
             {
