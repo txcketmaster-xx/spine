@@ -46,7 +46,8 @@ use sigtrap 'handler' => \&ignore_signal, 'normal-signals';
 
 use constant NODEFILE => '/etc/nodename';
 use constant LOCKFILE => '/var/run/spine.lock';
-use constant DEFAULT_CONFIGFILE => '/etc/spine.conf';
+use constant DEFAULT_CONFIGFILE => '/etc/spine/spine.conf';
+use constant DEFAULT_CONFIGFILE_FALLBACK => '/etc/spine.conf';
 use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
 
 use constant DEFAULT_CONFIG => {
@@ -122,6 +123,11 @@ if ($DEBUG)
 Getopt::Long::Configure('pass_through');
 
 my $cfile = DEFAULT_CONFIGFILE;
+if (not -f $cfile)
+{
+    $cfile = DEFAULT_CONFIGFILE_FALLBACK;
+}
+
 my $profile = undef;
 my @actions = ();
 
