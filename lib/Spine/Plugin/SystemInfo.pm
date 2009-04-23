@@ -239,11 +239,6 @@ sub get_netinfo
 # and the subtype of Xen VM (para virt vs. full hardware emmulation).
 #
 # Variables:
-# c_is_virtual = 0 for physical, 1 for vmware, "xen" for xen-para
-#   DEPRECATED: The c_is_virtual variables is DEPRECATED and only exists
-#               for backwards compatability. It will be removed in future
-#               releases.
-#
 # c_virtual_type = undef for physical, "vmware" for VMWare, "xen-para" for 
 #                  para-virtualized Xen, and "xen-hvm" for full hardware
 #                  virtualization under Xen.
@@ -254,12 +249,9 @@ sub is_virtual
     my $c = shift;
     my $xen_indicator = $c->getval('xen_indicator') || qq(/proc/xen/xenbus);
 
-    $c->{c_is_virtual} = 0;
-
     # First detect xen-para because it is easy
     if ( -f $xen_indicator )
     {
-        $c->{c_is_virtual} = 'xen';
         $c->{c_virtual_type} = 'xen-para';
 
         return PLUGIN_SUCCESS;
@@ -286,7 +278,6 @@ sub is_virtual
         #
         # rtilder   Thu Nov  6 09:45:33 PST 2008
         if ( $line =~ m/\s+15ad:[\da-f]{4}/i ) {
-            $c->{c_is_virtual} = 1;
             $c->{c_virtual_type} = 'vmware';
             last;
         }
