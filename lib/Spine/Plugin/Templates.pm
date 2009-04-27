@@ -36,7 +36,15 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             hooks => { PREPARE => [ { name => 'quick_template',
                                       code => \&quick_template } ],
                        EMIT => [ { name => 'process_templates',
-                                   code => \&process_templates } ]
+                                   code => \&process_templates } ],
+                      'PARSE/key' => [ { name => "TT",
+                                         code => \&_templatize_key,
+                                         position => HOOK_START,
+                                         # It needs the buffer of data
+                                         requires => ['built_buffer'],
+                                         # But it changes it
+                                         provides => ['built_buffer', 'processed_template'],
+                                        } ],
                      },
             cmdline => { _prefix => 'template',
                          options => {
@@ -55,6 +63,7 @@ use Template;
 use File::Spec::Functions;
 
 my $TT = undef;
+our $KEYTT = undef;
 
 our (@TEMPLATES, @IGNORE, $TMPDIR);
 
@@ -245,5 +254,75 @@ sub quick_template
     return PLUGIN_EXIT;
 }
 
+#
+# Provides the same functionality as
+# http://template-toolkit.org/docs/manual/VMethods.html#method_search but on
+# a list of scalars
+#
+sub _TT_list_search
+{
+    my ($list, $pattern) = @_;
+    my $rc = 0;
+
+    return undef unless defined($list) and defined($pattern);
+
+    foreach my $str (@{$list}) {
+        $rc++ if $str =~ qr/$pattern/o;
+    }
+
+    return $rc;
+}
+
+
+#
+# Throws a TT exception for ease of tracking
+#
+sub _TT_hash_search
+{
+    die (Template::Exception->new('Spine::Data',
+                                  'Attempting to call search() on a complex config key'));
+}
+
+
+sub _templatize_key
+{
+    my ($c, $data) = @_;
+    my $ttdata = { c => $c };
+
+    # For some reason, trying to do:
+    #  $output = \$output;
+    #
+    #  sets $output to a circular reference.  LAME!
+    my $wtf = "";
+    my $output = \$wtf;
+
+    # Has templatization been detected?
+    unless (exists $data->{template}) {
+        return PLUGIN_SUCCESS;
+    }
+
+    # Skip refs, only scalars
+    if (ref($data->{obj})) {
+        return PLUGIN_SUCCESS;
+    }
+
+    unless (defined($KEYTT)) {
+        Template::Stash->define_vmethod('list', 'search', \&_TT_list_search);
+        Template::Stash->define_vmethod('hash', 'search', \&_TT_hash_search);
+        $KEYTT = new Template( { CACHE_SIZE => 0 } );
+    }
+
+    my $template = $data->{obj};
+    # Note the $template is passed in as a reference to make sure it isn't
+    # mistaken for a filename
+    unless (defined($KEYTT->process(\$data->{obj}, $ttdata, $output))) {
+        # FIXME, implement error reporting
+        ##$self->error("could not process templatized key $PARSER_FILE: "
+        ##             . $KEYTT->error(), 'err');
+        return PLUGIN_ERROR;
+    }
+    $data->{obj} = ${$output};
+    return PLUGIN_SUCCESS;
+}
 
 1;

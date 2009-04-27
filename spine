@@ -50,6 +50,10 @@ use constant DEFAULT_CONFIGFILE => '/etc/spine/spine.conf';
 use constant DEFAULT_CONFIGFILE_FALLBACK => '/etc/spine.conf';
 use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
 
+# This isn't actual a phase but an item in the profile
+# that will allow all hooks to be loaded for the plugins.
+use constant AUTO_PHASE => 'AUTO_LOAD';
+
 use constant DEFAULT_CONFIG => {
         spine => {
             StateDir => '/var/spine',
@@ -251,9 +255,19 @@ $registry->create_hook_point(SPINE_PHASES);
 while (my ($phase, $plugins) = each(%{$CONFIG->{$CONFIG->{spine}->{Profile}}})) {
     my @plugins = split(/(?:\s*,?\s+)/, $plugins);
 
+    # FIXME A hack to allow the current config/registry to
+    # load all hooks from the config.
+    if ($phase eq AUTO_PHASE) {
+        $Spine::Registry::AUTOHOOK = 1;
+    }
+
     unless ($registry->load_plugin(@plugins) == SPINE_SUCCESS) {
         print STDERR "Failed to load at least one plugin!\n";
         goto failure;
+    }
+
+    if ($phase eq AUTO_PHASE) {
+        $Spine::Registry::AUTOHOOK = 0;
     }
 }
 
@@ -452,7 +466,8 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
         last;
     }
 
-    foreach my $hook (@{$point->{hooks}}) {
+    my ($hooks, $hook) = ($point->head, undef);
+    while ($hooks && (($hooks, $hook) = $point->next($hooks))) {
         # *sigh*  We need to add $prev_state to the parameter list for the
         #         TweakStartup plugin.
         #
@@ -470,6 +485,10 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
                 "encountered errors: \"$hook->{msg}\"\n";
             print STDERR "\tContinuing with run.\n";
         }
+        elsif ($rc == PLUGIN_FINAL) {
+            # The plugin has told us to process no more plugins
+            last;
+        }
         elsif ($rc == PLUGIN_EXIT) {
             #
             # Need a better messaging option.  This message is causing some
@@ -481,6 +500,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
             last PHASE;
         }
     }
+
 }
 
 # Clean up our config tree now that we're all done with it

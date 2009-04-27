@@ -25,6 +25,7 @@ package Spine::Registry;
 use base qw(Spine::Singleton Exporter);
 use Carp qw(cluck);
 use Spine::Constants qw(:basic :plugin);
+use Spine::Chain;
 
 our ($VERSION, $DEBUG, @EXPORT, @EXPORT_OK);
 
@@ -34,13 +35,26 @@ $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 @EXPORT_OK = qw(register_plugin create_hook_point add_option get_options
                 add_hook get_hook_point install_method get_plugin_version);
 
+# XXX The following control host the registery will deal with loading hooks
+#     it will probably be removed once the design is finalized.
+# Will allow a request to hook into a hook point to happen
+# before the hook point has been registered. 
+our $DELAYEDREG = 1;
+# If a plugin gets loaded while this is '1' it will load all it's hooks
+# FIXME: this implementation isn't very nice. IF you try to make it better
+#        just search for AUTOHOOK and you will fine all the offending code
+our $AUTOHOOK = 0;
+
 sub _new_instance
 {
     my $klass = shift;
 
+    # XXX: Requested points is used to track points that arrive
+    #      before the hook is registered
     return bless { CONFIG => shift,
                    PLUGINS => {},
                    POINTS => {},
+                   REQUESTED_POINTS => {},
                    OPTIONS => {}
                  }, $klass;
 }
@@ -89,12 +103,24 @@ sub create_hook_point
         }
 
         my @caller = caller();
-
         # FIXME  Do we want a Spine::HookPoint class for decent abstractness?
         my $point = new Spine::Registry::HookPoint(name => $new_point,
                                                    'caller' => \@caller);
 
         $registry->{POINTS}->{$new_point} = $point;
+
+        # If DELAYEDREG is set then we allow loading of items to be hooked before
+        # the hook is been setup. Best check if anything has used that
+        if ($DELAYEDREG && exists($registry->{REQUESTED_POINTS}->{$new_point})) {
+            foreach (@{$registry->{REQUESTED_POINTS}->{$new_point}}) {
+                my $auto_tmp = $AUTOHOOK;
+                $AUTOHOOK = $_->[2];
+                $point->install_hook($_->[0],
+                                     $_->[1]);
+                $AUTOHOOK = $auto_tmp;
+            }
+            delete $registry->{REQUESTED_POINTS}->{$new_point};
+        }
     }
 
     return SPINE_SUCCESS;
@@ -168,7 +194,7 @@ sub register_plugin
 	shift;
     }
 
-    my $plugin = shift;
+    my ($plugin, $module) = @_;
 
     unless (UNIVERSAL::isa($plugin, 'Spine::Plugin')) {
         error('Invalid object given as first parameter to register_plugin: ',
@@ -176,7 +202,6 @@ sub register_plugin
         return SPINE_FAILURE;
     }
 
-    my $module = shift;
     my $module_name = ref($plugin);
 
     debug(2, "\tRegistering plugin \"$module_name\"");
@@ -195,19 +220,36 @@ sub register_plugin
     # Register this plugin's command line options
     if (exists($module->{cmdline})) {
         unless ($registry->add_option($module_name, $module->{cmdline})) {
-            error("Failed to register command line for \"$module_name\""),
+            error("Failed to register command line for \"$module_name\"");
             return SPINE_FAILURE;
         }
     }
 
-    if (0) {
-        # Register this plugin's hooks so that other hooks can manipulate them
-        # iffin theys wants to.
+    # Load all hooks if we have been told to
+    if ($AUTOHOOK) {
+        # Register this plugin's hooks so that other hooks can manipulate them.
         foreach my $hook_point (keys(%{$module->{hooks}})) {
-            # Make sure we don't have erroneous parameters for the hook point
+            debug(5, "hook point name: ($hook_point)");
+            
+            # Track missing hooks
             unless (exists($registry->{POINTS}->{$hook_point})) {
-                debug(5, "Invalid hook point name: $hook_point");
-                debug(5, 'Skipping.');
+                # If we are not allowed to use delayed reg then tell the user
+                # that this will never manager to hook into the requested point
+                unless ($DELAYEDREG) {
+                    error("Attempt to hook into missing hook point.".
+                          "Module \"$module_name\", Hook $hook_point");
+                    next;
+                }
+
+                # Store the information about the hook request so that it can be
+                # used later.
+                unless (exists($registry->{REQUESTED_POINTS}->{$hook_point})) {
+                    $registry->{REQUESTED_POINTS}->{$hook_point} = [];
+                }
+                # AUTOHOOK gets stored so we know to load all it's hooks
+                push @{$registry->{REQUESTED_POINTS}->{$hook_point}}, [ $module_name, $module, $AUTOHOOK ];
+                debug(5, "Hook point is not there, maybe later: $hook_point");
+                debug(5, 'Skipping for now.');
                 next;
             }
 
@@ -252,7 +294,6 @@ sub find_plugin
 
     return @plugins;
 }
-
 
 sub add_option
 {
@@ -324,8 +365,12 @@ sub get_hook_point
 
     foreach my $hook_point (@_) {
         unless (exists($registry->{POINTS}->{$hook_point})) {
-            cluck("Invalid hook point \"$hook_point\"");
-            next;
+            # XXX: Now we store requests for hook points they can
+            #      be created when used is needed.
+            unless ($registry->create_hook_point($hook_point)) {
+                cluck("Invalid hook point \"$hook_point\"");
+                next;
+            }
         }
 
         push @points, $registry->{POINTS}->{$hook_point};
@@ -363,7 +408,6 @@ sub install_method
 
     return SPINE_SUCCESS;
 }
-
 
 sub error
 {
@@ -403,7 +447,7 @@ sub new
                        owner => $args{'caller'} ? $args{'caller'} : undef,
                        parameters => $args{parameters} ? $args{parameters} : [],
                        states => {},
-                       hooks => [],
+                       hooks => new Spine::Chain,
                        status => SPINE_NOTRUN,
                        registered => SPINE_NOTRUN }, $klass;
 
@@ -430,11 +474,12 @@ sub register_hooks
 
     $self->debug(4, "\tRegistering hooks for hook point \"$self->{name}\"");
 
+
     # If we've already loaded our plugin lists, make sure we add populate
     # this hook point's children
     my $c = $registry->{CONFIG};
-    my @modules = $registry->find_plugin(split(/(?:\s*,?\s+)/,
-                                               $c->{$c->{spine}->{Profile}}->{$self->{name}}));
+    my $phase_conf = $c->{$c->{spine}->{Profile}}->{$self->{name}};
+    my @modules = $registry->find_plugin(split(/(?:\s*,?\s+)/, $phase_conf));
 
     foreach my $module (@modules) {
         unless ($self->install_hook($module, $registry->{PLUGINS}->{$module})) {
@@ -456,12 +501,12 @@ sub install_hook
     my $module_name = shift;
     my $module = shift;
 
-    foreach my $hook (@{$module->{hooks}->{$self->{name}}}) {
+    foreach my $h (@{$module->{hooks}->{$self->{name}}}) {
         $self->debug(5, "\t\tRegistering hook at \"$self->{name}\": ",
-                     $hook->{name});
+                     $h->{name});
 
-        unless ($self->add_hook($module_name, $hook->{name}, $hook->{code})) {
-            $self->error("Failed to add hook \"${module}::$hook->{name}\" ",
+        unless ($self->add_hook($module_name, $h)) {
+            $self->error("Failed to add hook \"${module}::$h->{name}\" ",
                          "to \"$self->{name}\"");
             return PLUGIN_ERROR;
         }
@@ -470,37 +515,58 @@ sub install_hook
     return SPINE_SUCCESS;
 }
 
+sub head
+{
+    return $_[0]->{hooks}->head;
+}
+
+sub next
+{
+    if (UNIVERSAL::isa($_[0], 'Spine::Registry::HookPoint')) {
+        shift;
+    }
+    return wantarray ? ($_[0]->{next}, $_[0]->{data}) : $_[0]->{next};
+}
 
 sub add_hook
 {
     my $self = shift;
 
-    my ($module, $name, $code_ref) = @_;
+    my ($module_name, $h) = @_;
 
     # If $module is a reference to a Spine::Plugin object, convert it to a
     # string we can use for better error reporting.
-    unless (ref($module) eq '') {
-        $module = ref($module);
+    unless (ref($module_name) eq '') {
+        $module_name = ref($module_name);
     }
 
-    my $hook = { module => $module,
-                 name => $name,
-                 code => $code_ref,
+    my $hook = { module => $module_name,
+                 name => $h->{name},
+                 code => $h->{code},
                  rc => PLUGIN_ERROR,
                  msg => undef };
 
-    push @{ $self->{hooks} }, $hook;
+    my %args = (name => $h->{name},
+                data => $hook,
+                provides => exists $h->{provides} ? $h->{provides} : undef,
+                requires => exists $h->{requires} ? $h->{requires} : undef,
+                position => exists $h->{position} ? $h->{position} : undef,
+                successors => exists $h->{successors} ? $h->{successors} : undef,
+                predecessors => exists $h->{predecessors} ? $h->{predecessors} : undef);
+
+    $self->{hooks}->add(%args);
 
     return SPINE_SUCCESS;
 }
 
-
-sub run_hooks
+sub run_hooks_until
 {
     my $self = shift;
+    my $until = shift;
 
     my $errors = 0;
     my $fatal = 0;
+    my $rc;
 
     $self->debug(2, "Running hooks for \"$self->{name}\"");
 
@@ -508,21 +574,37 @@ sub run_hooks
         return PLUGIN_FATAL;
     }
 
-    foreach my $hook (@{$self->{hooks}}) {
-        my $rc = $self->run_hook($hook, @_);
+    my ($hooks, $hook) = ($self->head, undef);
+    while ($hooks && (($hooks, $hook) = $self->next($hooks))) {
+        $rc = $self->run_hook($hook, @_);
 
         if ($rc == PLUGIN_ERROR) {
+            $self->debug(2, "ERROR while running hook for \"$self->{name}\"");
             $errors++;
         }
-        elsif ($rc == PLUGIN_FATAL) {
+        elsif ($rc == PLUGIN_EXIT) {
+            $self->debug(2, "EXIT while running hook for \"$self->{name}\"");
             $fatal++;
         }
+
+        if ($until & $rc) {
+            $self->debug(3, "UNTIL while running hook for \"$self->{name}\"");
+            last;
+        }
+
     }
 
     if ($errors + $fatal) {
         $self->{status} = SPINE_FAILURE;
     }
 
+    return wantarray ? ($rc, $errors, $fatal) : $rc;
+}
+
+# Done to keep backward compatibility, and it's simple
+sub run_hooks {
+    my $self = shift;
+    my (undef, $errors, $fatal) = $self->run_hooks_until(undef, @_);
     return $errors + $fatal;
 }
 
@@ -534,9 +616,9 @@ sub run_hook
     my @parameters = @_;
     my $c = $parameters[0];
 
-    unless ($self->register_hooks() == SPINE_SUCCESS) {
-        return PLUGIN_FATAL;
-    }
+    #unless ($self->register_hooks() == SPINE_SUCCESS) {
+    #    return PLUGIN_FATAL;
+    #}
 
     $self->debug(3, "Running hook: $hook->{name}");
     $self->debug(6, 'Parameters: ', @parameters);
@@ -560,7 +642,8 @@ sub run_hook
     }
 
     my $old_label = $c->{c_label};
-    $c->set_label($hook->{name});
+    # Take a label if one is given as the label else use the name
+    $c->set_label($hook->{label} || $hook->{name});
 
     eval {
         # FIXME  This is going to be fugly to implement.

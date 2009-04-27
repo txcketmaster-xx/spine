@@ -36,13 +36,19 @@ my $tmp;
 use constant {
     PLUGIN_ERROR   => 1 << 0,
     PLUGIN_SUCCESS => 1 << 1,
-    PLUGIN_EXIT    => 1 << 31
+    PLUGIN_FINAL   => 1 << 2,
+    PLUGIN_EXIT    => 1 << 31,
+    HOOK_START => "__START",
+    HOOK_MIDDLE => "__MIDDLE",
+    HOOK_END => "__END",
 };
-# This must be defined outside of the above hash block of PLUGIN_*.
-# Don't change it.
+# These must be defined outside of the above hash block of PLUGIN_*.
+# Don't change them.
 use constant PLUGIN_FATAL => PLUGIN_ERROR | PLUGIN_EXIT;
+use constant PLUGIN_STOP => PLUGIN_FATAL | PLUGIN_FINAL;
 
-$tmp = [qw(PLUGIN_ERROR PLUGIN_EXIT PLUGIN_FATAL PLUGIN_SUCCESS)];
+$tmp = [qw(PLUGIN_ERROR PLUGIN_EXIT PLUGIN_FATAL PLUGIN_SUCCESS PLUGIN_FINAL),
+        qw(PLUGIN_STOP HOOK_START HOOK_MIDDLE HOOK_END)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{plugin} = $tmp;
 
@@ -57,6 +63,5 @@ use constant {
 $tmp = [qw(SPINE_NOTRUN SPINE_FAILURE SPINE_SUCCESS)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{basic} = $tmp;
-
 
 1;
