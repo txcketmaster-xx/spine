@@ -475,8 +475,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
         last;
     }
 
-    my ($hooks, $hook) = ($point->head, undef);
-    while ($hooks && (($hooks, $hook) = $point->next($hooks))) {
+    foreach my $hook ($point->head) {
         # *sigh*  We need to add $prev_state to the parameter list for the
         #         TweakStartup plugin.
         #

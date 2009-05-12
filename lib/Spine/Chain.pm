@@ -39,7 +39,7 @@ use strict;
 use Spine::Constants qw(SPINE_FAILURE SPINE_SUCCESS HOOK_START HOOK_MIDDLE HOOK_END);
 
 our ($VERSION, @EXPORT_OK, %EXPORT_TAGS);
-$VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 195 $ =~ /(\d+)/);
 
 my $DEBUG = $ENV{SPINE_CHAIN_DEBUG} || 0;
 
@@ -80,6 +80,10 @@ sub debug {
 sub add {
     my ($self, %settings) = @_;
 
+    if (!defined $settings{name} || !defined $settings{name}) {
+        debug(1, "attempt to add a badly formatted item to the chain");
+        return SPINE_FAILURE;
+    }
     my ($name, $what) = ($settings{name}, $settings{data});
     my ($provides, $reqs) = ($settings{provides} || [], $settings{requires} || []);
     my ($pre, $suc) = ($settings{predecessors} || [], $settings{successors} || []);
@@ -216,7 +220,10 @@ sub _resolve_predecessors {
                        "($item->{name}) now a predecessor for ($self->{chain}->[$pos]->{name})");
             }
         }
-        
+    }
+
+    # We have to loop through again as predecessors might have been added
+    foreach $item (@{$self->{chain}}) {
         # Store refs to the object rather then names.
         $item->{pre_ref} = [];
         foreach (@{$item->{predecessors}}) {
@@ -227,6 +234,8 @@ sub _resolve_predecessors {
     }
 }
 
+# Will either return a linked list from the chain
+# or an array or the data items
 sub head {
     my $self = shift;
 
@@ -240,12 +249,12 @@ sub head {
     # linked list
     unless (defined $self->{clean}) {
 
-
         debug(3, "resorting");
         $self->_resolve_predecessors;
         # Best to debug the structure before tsort since
         # it's a linked list after
         if ($DEBUG > 5) {
+	    require "Data::Dumper";
             print Dumper($self);
         }
         debug(2, "starting tsort");
@@ -259,8 +268,17 @@ sub head {
         debug(2, "now sorted");
         # So we don't resort unless needed.
         $self->{clean} = 1;
+
+        # We store an array as well in case it's wanted
+        my $item = $self->{head};
+        $self->{as_array} = [ $item->{data} ];
+        while (exists $item->{next} && defined $item->{next}) {
+            $item = $item->{next};
+	    push @{$self->{as_array}}, $item->{data};
+	}
     }
-    return $self->{head};
+
+    return wantarray ? @{$self->{as_array}} : $self->{head};
 }
 
 # TOPICAL SORT (based on apache httpd's tsort)

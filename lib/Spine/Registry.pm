@@ -574,8 +574,7 @@ sub run_hooks_until
         return PLUGIN_FATAL;
     }
 
-    my ($hooks, $hook) = ($self->head, undef);
-    while ($hooks && (($hooks, $hook) = $self->next($hooks))) {
+    foreach my $hook ($self->head()) {
         $rc = $self->run_hook($hook, @_);
 
         if ($rc == PLUGIN_ERROR) {
@@ -591,7 +590,6 @@ sub run_hooks_until
             $self->debug(3, "UNTIL while running hook for \"$self->{name}\"");
             last;
         }
-
     }
 
     if ($errors + $fatal) {
