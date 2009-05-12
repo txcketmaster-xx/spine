@@ -42,7 +42,7 @@ $DESCRIPTION = "Spine::Plugin skeleton";
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
-            hooks => { APPLY => [ { name => 'boot loader config',
+            hooks => { APPLY => [ { name => 'boot_loader_config',
                                     code => \&boot_loader_config } ]
                      },
           };
@@ -56,17 +56,15 @@ sub boot_loader_config
     my $rval = 0;
 
     my $kernel_version = $c->getval('kernel_version');
-    my $kernel_cmdline_max = $c->getval('kernal_cmdline_max');
+    my $kernel_path = $c->getval('kernel_path') || qq(/boot);
+    my $kernel_prefix = $c->getval('kernel_prefix') || qq(vmlinuz-);
     my ($result, @cmdline);
+
+    # i386 and x86_64 are currently 256 in 2.4 and 2.6 but may change (grow)
+    my $kernel_cmdline_max = $c->getval('kernal_cmdline_max') || qq(256);
 
     $DRYRUN = $c->getval('c_dryrun');
     $GRUBBY = $c->getval('grubby_bin');
-
-    # i386 and x86_64 are currently 256 in 2.4 and 2.6 but may change (grow)
-    unless ($kernel_cmdline_max)
-    {
-        $kernel_cmdline_max = 256;
-    }
 
     #
     # First: we gather the information we want from the running kernel and
@@ -95,41 +93,54 @@ sub boot_loader_config
     #
 
     my $kernel_version_full = $kernel_version . $kernel_type;
-    my $kernel_path = "/boot/vmlinuz-${kernel_version}${kernel_type}";
+    my $kernel_file = $kernel_path . "/" . $kernel_prefix
+        . $kernel_version_full;
 
-    $c->print(3, "chosen kernel is \[$kernel_version_full\]");
+    $c->print(3, "chosen kernel is \[$kernel_file\]");
 
     # Should the default kernel change?
-    if ( $grub_default_info->{version} ne $kernel_version_full )
+    if ( $grub_default_info->{default_kernel} ne $kernel_file )
     {
-        $c->print(2, "setting default kernel from ${kernel_version_full}");
+        $c->print(2, "setting default kernel to ${kernel_file}");
 
         unless ($DRYRUN)
         {
             # Don't bother doing anything unless we can find the specified
             # kernel on the filesystem
-            if ( ($kernel_version_full) and (-f $kernel_path) )
+            if ( ($kernel_version_full) and (-f $kernel_file) )
             {
                 if (run_grubby($c, 'could not set default kernel',
-                               "--set-default=${kernel_path}", '2>&1'))
+                               "--set-default=${kernel_file}", '2>&1'))
                 {
                     return PLUGIN_ERROR;
                 }
             }
             else
             {
-                $c->error('could not set default kernel to non-existent file',
-                          " \[$kernel_path\]", 'err');
+                $c->error('could not set default kernel to non-existent file'
+                          . " \[$kernel_file\]", 'err');
                 return PLUGIN_ERROR;
             }
         }
-    }
 
-    # Report if the server needs a reboot
-    if ( $running_kernel ne $kernel_version_full )
-    {
-        $c->print(2, 'reboot needed - running kernel does not match version '
-                   . 'specified by Spine');
+        # We can positivily determing if the running kernels version is 
+        # different than the configured kernels version (aka
+        # 2.6.18-92.1.10.el5xen vs. 2.6.18-92.1.11.el5xen). 
+        if ( $running_kernel ne $kernel_version_full )
+        {
+            $c->print(2, 'reboot needed - running kernel does not match '
+                . 'version specified by spine');
+        }
+        else
+        {
+            # There appears to be no way to determing the full path of
+            # the running kernel. The best we can do in the is warn that
+            # the configured kernel changed during this run and that a
+            # reboot *might* be necessary.
+            $c->print(2, 'possible reboot needed - default kernel in grub '
+                . 'does not match kernel specified by spine');
+        }
+
     }
 
     #
@@ -168,8 +179,8 @@ sub boot_loader_config
     # If the above changes had problems then give up doing the rest
     if ( $rval > 0 )
     {
-        $c->error('skipping processing of kernel arguments due to earlier',
-                  ' errors', 'err');
+        $c->error('skipping processing of kernel arguments due to earlier'
+                  . ' errors', 'err');
         return PLUGIN_ERROR;
     }
 
@@ -185,7 +196,7 @@ sub boot_loader_config
     # Get the arguments currently set for the default kernel
     $c->print(3, "detected default kernel args \[$grub_default_info->{args}\]");
 
-    $c->cprint("appending kernel args \[@{$new_kernel_args}\]", 3);
+    $c->print(3, "appending kernel args \[@{$new_kernel_args}\]");
     $new_kernel_args = join(' ', @{$new_kernel_args});
 
     # Since we may be changing args without changing the kernel we always run
@@ -202,14 +213,14 @@ sub boot_loader_config
         $current_args =~ s/'/\\'/;
 
         $rval += run_grubby($c, 'could not clear kernel args',
-                            "--update-kernel=${kernel_path}",
+                            "--update-kernel=${kernel_file}",
                             "--remove-args='${current_args}'", '2>&1');
 
         # Add the args we want back in
         $new_kernel_args =~ s/'/\\'/;
 
         $rval += run_grubby($c, 'could not set kernel args',
-                            "--update-kernel=${kernel_path}",
+                            "--update-kernel=${kernel_file}",
                             "--args='${new_kernel_args}'", '2>&1');
     }
 
@@ -235,7 +246,10 @@ sub get_grub_default_kernel
     # variable a smidge
     my @data = `${GRUBBY} --info=${default_kernel} 2> /dev/null`;
 
-    (undef, $default_kernel) = split(m/-/, $default_kernel, 2);
+    # Stash the original value before we start mucking with it.
+    $info->{default_kernel} = $default_kernel;
+
+#    (undef, $default_kernel) = split(m/-/, $default_kernel, 2);
 
     $c->cprint("current default kernel is \[$default_kernel\]", 3);
 
@@ -265,7 +279,7 @@ sub get_grub_default_kernel
 
     # We add a 'version' data member to the hash to make some comparisons
     # easier
-    $info->{version} = $default_kernel;
+#    $info->{version} = $default_kernel;
 
     return $info;
 }

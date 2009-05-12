@@ -402,7 +402,9 @@ else
 print 'spine: starting Spine v' . $VERSION . ' -- configuration release ',
       $source->release(), "\n";
 print "spine: initializing data for $hostname\n";
-
+if ( ${%{$registry->get_options()}->{dryrun}} ) {
+    print "spine: running in dryrun mode\n";
+}
 
 # Create the configuration object.
 my $c = Spine::Data->new(hostname    => $hostname,
@@ -451,6 +453,13 @@ unless ($lock_fh)
 {
     $c->error('could not get exclusive lock', 'crit');
     goto failure;
+}
+
+# Now that we have a lock and are potentially going to
+# make changes, check to be sure we aren't in dryrun mode
+# and unfreeze the system.
+if ( ! ${%{$registry->get_options()}->{dryrun}} ) {
+    unlink catfile($CONFIG->{spine}->{StateDir}, 'FrozenAtRelease');
 }
 
 PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
@@ -804,13 +813,6 @@ sub get_release
         print STDERR 'Couldn\'t mount or find the configuration source: '
             . "$source->{error}\n";
         goto release_failed;
-    }
-
-    if (exists($options->{release}))
-    {
-        # If a release was specified, we can remove FrozenAtRelease now that
-        # we've retrieved the dezired version.
-        unlink catfile($config->{spine}->{StateDir}, 'FrozenAtRelease');
     }
 
     return $source->release();
