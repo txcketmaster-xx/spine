@@ -119,7 +119,11 @@ sub load_plugin
     my $rc = SPINE_SUCCESS;
     my $module;
 
-    foreach my $plugin (@_) {
+    my $plugin;
+    foreach (@_) {
+        # XXX: must assign to ensure it's rw
+        $plugin = $_;
+
         eval "require $plugin";
 
         if ($@) {
