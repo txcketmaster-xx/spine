@@ -52,7 +52,11 @@ sub mkdir_p
     {
         $part = $part . "/" . $piece;
         $part =~ s@//@/@g;
+        # Save our umask and wipe it so permissions are absolute
+        my $mask = umask oct(0000);
         mkdir($part, $perm) unless (-d "$dir");
+        # Reset our umask
+        umask $mask;
     }
 
     if (-d $dir)
