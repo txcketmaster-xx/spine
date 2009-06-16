@@ -74,7 +74,7 @@ sub hardware_hunt
     # causes some attributes' quotes to be escaped inadvertently.
     $xml =~ s/&quot;/"/g;
 
-    (unef, $machine) = tidy(XMLin($xml,
+    (undef, $machine) = tidy(XMLin($xml,
                                   ForceArray => [ 'node',
                                                   'setting',
                                                   'capability',
@@ -85,7 +85,7 @@ sub hardware_hunt
                                                  'configuration' => 'setting',
                                                  'resources' => 'resource' }));
 
-    $c->set{c_hardware => new Spine::Plugin::Hardware::Accessor($machine));
+    $c->set(c_hardware => new Spine::Plugin::Hardware::Accessor($machine));
 
     return PLUGIN_SUCCESS;
 }
@@ -259,7 +259,7 @@ sub new
     $HARDWARE = shift;
     $FLAT     = _flatten($HARDWARE);
 
-    return bless \'', $klass;
+    return bless {}, $klass;
 }
 
 
@@ -333,27 +333,30 @@ sub find_items
 
     foreach my $node (@{$objects}) {
         my $matches = 0;
+        while (my ($k, $v) = each %{ $node }) {
+            foreach my $field (@fields) {
+                if ($k eq $field) {
+                    my $param = $args{$field};
+                    my $ptype = ref($param);
 
-        foreach my $field (@fields) {
-            if ($k eq $field) {
-                my $param = $args{$field};
-                my $ptype = ref($param);
-
-                if ($ptype eq 'CODE'
-                    and &{$args{$field}}($k, $v)) {
-                    $matches++;
-                }
-                elsif (ref($ptype) eq 'RegExp'
-                       and $v =~ /$param/) {
-                elsif ($v eq $args{$field}) {
-                    $matches++;
+                    if ($ptype eq 'CODE'
+                            and &{$args{$field}}($k, $v)) {
+                        $matches++;
+                    }
+                    elsif (ref($ptype) eq 'RegExp'
+                           and $v =~ /$param/) {
+                        $matches++;
+                    }
+                    elsif ($v eq $args{$field}) {
+                        $matches++;
+                    }
                 }
             }
         }
 
         # We only support logical ANDing of values
         if ($matches == scalar(@fields)) {
-            push @found, $obj;
+            push @found, $node;
         }
     }
 
@@ -453,7 +456,7 @@ sub num_cores
 
     foreach my $die (@dies) {
         if ($die->{product} =~ m/(?i:dual\s+core|duo)/o) {
-            $core++;
+            $cores++;
         }
     }
 
@@ -503,7 +506,7 @@ sub supported_nics
     my $self = shift;
 
     return $self->find_items(class => 'network',
-                             configuration => sub { $_[1]->{driver} && 1; };
+                             configuration => sub { $_[1]->{driver} && 1; });
 }
 
 
