@@ -27,6 +27,7 @@ use strict;
 use lib q(/usr/lib/spine);
 
 my $perl_ver = sprintf "%vd", $^V;
+my $error_count = 0;
 
 use Fcntl qw(:DEFAULT :flock);
 use Getopt::Long;
@@ -478,6 +479,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
             print STDERR "\t\t", $hook->{module}, "::$hook->{name} ",
                 "encountered errors: \"$hook->{msg}\"\n";
             print STDERR "\tContinuing with run.\n";
+            #error_count++;
         }
         elsif ($rc == PLUGIN_EXIT) {
             #
@@ -527,6 +529,10 @@ if ($SAVE_STATE)
 finished:
 # Release our exclusive lock and exit.
 release_lock();
+if ($error_count)
+{
+    exit(1);
+}
 exit(0);
 
 failure:
