@@ -87,7 +87,7 @@ sub process_templates
 
     foreach my $template (@TEMPLATES)
     {
-        unless (process_template($c, $template))
+        if (process_template($c, $template) == PLUGIN_ERROR)
         {
             $c->error("error processing $template", "err");
             $rval++;
