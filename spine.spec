@@ -66,7 +66,7 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %files
 %defattr(-,root,root)
 %attr(0755,root,root) %{spine_prefix}/bin/ui
-%attr(0755,root,root) %{spine_prefix}/bin/spine
+%attr(0755,root,root) %{spine_prefix}/bin/spine-config
 %attr(0755,root,root) %{spine_prefix}/bin/quick_template
 %dir %{spine_lib_prefix}
 %dir %{spine_lib_prefix}/Spine
@@ -75,7 +75,7 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %{spine_lib_prefix}/Spine/*.pm
 %{spine_lib_prefix}/Spine/ConfigSource/*.pm
 %{spine_lib_prefix}/Spine/Plugin/*.pm
-%config(noreplace) /etc/spine.conf
+%config(noreplace) /etc/spine/spine.conf
 #
 # This makes RPM 4.4 angry
 #

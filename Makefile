@@ -19,7 +19,7 @@
 
 DESTDIR  ?= 
 PREFIX   ?= /usr
-ETCDIR   ?= /etc
+ETCDIR   ?= /etc/spine
 BINDIR   ?= $(PREFIX)/bin
 LIBDIR   ?= $(PREFIX)/lib/spine
 STATEDIR ?= /var/spine
@@ -41,7 +41,7 @@ install_config: spine.conf scripts/cramfs-publisher.conf
 	done
 
 
-install_scripts: spine quick_template ui scripts/spine-cramfs-publish.py
+install_scripts: spine-config quick_template ui scripts/spine-cramfs-publish.py
 	for I in $^; do \
 		$(INSTALL) -m 0755 $$I $(DESTDIR)$(BINDIR); \
 	done
