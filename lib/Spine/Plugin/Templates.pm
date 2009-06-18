@@ -193,7 +193,12 @@ sub process_template
 
     unless (defined($TT->process($template, $ttdata, $output)))
     {
+        # If we encounter an error we want to abort the current template
+        # but keep processing, so log the error, remove the template 
+        # from the overlay, and return PLUGIN_ERROR to move on instead
+        # of PLUGIN_FATAL and blowing up.
         $c->error('could not process template: ' . $TT->error(), "err");
+        unlink($template);
         return PLUGIN_ERROR;
     }
 
