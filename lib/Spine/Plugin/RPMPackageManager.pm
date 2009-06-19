@@ -322,7 +322,7 @@ sub clean_packages
     my $c = shift;
     my $rval = 0;
     my $rpm_bin = $c->getval('rpm_bin');
-    my $rpm_opts = $c->getval('rpm_opts') || qq("");
+    my $rpm_opts = $c->getval('rpm_opts') || qq('');
 
     # apt understands package.arch but RPM does not. The Spine RPM module
     # uses the "name" tag from the installed RPM and compares that to the 
