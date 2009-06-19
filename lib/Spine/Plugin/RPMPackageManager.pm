@@ -322,11 +322,22 @@ sub clean_packages
     my $c = shift;
     my $rval = 0;
     my $rpm_bin = $c->getval('rpm_bin');
+    my $rpm_opts = $c->getval('rpm_opts') || qq("");
+
+    # apt understands package.arch but RPM does not. The Spine RPM module
+    # uses the "name" tag from the installed RPM and compares that to the 
+    # values of the package key. package != package.arch so it will 
+    # uninstall the package. We strip off the .arch portion before 
+    # calling the keep function. Thanks to Nic for the idea.
+    # 
+    # cfb       Thu Jun 18 17:55:12 PDT 2009
+    #
 
     my @packages;
     foreach my $package (@{$c->getvals('packages')})
     {
 	my ($clean, undef) = split(/#|=/, $package);
+        $clean =~ s/\.(32bit|noarch)$//;
 	push @packages, $clean;	
     }
 
@@ -340,7 +351,7 @@ sub clean_packages
 
 	unless ($c->getval('c_dryrun'))
 	{
-	    my $result = `$rpm_bin -e $remv 2>&1`;
+	    my $result = `$rpm_bin -e $rpm_opts $remv 2>&1`;
 	    if ($? > 0)
 	    {
 	        $c->error("package removal failed \[$result\]", 'err');
