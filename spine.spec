@@ -2,51 +2,44 @@
 # vim:ts=8:noet
 
 %define spine_ver		2.0
-%define spine_rel		%(/bin/date +svn_%Y%m%d)
+%define spine_rel		rc22
 %define spine_prefix		/usr
 %define spine_lib_prefix	%{spine_prefix}/lib/spine
+%define File_Temp_ver		0.16
+%define Sys_Syslog_ver          0.18
 
 Name:      spine
-Summary:   Ticketmaster Configuration Management System
+Summary:   Ticketmaster Configuration System
 Version:   %{spine_ver}
 Release:   %{spine_rel}
 Vendor:    Ticketmaster
-URL:       http://code.ticketmaster.com
 License:   GPLv3
 Group:     System/Libraries
 Source:    %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 BuildArch: noarch
-Requires:  rsync
-Requires:  pciutils
-Requires:  lshw
-Requires:  mkinitrd
-%if "%{dist}" == ".el5"
-Requires:  dmidecode
-%else
-Requires:  kernel-utils
-%endif
-Requires:  yum >= 3.0.5-1.5
-Requires:  yum-utils >= 1.0.4-3.2
 Requires:  dialog >= 0.9
+Requires:  lshw
 Requires:  perl(Digest::MD5) >= 2.20
 Requires:  perl(Net::DNS) >= 0.49
 Requires:  perl(Template) >= 2.14
 Requires:  perl(Text::Diff) >= 0.35
 Requires:  perl(NetAddr::IP) >= 3.24
 Requires:  perl(File::Touch) >= 0.01
+Requires:  perl(File::Temp) >= 0.14
 Requires:  perl(YAML::Syck)
 Requires:  perl(JSON::Syck)
 Requires:  perl(XML::Simple) >= 2.12
-Requires:  perl(File::Temp) >= 0.16
-Requires:  perl(Sys::Syslog) >= 0.18
+# Provided by ourself, currently.
+Requires:  perl(File::Temp) >= %{File_Temp_ver}
+Requires:  perl(Sys::Syslog) >= %{Sys_Syslog_ver}
 
 %description
-Ticketmaster Configuration Management System
+Ticketmaster Configuration System
 
 %ifarch noarch
 %package fsball-publisher
-Summary:   Ticketmaster configuration management system's publishing system
+Summary:   Ticketmaster configuration system's publishing system
 Group:     Ticketmaster
 BuildArch: noarch
 Requires:  python >= 2.2.3-5
@@ -63,10 +56,9 @@ Ticketmaster configuration system's publishing system
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
 
-pushd %{name}-%{version}
+cd %{name}-%{version}
 # Hooray for Makefiles!
 make DESTDIR=$RPM_BUILD_ROOT install
-popd
 
 %clean
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
@@ -84,19 +76,23 @@ popd
 %{spine_lib_prefix}/Spine/ConfigSource/*.pm
 %{spine_lib_prefix}/Spine/Plugin/*.pm
 %config(noreplace) /etc/spine/spine.conf
+#
+# This makes RPM 4.4 angry
+#
+#%{_localstatedir}/spine
 %attr(0755,root,root) %{_localstatedir}/spine
 
 %ifarch noarch
 %files fsball-publisher
 %defattr(-,root,root)
 %{spine_prefix}/bin/spine-cramfs-publish.py
+%{spine_prefix}/bin/spine-cramfs-publish.pyo
+%{spine_prefix}/bin/spine-cramfs-publish.pyc
 %config(noreplace) /etc/cramfs-publisher.conf
+
 %endif
 
 %changelog
-* Fri Jun 19 2009 Chet Burgess <chet.burgess@ticketmaster.com 2.0-
-- General cleanup of non-OSS stuff.
-
 * Wed Oct 03 2007 Phil Dibowitz <phil.dibowitz@ticketmaster.com> 2.0-rc22
 - Add support for parsing lshw output
 - Add --action and --actiongroup support
