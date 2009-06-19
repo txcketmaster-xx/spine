@@ -61,7 +61,7 @@ use constant DEFAULT_CONFIG => {
         DefaultPlugins => {
             'DISCOVERY/populate' => 'DryRun SystemInfo',
             'DISCOVERY/policy-selection' => 'DescendOrder',
-            'PARSE/complete' => 'IPAliases Auth FilerExports Interpolate',
+            'PARSE/complete' => 'Auth Interpolate',
         },
 
         FileSystem => {
@@ -79,12 +79,12 @@ use constant DEFAULT_CONFIG => {
             EMIT => 'Templates Auth',
             APPLY => 'Overlay RPMPackageManager SystemHarden TweakStartup'
                          . ' RestartServices Finalize',
-            CLEAN => 'Overlay RPMPackageManage'
+            CLEAN => 'Overlay RPMPackageManager'
          },
 
         FirstRun => {
             PREPARE => 'PrintData Overlay',
-            EMIT => 'Templates Auth',
+            EMIT => 'FirstRun Templates Auth',
             APPLY => 'Overlay RPMPackageManager SystemHarden TweakStartup'
                          . ' Finalize',
             CLEAN => 'Overlay',
