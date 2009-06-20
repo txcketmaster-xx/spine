@@ -20,7 +20,7 @@
 # (C) Copyright Ticketmaster, Inc. 2007
 #
 
-our $VERSION = qq(2.0.1);
+our $VERSION = qq(2.0.2);
 
 use strict;
 
@@ -47,7 +47,7 @@ use sigtrap 'handler' => \&ignore_signal, 'normal-signals';
 
 use constant NODEFILE => '/etc/nodename';
 use constant LOCKFILE => '/var/run/spine.lock';
-use constant DEFAULT_CONFIGFILE => '/etc/spine/spine.conf';
+use constant DEFAULT_CONFIGFILE => '/etc/spine-config.conf';
 use constant DEFAULT_CONFIGFILE_FALLBACK => '/etc/spine.conf';
 use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
 

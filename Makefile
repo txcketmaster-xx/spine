@@ -19,7 +19,7 @@
 
 DESTDIR  ?= 
 PREFIX   ?= /usr
-ETCDIR   ?= /etc/spine
+ETCDIR   ?= /etc
 BINDIR   ?= $(PREFIX)/bin
 LIBDIR   ?= $(PREFIX)/lib/spine
 STATEDIR ?= /var/spine
@@ -35,7 +35,7 @@ mkdirs:
 		$(MKDIR) -p -m 0755 $(DESTDIR)$$dir; \
 	done
 
-install_config: spine.conf scripts/cramfs-publisher.conf
+install_config: spine-config.conf scripts/cramfs-publisher.conf
 	for I in $^; do \
 		$(INSTALL) -m 0644 $$I $(DESTDIR)$(ETCDIR); \
 	done
