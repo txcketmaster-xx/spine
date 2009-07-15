@@ -155,7 +155,11 @@ sub check_ignore
 sub process_template
 {
     my ($c, $template, $output) = @_;
-    my $ttdata = {c => $c};
+    # This makes Spine::Data avaliable as 'c' within templates
+    # as well as allowing the user to stop template processing
+    # if they decide the template is not needed (skip_template)
+    my $ttdata = {c => $c,
+                  skip_template => sub { die "__SKIP__TEMPLATE__\n" }};
     my $destdir;
 
     # Create our template processing instance
@@ -193,6 +197,14 @@ sub process_template
 
     unless (defined($TT->process($template, $ttdata, $output)))
     {
+        # If the user has decided they don't want the template
+        # from within the template we unlink (skip_template)
+        if ($TT->error() =~ m/__SKIP__TEMPLATE__/) {
+            $c->cprint("Template has requested to be skipped, $template", 3);
+            unlink($template);
+            return PLUGIN_SUCCESS;
+        }
+        
         # If we encounter an error we want to abort the current template
         # but keep processing, so log the error, remove the template 
         # from the overlay, and return PLUGIN_ERROR to move on instead
