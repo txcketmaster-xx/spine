@@ -102,8 +102,8 @@ sub create_hook_point
 
 
 #
-# Try to load the plain filename as is first but fallback to something in the
-# Spine::Plugin namespace
+# Try to load the full plugin name as is first but fallback to something in the
+# Spine::Plugin namespace, plugin must not be a full path to a file.
 #
 # There's no problem problem with plugins being loaded repeatedly, since they
 # should all be singletons.
