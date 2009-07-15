@@ -36,13 +36,22 @@ my $tmp;
 use constant {
     PLUGIN_ERROR   => 1 << 0,
     PLUGIN_SUCCESS => 1 << 1,
+    PLUGIN_FINAL   => 1 << 2,
     PLUGIN_EXIT    => 1 << 31
 };
 # This must be defined outside of the above hash block of PLUGIN_*.
 # Don't change it.
 use constant PLUGIN_FATAL => PLUGIN_ERROR | PLUGIN_EXIT;
+# Both normal and error related reasons to stop running plugins
+# this should never be returned from a plugin only used to match
+use constant PLUGIN_STOP => PLUGIN_FATAL | PLUGIN_FINAL;
 
-$tmp = [qw(PLUGIN_ERROR PLUGIN_EXIT PLUGIN_FATAL PLUGIN_SUCCESS)];
+$tmp = [qw(PLUGIN_ERROR
+           PLUGIN_EXIT
+           PLUGIN_FATAL
+           PLUGIN_STOP
+           PLUGIN_FINAL
+           PLUGIN_SUCCESS)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{plugin} = $tmp;
 

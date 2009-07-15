@@ -75,7 +75,7 @@ sub create_hook_point
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     my $CONFIG = $registry->{CONFIG};
@@ -113,7 +113,7 @@ sub load_plugin
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     my $rc = SPINE_SUCCESS;
@@ -169,7 +169,7 @@ sub register_plugin
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     my $plugin = shift;
@@ -230,7 +230,7 @@ sub find_plugin
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     my @plugins;
@@ -263,7 +263,7 @@ sub add_option
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     my (%cmdline, $prefix);
@@ -309,7 +309,7 @@ sub get_options
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     return $registry->{OPTIONS};
@@ -321,7 +321,7 @@ sub get_hook_point
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     my @points;
@@ -349,7 +349,7 @@ sub install_method
     my $registry = Spine::Registry->instance();
 
     if (UNIVERSAL::isa($_[0], 'Spine::Registry')) {
-	shift;
+        shift;
     }
 
     my ($method_name, $coderef) = @_;
@@ -498,10 +498,29 @@ sub add_hook
     return SPINE_SUCCESS;
 }
 
-
-sub run_hooks
-{
+# simple wrapper for run_hooks_until, it will run until
+# EXIT, FINAL or FATAL. FATAL is EXIT + ERROR but we check
+# for both in case this changes in future.
+sub run_hooks {
     my $self = shift;
+
+    return $self->run_hooks_until(PLUGIN_STOP, @_);
+}
+
+# run hooks until a condition is met or we have
+# run all the hooks
+sub run_hooks_until {
+    my $self = shift;
+    my $until = shift;
+
+    # It is now set in stone that Spine::Data must be the
+    # first argument passed to hooks
+    my $c = $_[0];
+    unless ($c->isa('Spine::Data')) {
+        $self->error("Spine::Data must be passed when running hooks");
+        # attempt to make sure that the caller will bail out if this happens
+        return ([ "CORE", PLUGIN_FATAL, undef ], PLUGIN_FATAL, 1);
+    }
 
     my $errors = 0;
     my $fatal = 0;
@@ -512,22 +531,43 @@ sub run_hooks
         return PLUGIN_FATAL;
     }
 
+    my (@results, $rc);
     foreach my $hook (@{$self->{hooks}}) {
-        my $rc = $self->run_hook($hook, @_);
+        $rc = $self->run_hook($hook, @_);
 
-        if ($rc == PLUGIN_ERROR) {
+        # Allow the caller to see what happend to every hook
+        push @results, [ $hook->{name}, $rc , $hook];
+
+        if ($rc & PLUGIN_ERROR) {
+            $c->error("ERROR while running hook ".
+                      "\"$hook->{module}::$hook->{name}\" for ".
+		      "\"$self->{name}\"", "warn");
             $errors++;
         }
-        elsif ($rc == PLUGIN_FATAL) {
+
+        elsif ($rc & PLUGIN_FATAL) {
+            $c->error("FATAL error while running hook ".
+                      "\"$hook->{module}::$hook->{name}\" ".
+		      "for \"$self->{name}\"", "crit");
             $fatal++;
+        }
+
+        if ($until & $rc) {
+            $self->debug(3, "UNTIL condition met while ".
+                            "running hook for \"$self->{name}\"");
+            last;
         }
     }
 
+    # FIXME: not sure this makes much sense, all this will do is
+    #        force register_hooks to run again if there were any errors...
     if ($errors + $fatal) {
         $self->{status} = SPINE_FAILURE;
     }
 
-    return $errors + $fatal;
+    # We always return an array, if the caller doesn't take all
+    # the arguments then they will get errors+fatal by it's self
+    return (\@results, $rc, ($errors + $fatal));
 }
 
 
@@ -552,14 +592,10 @@ sub run_hook
         goto hook_error;
     }
 
-    #
-    # XXX Should this be required?  Probably.
-    #
     unless ($c->isa('Spine::Data')) {
-        $hook->{msg} = 'Invalid parameter passed to run_hook: "' . ref($_[0])
-                       . '"';
         $hook->{rc} = PLUGIN_FATAL;
-        $self->error($hook->{msg});
+        $self->error('First parameter passed to run_hook is not a '.
+	             'Spine::Data object: "' . ref($_[0]).'"');
         goto hook_error;
     }
 
@@ -578,8 +614,7 @@ sub run_hook
     # FIXME  Proper exception handling.
     if ($@) {
         $hook->{rc} = PLUGIN_FATAL;
-        $hook->{msg} = $@;
-        $self->error("Hook \"$hook->{module}::$hook->{name}\" failed: ", $@);
+        $c->error("Hook \"$hook->{module}::$hook->{name}\" failed: " . $@, "crit");
         goto hook_error;
     }
 

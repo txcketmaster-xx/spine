@@ -462,35 +462,20 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
         last;
     }
 
-    foreach my $hook (@{$point->{hooks}}) {
-        # *sigh*  We need to add $prev_state to the parameter list for the
-        #         TweakStartup plugin.
-        #
-        # rtilder    Wed Dec 20 10:29:52 PST 2006
-        my $rc = $point->run_hook($hook, $c, $prev_state);
+    my (undef, $rc, $errors) = $point->run_hooks($c, $prev_state);
 
-        if ($rc == PLUGIN_FATAL) {
-            print STDERR "\t\t", $hook->{module}, "::$hook->{name} ",
-                "encountered fatal errors: \"$hook->{msg}\"\n";
-            print STDERR "\tExiting as gracelessly as possible.\n";
-            goto failure;
-        }
-        elsif ($rc == PLUGIN_ERROR) {
-            print STDERR "\t\t", $hook->{module}, "::$hook->{name} ",
-                "encountered errors: \"$hook->{msg}\"\n";
-            print STDERR "\tContinuing with run.\n";
-            $error_count++;
-        }
-        elsif ($rc == PLUGIN_EXIT) {
-            #
-            # Need a better messaging option.  This message is causing some
-            # confusion. :\
-            #
-            # rtilder    Wed May  9 10:33:20 PDT 2007
-            #
-            #print STDOUT "\tAt least one plugin requested a clean exit.\n";
-            last PHASE;
-        }
+    if ($rc & PLUGIN_FATAL) {
+        print STDERR "\tExiting as gracelessly as possible.\n";
+        goto failure;
+    } elsif ($rc & PLUGIN_EXIT) {
+        #
+        # Need a better messaging option.  This message is causing some
+        # confusion. :\
+        #
+        # rtilder    Wed May  9 10:33:20 PDT 2007
+        #
+        print STDOUT "\tAt least one plugin requested a clean exit.\n";
+        last PHASE;
     }
 }
 
