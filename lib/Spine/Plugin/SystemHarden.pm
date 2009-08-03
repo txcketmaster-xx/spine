@@ -25,7 +25,7 @@ package Spine::Plugin::SystemHarden;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
-our ($VERSION, $DESCRIPTION, $MODULE);
+our ( $VERSION, $DESCRIPTION, $MODULE );
 
 $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Removes setuid and setgid bits from all files not listed in the privfiles key";
@@ -40,8 +40,11 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 
 use File::Spec::Functions;
+use File::Find;
 use File::stat;
 use Fcntl qw(:mode);
+
+my @HARDEN;
 
 sub system_harden
 {
@@ -52,24 +55,15 @@ sub system_harden
     my $chmod_bin = $c->getval("chmod_bin");
     my $overlay_root = $c->getval("overlay_root");
     my $croot = $c->getval("c_croot");
-    my $find_cmd = "$find_bin $overlay_root -mount -type f \\\( "
-                 . "-perm +4000 -o -perm +2000 \\\) 2>/dev/null";
 
     unless ($c->check_exec($find_bin, $chmod_bin)) { return 1; }
 
-    my @filelist;
+    find( { wanted => \&_find_wanted, no_chdir => 1 }, $overlay_root );
 
-    # FIXME  We really shouldn't be exec()ing find externally.
-    foreach (`$find_cmd`)
+    foreach my $file (@HARDEN)
     {
-        chomp;
-        next if (m@^$croot@);
-        push(@filelist, $_);
-    }
-
-    foreach my $file (@filelist)
-    {
-        next if ( grep {/$file/} @{$c->getvals("privfiles")} );
+	next if $file =~ /^\Q$croot\E/;
+	next if ( grep {/$file/} @{$c->getvals("privfiles")} );
 
 	$c->cprint("stripping suid/sgid bits from $file", 2);
 
@@ -86,6 +80,25 @@ sub system_harden
     }
 
     return $rval;
+}
+
+sub _find_wanted 
+{
+
+    my $st = stat($_);
+
+    # If the file isn't on the local filesystem, ignore it.
+    if (-d $_ and $st->dev != $File::Find::topdev)
+    {
+        $File::Find::prune = 1;
+        return;
+    }
+
+    # Need to test if it is a file first, otherwise $st->mode will be undef.
+    if (-f $_ and ($st->mode & (S_ISUID|S_ISGID)))
+    {
+        push @HARDEN, $_;
+    }
 }
 
 1;
