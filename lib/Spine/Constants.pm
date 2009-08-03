@@ -38,21 +38,30 @@ use constant {
     PLUGIN_SUCCESS => 1 << 1,
     PLUGIN_FINAL   => 1 << 2,
     PLUGIN_EXIT    => 1 << 31,
-    HOOK_START => "__START",
-    HOOK_MIDDLE => "__MIDDLE",
-    HOOK_END => "__END",
+    CHAIN_START => "__START",
+    CHAIN_MIDDLE => "__MIDDLE",
+    CHAIN_END => "__END",
 };
 # These must be defined outside of the above hash block of PLUGIN_*.
 # Don't change them.
 use constant PLUGIN_FATAL => PLUGIN_ERROR | PLUGIN_EXIT;
 use constant PLUGIN_STOP => PLUGIN_FATAL | PLUGIN_FINAL;
+use constant {
+    HOOK_START => CHAIN_START,
+    HOOK_MIDDLE => CHAIN_MIDDLE,
+    HOOK_END => CHAIN_END,
+};
+
 
 $tmp = [qw(PLUGIN_ERROR PLUGIN_EXIT PLUGIN_FATAL PLUGIN_SUCCESS PLUGIN_FINAL),
         qw(PLUGIN_STOP HOOK_START HOOK_MIDDLE HOOK_END)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{plugin} = $tmp;
 
-$tmp = undef;
+
+$tmp = [qw(CHAIN_START CHAIN_MIDDLE CHAIN_END)];;
+push @EXPORT_OK, @{$tmp};
+$EXPORT_TAGS{chain} = $tmp;
 
 use constant {
     SPINE_NOTRUN  => -1,
