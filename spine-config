@@ -319,13 +319,16 @@ if (defined($OPTIONS{last}))
 {
     if (defined($prev_state->release()))
     {
-        print 'Last configured with release: ', $prev_state->release();
+        print "Last configured:\n";
+        print "\tVersion: ", $prev_state->version(), "\n";
+        print "\tRelease: ", $prev_state->release();
         if (get_frozen_release($CONFIG->{spine}->{StateDir}) == 
 	                                        $prev_state->release())
         {
             print ' (frozen)';
         }
-	print ' at ', ctime($prev_state->run_time());
+        print "\n";
+        print "\tDate: ", ctime($prev_state->run_time());
     }
     else
     {

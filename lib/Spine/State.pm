@@ -170,4 +170,11 @@ sub release
     return $self->_getval('c_release');
 }
 
+sub version
+{
+    my $self = shift;
+
+    return $self->_getval('c_version');
+}
+
 1;
