@@ -155,6 +155,7 @@ sub populate
         ? @{$self->{'spine_local_internals_dirs'}}
         : ($self->{'spine_local_internals_dirs'});
     foreach my $dir (@dir_list) {
+    	next unless defined $dir;
         $self->_get_values($dir);
     }
 
@@ -302,7 +303,12 @@ sub _get_values
     my $self = shift;
     my $directory = shift;
     my $keys_dir = $self->getval_last('config_keys_dir') || 'config';
-
+    
+    unless (defined $directory) {
+    	$self->error("_get_values(): no path passed to method", 'crit');
+    	return SPINE_FAILURE;
+    }
+    
     $directory = catdir($directory, $keys_dir);
 
     # It's perfectly OK to have an overlay-only tree or directory in the

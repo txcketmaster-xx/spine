@@ -249,12 +249,13 @@ sub find_plugin
         }
     }
 
-    # FIXME  ??  unshift or shift?
-    unless (wantarray) {
-        return unshift @plugins;
+    if (wantarray) {
+        return @plugins;
+        
     }
 
-    return @plugins;
+    return length(@plugins) ? shift @plugins : undef;
+    
 }
 
 
@@ -437,6 +438,11 @@ sub register_hooks
     # If we've already loaded our plugin lists, make sure we add populate
     # this hook point's children
     my $c = $registry->{CONFIG};
+    # make sure there is somethign defined in the config, if not it's
+    # not really an error just means ther user doesn't want anythign run
+    unless (exists $c->{$c->{spine}->{Profile}}->{$self->{name}}) {
+    	return SPINE_SUCCESS;
+    }
     my @modules = $registry->find_plugin(split(/(?:\s*,?\s+)/,
                                                $c->{$c->{spine}->{Profile}}->{$self->{name}}));
 
