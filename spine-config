@@ -884,6 +884,14 @@ Usage: spine [options]
 			Only print out the data object and
 			exit. No actions will be run.
 
+    --printauth
+    --with-auth
+                        Only print out the auth data object and exit.
+                        No actions will be run.
+
+    --printall
+                        Shortcut for --printdata and --printauth.
+
     --profile <profile>
     --actiongroup <profile>
 			Runs the set of plugins defined in any profile

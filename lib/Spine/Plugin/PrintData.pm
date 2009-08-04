@@ -25,7 +25,7 @@ package Spine::Plugin::PrintData;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
-our ($VERSION, $DESCRIPTION, $MODULE, $PRINTDATA, $WITHAUTH);
+our ($VERSION, $DESCRIPTION, $MODULE, $PRINTALL, $PRINTDATA, $PRINTAUTH);
 
 $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Features for debugging Spine data";
@@ -39,7 +39,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                         code => \&printdata } ]
                      },
             cmdline => { options => { 'printdata|spinaltap' => \$PRINTDATA,
-                                      'with-auth' => \$WITHAUTH } }
+                                      'printauth|with-auth' => \$PRINTAUTH,
+                                      'printall' => \$PRINTALL } }
           };
 
 
@@ -49,24 +50,30 @@ sub printdata
     my $objects = [$c];
     my $names = [ref($c)];
 
-    # Short circuit if we weren't passed the command line option.
-    unless ($PRINTDATA) {
+    # Short circuit if we weren't passed the command line options.
+    unless ($PRINTALL|$PRINTDATA|$PRINTAUTH)
+    {
         return PLUGIN_SUCCESS;
     }
 
     # Make sure we don't save state
     $::SAVE_STATE = 0;
 
-    if ($WITHAUTH) {
-        require Spine::Plugin::Auth;
-        push @{$objects}, $Spine::Plugin::Auth::AUTH;
-        push @{$names}, 'Spine::AuthData';
-    }
-
     require Data::Dumper;
     $Data::Dumper::Sortkeys = 1;
-    my $d = new Data::Dumper($objects, $names);
-    print $d->Dump();
+
+    if ($PRINTALL|$PRINTDATA)
+    {
+        my $data = new Data::Dumper($objects, $names);
+        print $data->Dump();
+    }
+    if ($PRINTALL|$PRINTAUTH)
+    {
+        require Spine::Plugin::Auth;
+        my $data = new Data::Dumper([$Spine::Plugin::Auth::AUTH], \
+            ['Spine::AuthData']);
+        print $data->Dump();
+    }
 
     return PLUGIN_EXIT;
 }
