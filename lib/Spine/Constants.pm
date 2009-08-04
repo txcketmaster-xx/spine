@@ -37,7 +37,10 @@ use constant {
     PLUGIN_ERROR   => 1 << 0,
     PLUGIN_SUCCESS => 1 << 1,
     PLUGIN_FINAL   => 1 << 2,
-    PLUGIN_EXIT    => 1 << 31
+    PLUGIN_EXIT    => 1 << 31,
+    CHAIN_START    => "__START",
+    CHAIN_MIDDLE   => "__MIDDLE",
+    CHAIN_END      => "__END"
 };
 # This must be defined outside of the above hash block of PLUGIN_*.
 # Don't change it.
@@ -45,6 +48,10 @@ use constant PLUGIN_FATAL => PLUGIN_ERROR | PLUGIN_EXIT;
 # Both normal and error related reasons to stop running plugins
 # this should never be returned from a plugin only used to match
 use constant PLUGIN_STOP => PLUGIN_FATAL | PLUGIN_FINAL;
+
+$tmp = [qw(CHAIN_START CHAIN_MIDDLE CHAIN_END)];;
+push @EXPORT_OK, @{$tmp};
+$EXPORT_TAGS{chain} = $tmp;
 
 $tmp = [qw(PLUGIN_ERROR
            PLUGIN_EXIT
@@ -54,8 +61,6 @@ $tmp = [qw(PLUGIN_ERROR
            PLUGIN_SUCCESS)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{plugin} = $tmp;
-
-$tmp = undef;
 
 use constant {
     SPINE_NOTRUN  => -1,
