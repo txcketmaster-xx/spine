@@ -550,8 +550,7 @@ sub run_hooks_until {
 		      "\"$self->{name}\"", "warn");
             $errors++;
         }
-
-        elsif ($rc & PLUGIN_FATAL) {
+        elsif (($rc & PLUGIN_FATAL) == PLUGIN_FATAL) {
             $c->error("FATAL error while running hook ".
                       "\"$hook->{module}::$hook->{name}\" ".
 		      "for \"$self->{name}\"", "crit");

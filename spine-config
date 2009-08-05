@@ -468,7 +468,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
     my (undef, $rc, $errors) = $point->run_hooks($c, $prev_state);
     $error_count += $errors;
 
-    if ($rc & PLUGIN_FATAL) {
+    if (($rc & PLUGIN_FATAL) == PLUGIN_FATAL) {
         print STDERR "\tExiting as gracelessly as possible.\n";
         goto failure;
     } elsif ($rc & PLUGIN_EXIT) {
