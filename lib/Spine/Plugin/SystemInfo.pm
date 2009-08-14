@@ -58,7 +58,7 @@ use File::Spec::Functions;
 use IO::File;
 use NetAddr::IP;
 use RPM2;
-
+use Spine::Util qw(resolve_address);
 
 #
 # This should really be a much more generic in terms of populating data about
@@ -170,12 +170,16 @@ sub get_netinfo
 
     $c->print(3, 'examining local network');
 
+    # First lets get the IP address in DNS for our hostname.
+    $c->{c_ip_address} = resolve_address("$c->{c_hostname}");
+
+    # Now we need a more usable form of the IP address.
     my ($subnet, $network, $netmask, $bcast, @nets);
     my $nobj = new NetAddr::IP($c->getval('c_ip_address'));
 
     # FIXME  Incorrect and confusing error message here
     unless (defined($nobj)) {
-        $c->error("No IP address found for \"$c->{c_hostname_f}\"", 'err');
+        $c->error("No IP address found for \"$c->{c_hostname}\"", 'err');
         return PLUGIN_FATAL;
     }
 

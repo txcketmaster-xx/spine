@@ -60,6 +60,7 @@ sub new {
     }
 
     my $data_object = bless( { hostname => $args{hostname},
+                               c_hostname => $args{hostname}, 
                                c_release => $args{release},
                                c_verbosity => $args{verbosity} || 0,
                                c_version => $args{version} || $::VERSION,
