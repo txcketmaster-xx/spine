@@ -112,9 +112,9 @@ sub get_sysinfo
             while (my ($re, $card) = each(%devs)) {
                 $netcard = $card if ($line =~ m/$re/);
             }
-	}
+        }
         $fh->close();
-	$netcard = 'unknown' unless $netcard;
+        $netcard = 'unknown' unless $netcard;
 
         my $ifconfig = $c->getval('ifconfig_bin') || qq(/sbin/ifconfig);
         my $cmd = $ifconfig . ' eth' . $iface;
@@ -134,19 +134,19 @@ sub get_sysinfo
             return PLUGIN_FATAL;
         }
 
-	foreach my $line (<$fh>)
-	{
-	    if ($line =~
-		m/
-		\s*inet\s+addr:(\d+\.\d+\.\d+\.\d+)
-		\s*Bcast:(\d+\.\d+\.\d+\.\d+)
-		\s*Mask:(\d+\.\d+\.\d+\.\d+)
-		/xi )
-	    {
+        foreach my $line (<$fh>)
+        {
+            if ($line =~
+                m/
+                \s*inet\s+addr:(\d+\.\d+\.\d+\.\d+)
+                \s*Bcast:(\d+\.\d+\.\d+\.\d+)
+                \s*Mask:(\d+\.\d+\.\d+\.\d+)
+                /xi )
+            {
                 $ip_address = $1;
-		$bcast = $2;	
+                $bcast = $2;        
                 $netmask = $3;
-	    }
+            }
         }
         $fh->close();
     }
@@ -188,11 +188,11 @@ sub get_netinfo
 
     foreach my $net (<${c_root}/network/*>)
     {
-	next unless ($net !~ m/^(?:\d{1,3}\.){3}(?:\d{1,3})-\d{1,2}/);
-	$net = basename($net);
-	$net =~ s@-@/@g;
+        next unless ($net !~ m/^(?:\d{1,3}\.){3}(?:\d{1,3})-\d{1,2}/);
+        $net = basename($net);
+        $net =~ s@-@/@g;
 
-	my $sobj = new NetAddr::IP($net);
+        my $sobj = new NetAddr::IP($net);
 
         unless (defined($sobj)) {
             $net =~ s@/@-@g;
@@ -200,7 +200,7 @@ sub get_netinfo
             return PLUGIN_FATAL
         }
 
-	if ($nobj->within($sobj)) {
+        if ($nobj->within($sobj)) {
             push @nets, $sobj;
         }
     }
@@ -231,8 +231,8 @@ sub get_netinfo
 
     unless (defined $c->{c_subnet})
     {
-	$c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
-	return PLUGIN_FATAL;
+        $c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
+        return PLUGIN_FATAL;
     }
 
     return PLUGIN_SUCCESS;
