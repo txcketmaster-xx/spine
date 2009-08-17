@@ -103,8 +103,8 @@ sub build_overlay
         }
         for my $element ( @overlay_map )
         {
-            (my $overlay, my $target) = split( /:/, $element);
-            my $overlay = "${dir}/${overlay}/";
+            my ($overlay, $target) = split( /:/, $element);
+            $overlay = "${dir}/${overlay}/";
 
             unless (file_name_is_absolute($dir)) {
                 $overlay = catfile($croot, $overlay);
