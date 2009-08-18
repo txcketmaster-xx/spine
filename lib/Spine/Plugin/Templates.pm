@@ -83,9 +83,11 @@ sub process_templates
     # Find our templates.  templates_ignore checking is done in find_templates
     find({ follow => 0, no_chdir => 1, wanted => \&find_templates }, $tmpdir);
 
-    $c->print(4, 'Templates: ', sort @TEMPLATES);
+    @TEMPLATES = sort @TEMPLATES;
 
-    foreach my $template (sort @TEMPLATES)
+    $c->print(4, 'Templates: ', @TEMPLATES);
+
+    foreach my $template (@TEMPLATES)
     {
         if (process_template($c, $template) == PLUGIN_ERROR)
         {
