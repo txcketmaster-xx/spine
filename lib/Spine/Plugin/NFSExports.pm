@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::NFSExports;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -42,16 +43,9 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 sub get_exports
 {
     my $c = shift;
-    my $showmount_bin = $c->getval('showmount_bin');
     my $nfs_servers = $c->getvals('nfs_servers');
     my @exports;
     my $DEBUG = $c->getval('nfs_exports_plugin_debug');
-
-    unless (-x $showmount_bin)
-    {
-	$c->error('showmount binary not found', 'err');
-	return PLUGIN_FATAL;
-    }
 
     if ($DEBUG)
     {
@@ -60,18 +54,24 @@ sub get_exports
 
     foreach my $server (@{$nfs_servers})
     {
-	if ($DEBUG)
-	{
-	    $c->cprint("Going through mounts on server $server");
-	}
+        if ($DEBUG)
+        {
+            $c->cprint("Going through mounts on server $server");
+        }
 
-	for (`$showmount_bin --no-headers -e $server`)
-	{
-	    if ($DEBUG > 2)
-	    {
-		$c->cprint("    Processing output line: $_");
-	    }
+        my @showmount_res = simple_exec(inert => 1,
+                                        exec  => 'showmount',
+                                        args  => "--no-headers -e $server",
+                                        c     => $c);
 
+
+        for (@showmount_res)
+        {
+            if ($DEBUG > 2)
+            {
+                $c->cprint("    Processing output line: $_");
+            }
+            
             ( my $mount, my $perms ) = split;
             push @exports,"$server:$mount:$perms";
         }

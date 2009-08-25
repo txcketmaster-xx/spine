@@ -51,7 +51,7 @@ use File::Touch;
 use Fcntl qw(:mode);
 use IO::File;
 use Spine::Constants qw(:basic);
-use Spine::Util qw(do_rsync mkdir_p octal_conv uid_conv gid_conv);
+use Spine::Util qw(simple_exec do_rsync mkdir_p octal_conv uid_conv gid_conv);
 use Text::Diff;
 
 my $DRYRUN;
@@ -78,7 +78,7 @@ sub build_overlay
 
     $DRYRUN = $c->getval('c_dryrun');
 
-    remove_tmpdir($tmpdir);
+    remove_tmpdir($c, $tmpdir);
     unless (mkdir_p($tmpdir, 0755))
     {
         # Return a fatal error to the caller.
@@ -335,7 +335,7 @@ sub clean_overlay
         return PLUGIN_SUCCESS;
     }
 
-    $rc = remove_tmpdir($tmpdir);
+    $rc = remove_tmpdir($c, $tmpdir);
     unlink $tmplink;
 
     return PLUGIN_SUCCESS;
@@ -344,13 +344,18 @@ sub clean_overlay
 
 sub remove_tmpdir
 {
+    my $c = shift;
     my $tmpdir = shift;
 
     # rm -rf paranoia.
     if ( ($tmpdir =~ m@^/tmp/.*@) and ($tmpdir =~ m@[^\.~]*@) )
     {
-	my $result = `/bin/rm -rf $tmpdir 2>&1`;
-	return 1;
+        my $result = simple_exec(merge_error => 1,
+	                             exec        => 'rm',
+	                             inert       => 1,
+	                             c           => $c,
+	                             args        => "-rf $tmpdir");;
+        return 1;
     }
 
     return 0;

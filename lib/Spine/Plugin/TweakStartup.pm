@@ -24,7 +24,7 @@ use strict;
 package Spine::Plugin::TweakStartup;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
-use Spine::Util qw(exec_initscript);
+use Spine::Util qw(exec_initscript simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -40,7 +40,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 use File::Basename;
 
-my ($DRYRUN, $CHKCONFIG);
+my $DRYRUN;
 
 sub tweak_startup
 {
@@ -73,8 +73,7 @@ sub tweak_startup
     }
 
     $DRYRUN = $c->getval('c_dryrun');
-    $CHKCONFIG = $c->getval('chkconfig_bin');
-
+    
     # Build a list of services if the directories exist.
     foreach my $dir ($init_dir, $inetd_dir)
     {
@@ -137,10 +136,14 @@ sub config_init
     my ($c, $service, $status) = @_;
     return 1 if $DRYRUN;
 
-    my $result = `$CHKCONFIG $service $status 2>&1`;
-    if ($result)
+    my @result = simple_exec(merge_error => 1,
+                             inert       => 1,
+                             exec        => 'chkconfig',
+                             args        => [ $service, $status ],
+                             c           => $c);
+    if ($?)
     {
-        $c->error("failed for $service [$result]", 'err');
+        $c->error("failed for $service [".join("", @result)."]", 'err');
         return 0;
     }
     return 1;
@@ -149,8 +152,14 @@ sub config_init
 sub is_service_enabled
 {
     my ($c, $service) = @_;
-    my $chkconfig_output = `$CHKCONFIG --list $service 2>/dev/null`;
-    my @service_status = split /\s+/, $chkconfig_output;
+
+    my @result = simple_exec(merge_error => 1,
+                             inert       => 1,
+                             exec        => 'chkconfig',
+                             args        => [ "--list",  $service ],
+                             c           => $c);
+   
+    my @service_status = split /\s+/, join("", @result);
 
     if ($#service_status > 2) {
         # "traditional" output: we only want to deal with runlevels 3-5

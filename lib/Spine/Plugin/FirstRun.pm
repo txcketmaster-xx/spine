@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::FirstRun;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -47,7 +48,6 @@ sub first_run
     my $rval = 0;
 
     my $state_dir = $c->{c_config}->{spine}->{StateDir};
-    my $service_bin = $c->getval('service_bin');
     my $stop_services = $c->getvals('stop_services');
 
     my $default_ugid = $c->getval('firstrun_default_ugid') || qq(0:0);
@@ -66,8 +66,10 @@ sub first_run
     for my $service (@{$stop_services})
     {	
         $c->print(2, "stopping $service");
-        my $result = `$service_bin $service stop 2>&1`
-	    unless ($dryrun);
+        my $rc = simple_exec(merge_error => 1,
+                                 exec        => 'service',
+                                 args        => "$service stop",
+                                 c           => $c);
     }
 
     $c->print(2, "creating state directory $state_dir");

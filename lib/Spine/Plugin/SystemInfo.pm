@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::SystemInfo;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -75,7 +76,10 @@ sub get_sysinfo
 
     $c->cprint('retrieving system information', 3);
 
-    my $platform = `uname`;
+    my ($platform) = simple_exec(c     => $c,
+                                 exec  => 'uname',
+                                 inert => 1);
+                               
     chomp $platform;
     $platform = lc($platform);
 
@@ -86,25 +90,12 @@ sub get_sysinfo
         my %devs = @{$c->getvals('network_device_map')};
 
         # We walk the PCI bus to determine which network card we have
-        my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
-        my $fh;
-        if (-f $lspci and -x $lspci)
-        {
-            $fh = new IO::File("$lspci |");
-        }
-        else
-        {
-            $c->error("$lspci not found or not executable!", 'err');
-            return PLUGIN_FATAL;
-        }
-
-        if (not defined($fh))
-        {
-            $c->error("Failed to run $lspci: $!", 'err');
-            return PLUGIN_FATAL;
-        }
-
-        foreach my $line (<$fh>)
+        my @lspci_res = simple_exec(c     => $c,
+                                    exec  => 'lspci',
+                                    inert => 1);
+        return PLUGIN_FATAL unless ($? == 0);
+        
+        foreach my $line (@lspci_res)
         {
             next unless ($line =~ m/Ethernet/);
             # FIXME  This is kind of dumb.  We don't provide any kind of
@@ -113,28 +104,15 @@ sub get_sysinfo
                 $netcard = $card if ($line =~ m/$re/);
             }
         }
-        $fh->close();
         $netcard = 'unknown' unless $netcard;
 
-        my $ifconfig = $c->getval('ifconfig_bin') || qq(/sbin/ifconfig);
-        my $cmd = $ifconfig . ' eth' . $iface;
-        if (-f $ifconfig and -x $ifconfig)
-        {
-            $fh->open("$cmd |");
-        }
-        else
-        {
-            $c->error("$ifconfig not found or not executable!", 'err');
-            return PLUGIN_FATAL;
-        }
+        my @ifconfig_res = simple_exec(c     => $c,
+                                       exec  => 'ifconfig',
+                                       args  => 'eth' . $iface,
+                                       inert => 1);
+        return PLUGIN_FATAL unless (@ifconfig_res);
 
-        if (not defined($fh))
-        {
-            $c->error("Failed to run $cmd: $!", 'err');
-            return PLUGIN_FATAL;
-        }
-
-        foreach my $line (<$fh>)
+        foreach my $line (@ifconfig_res)
         {
             if ($line =~
                 m/
@@ -148,7 +126,6 @@ sub get_sysinfo
                 $netmask = $3;
             }
         }
-        $fh->close();
     }
 
     $c->{c_platform} = $platform;
@@ -260,24 +237,13 @@ sub is_virtual
 
         return PLUGIN_SUCCESS;
     }
+    my @lspci_res = simple_exec(c     => $c,
+                                exec  => 'lspci',
+                                args  => '-n',
+                                inert => 1);
+    return PLUGIN_FATAL unless ($? == 0);
 
-    # We actually have to parse the lspci output now.
-    my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
-    my $fh;
-
-    if (-f $lspci and -x $lspci) {
-        $fh = new IO::File("$lspci -n |");
-    } else {
-        $c->error("$lspci not found or not executable!", 'err');
-        return PLUGIN_FATAL;
-    }
-
-    if (not defined($fh)) {
-        $c->error("Failed to run $lspci: $!", 'err');
-        return PLUGIN_FATAL;
-    }
-
-    foreach my $line (<$fh>) {
+    foreach my $line (@lspci_res) {
         # 15ad is the PCI vendor ID for VMWare
         #
         # rtilder   Thu Nov  6 09:45:33 PST 2008
@@ -293,8 +259,6 @@ sub is_virtual
             last;
         }
     }
-
-    $fh->close();
 
     return PLUGIN_SUCCESS;
 }
@@ -458,27 +422,23 @@ sub get_num_procs
 
     $c->{c_num_procs} = 1;
 
-    if (-f GETCONF and -x GETCONF) {
-        $c->{c_num_procs} = `$getconf _NPROCESSORS_ONLN`;
+
+    my $cpuinfo = new IO::File('< /proc/cpuinfo');
+    my $nprocs = 0;
+
+    unless (defined($cpuinfo)) {
+        $c->error('Failed to open /proc/cpuinfo', 'err');
+        return PLUGIN_FATAL;
     }
-    else {
-        my $cpuinfo = new IO::File('< /proc/cpuinfo');
-        my $nprocs = 0;
 
-        unless (defined($cpuinfo)) {
-            $c->error('Failed to open /proc/cpuinfo', 'err');
-            return PLUGIN_FATAL;
-        }
-
-        # Try to determine the number of processors
-        while(<$cpuinfo>) {
-            $nprocs++ if m/^processor\s+:\s+\d+/i;
-        }
-
-        $cpuinfo->close();
-
-        $c->{c_num_procs} = $nprocs;
+    # Try to determine the number of processors
+    while(<$cpuinfo>) {
+        $nprocs++ if m/^processor\s+:\s+\d+/i;
     }
+
+    $cpuinfo->close();
+
+    $c->{c_num_procs} = $nprocs;
 
     return PLUGIN_SUCCESS;
 }
@@ -491,8 +451,6 @@ sub get_hardware_platform
 {
 
     my $c = shift;
-    my $dmidecode = $c->getval('dmidecode_bin') || qq(/usr/sbin/dmidecode);
-    my $fh;
 
     # If we are are running on a virtual system just return the 
     # the virtual_type
@@ -502,26 +460,14 @@ sub get_hardware_platform
     }
     else
     {
-        if (-f $dmidecode and -x $dmidecode)
-        {
-            $fh = new IO::File("$dmidecode |");
-        }
-        else
-        {
-            $c->error("$dmidecode not found or not executable!" , 'err');
-            return PLUGIN_FATAL;
-        }
-
-        if (not defined($fh))
-        {
-            $c->error("Failed to run $dmidecode: $!", 'err');
-            return PLUGIN_FATAL;
-        }
+        my @dmidecode_res = simple_exec(exec  => 'dmidecode',
+                                        inert => 1);
+        return PLUGIN_FATAL unless ($? == 0);
 
         my $sys_section = 0;
         my $hardware_platform = 'UNKNOWN';
 
-        foreach my $line (<$fh>)
+        foreach my $line (@dmidecode_res)
         {
             # We need to find the "Product Name:" key under 'DMI type 1'
             # (which is the "System Information" section).
@@ -543,7 +489,6 @@ sub get_hardware_platform
             # If we enter another DMI section we are done.
             last if ($sys_section and $line =~ m/DMI type/i);
         }
-        $fh->close();
 
         $c->{c_hardware_platform} = $hardware_platform;
     }

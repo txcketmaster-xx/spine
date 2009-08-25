@@ -1046,6 +1046,9 @@ sub error
 			       /xi );
     $msg =~ tr/\n/ -- /;
 
+    # needed for syslog
+    $msg = "warning" if ($msg eq 'warn');
+
     unless ($self->{c_verbosity} == -1)
     {
 	print STDERR $self->{c_label} . ": \[$level\] $msg\n";

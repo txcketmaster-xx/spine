@@ -438,7 +438,7 @@ sub register_hooks
     # If we've already loaded our plugin lists, make sure we add populate
     # this hook point's children
     my $c = $registry->{CONFIG};
-    # make sure there is somethign defined in the config, if not it's
+    # make sure there is something defined in the config, if not it's
     # not really an error just means ther user doesn't want anythign run
     unless (exists $c->{$c->{spine}->{Profile}}->{$self->{name}}) {
     	return SPINE_SUCCESS;
