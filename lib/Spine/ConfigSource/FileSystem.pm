@@ -47,7 +47,7 @@ sub new
 
         if (not $self->_check_path($path))
         {
-            $ERROR = "Invalid configuration root path!";
+            $ERROR = "Invalid configuration root path ($path)!";
             undef $self;
             return undef;
         }

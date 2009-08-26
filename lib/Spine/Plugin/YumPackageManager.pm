@@ -49,7 +49,7 @@ $MODULE = { author => 'nicolas.simonds@myspace-inc.com',
 
 
 use Spine::RPM;
-use Spine::Util qw(mkdir_p);
+use Spine::Util qw(mkdir_p simple_exec);
 use File::Basename;
 
 my $DRYRUN = 0;
@@ -58,7 +58,6 @@ sub install_packages
 {
     my $c = shift;
     my $rval = 0;
-    my $rpm_bin = $c->getval('rpm_bin');
 
     $c->print(2, "checking for new packages");
     my @install = find_packages($c);
@@ -68,16 +67,21 @@ sub install_packages
         my $inst = join (" ", map { basename($_, '.rpm') } @install);
         $c->print(2, "installing packages \[$inst\]");
 
-        unless ($c->getval('c_dryrun'))
+
+        my @result = simple_exec(merge_error => 1,
+                                 exec        => 'rpm',
+                                 args        => ["-U",
+                                                 "--quiet",
+                                                 "--nosignature",
+                                                 "--nodigest",
+                                                 @install],
+                                 c           => $c,
+                                 inert       => 0);
+                                     
+        if ($? > 0)
         {
-            my $cmd = "$rpm_bin -U --quiet --nosignature --nodigest @install";
-            $c->print(4, "[$cmd]");
-            my $result = `$cmd 2>&1`;
-            if ($? > 0)
-            {
-                $c->error("package install failed \[$result\]", 'err');
-                $rval++;
-            }
+            $c->error("package install failed \[".join("", @result)."\]", 'err');
+            $rval++;
         }
     }   
 
@@ -106,8 +110,7 @@ sub install_packages
 #
 sub find_packages {
     my $c = shift;
-    my $rval = 0;
-    my $yumdl_bin = $c->getval('yumdl_bin');
+    my $rval = 0;    
     my %install;
     my @err;
     my %rpmlist;
@@ -125,10 +128,16 @@ sub find_packages {
     $rpmlist{sprintf('%s-%s', @rpm[0..1])} = undef;
     $rpmlist{$rpm[0]} = undef;
 
-	
-    my $cmd = "$yumdl_bin --urls --resolve -e0 -d0 @{$c->getvals('packages')}";
-    $c->print(4, "yumdl_bin command: [$cmd]");
-    foreach my $x (`$cmd 2>&1`)
+    my @yumdl_res = simple_exec(merge_error => 1,
+                                exec => 'yumdl',
+                                inert => 1,
+                                args => ["--urls",
+                                         "--resolve",
+                                         "-e0",
+                                         "-d0",
+                                         @{$c->getvals('packages')}]);
+     
+    foreach my $x (@yumdl_res)
     {
         unless ($x =~ m/\.rpm$/)
         {
@@ -149,7 +158,7 @@ sub find_packages {
     }
     if ($?)
     {
-        $c->error("yumdl_bin failed: $!", 'crit');
+        $c->error("yumdl failed: $!", 'crit');
         $shoot_self_in_head++;
     }
     if (scalar @err > 0)
@@ -165,8 +174,7 @@ sub clean_packages
 {
     my $c = shift;
     my $rval = 0;
-    my $rpm_bin = $c->getval('rpm_bin');
-
+    
     # strip off yum-style package.arch architectures for anything
     # we'd install
     my @packages;
@@ -184,17 +192,21 @@ sub clean_packages
         my $remv = join (" ", @remove);
         $c->print(2, "removing packages \[$remv\]");
 
-        unless ($c->getval('c_dryrun'))
+        my @result = simple_exec(merge_error => 1,
+                                 exec        => 'rpm',
+                                 args        => ["-e",
+                                                 "--allmatches",
+                                                 $remv],
+                                 c           => $c,
+                                 inert       => 0);
+                                     
+        if ($? > 0)
         {
-            my $result = `$rpm_bin -e --allmatches $remv 2>&1`;
-            if ($? > 0)
-            {
-                $c->error("package removal failed \[$result\]", 'err');
-                $rval++;
-            }
+            $c->error("package removal failed \[".join("", @result)."\]", 'err');
+            $rval++;
         }
     }
-
+}
 return $rval ? PLUGIN_ERROR : PLUGIN_SUCCESS;
 }
 

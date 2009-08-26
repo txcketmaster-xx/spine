@@ -45,7 +45,7 @@ use File::Spec::Functions;
 use IO::Handle;
 use IPC::Open3;
 use Spine::RPM;
-use Spine::Util qw(mkdir_p);
+use Spine::Util qw(mkdir_p create_exec simple_exec);
 
 my $DRYRUN = 0;
 
@@ -54,6 +54,12 @@ sub install_packages
     my $c = shift;
     my $rval = 0;
     my $packages = $c->getvals("packages");
+    
+    unless ($packages) {
+        $c->error('no "packages" key defined', 'crit');
+        return PLUGIN_FATAL;
+    }
+    
     $DRYRUN = $c->getval('c_dryrun');
 
     apt_exec($c, 'autoclean', '', 0) or $rval++;
@@ -74,7 +80,7 @@ sub install_packages
 sub apt_exec
 {
     my ($c, $apt_func, $apt_func_args, $run_test) = @_;
-    my $aptget_bin = $c->getval("aptget_bin");
+    
     my @aptget_args = ();
 
     if ($DRYRUN)
@@ -99,7 +105,7 @@ sub apt_exec
 
         my $apt_conf_ovrl = catfile($overlay, qw(etc apt));
 
-        push @aptget_args, '--option Dir=' . $c->getval('c_tmpdir');
+        push @aptget_args, '--option', 'Dir=' . $c->getval('c_tmpdir');
 
         #
         # Simple loop to allow us to add command line switches easily.  We
@@ -130,8 +136,8 @@ sub apt_exec
     {
 	$c->print(2, "testing $apt_func");
 
-        my @apt_cmd = ($aptget_bin, @aptget_args, '--dry-run', $apt_func,
-                       $apt_func_args);
+        my @apt_cmd = (@aptget_args, '--dry-run',
+                       $apt_func, $apt_func_args);
 
         my $out = _exec_apt($c, $apt_func, \@apt_cmd);
 
@@ -152,7 +158,7 @@ sub apt_exec
     {
         $c->print(2, "applying $apt_func");
 
-        my @apt_cmd = ($aptget_bin, @aptget_args, '-qq', $apt_func,
+        my @apt_cmd = (@aptget_args, '-qq', $apt_func,
                        $apt_func_args);
 
         unless (defined(_exec_apt($c, $apt_func, \@apt_cmd)))
@@ -179,51 +185,45 @@ sub _exec_apt
         # The plus sign is so that we actually call the shift function
         @cmdline = @{ +shift };
     }
-
-    my $cmdline = join(' ', @cmdline);
-    $c->print(5, "Command line is: $cmdline");
-
-    # Reset our fh handles
-    my $stdin  = new IO::Handle();
-    my $stdout = new IO::Handle();
-    my $stderr = new IO::Handle();
-
+    
+    # NOTE: there is a split in the bellow lines because of an
+    #       apt-get 'feature'.
+    #          - If you pass arguments to apt-get as a single
+    #            argv then open3 splits it and it works.
+    #          - If you split them all out it also works.
+    #          - If you do a mixture it apt-get gets very upset.
+    # NOTE: passing blank arguments causes strange apt-get errors
+    #       like "E: Line 1 too long in source list" (it lies)
+    # rpounder Tue Aug 25 2009
     #
-    # IPC::Open3::open3() is stupid.  If the filehandles you pass in are
-    # IO::Handle objects and the command to run is pass in as an array,
-    # it won't exec the command line properly.  However, if you join() it
-    # head of time, it'll run just fine.  So broken.
-    #
-    # rtilder    Tue Apr 10 09:27:46 PDT 2007
-    #
-    eval { $pid = open3($stdin, $stdout, $stderr, $cmdline); };
-
-    if ($@)
-    {
-        $c->error("Some sort of exec'ing problem with apt-get: $@", 'err');
-        return undef;
+    my @fixed_cmdline;
+    foreach my $cmdpart (@cmdline) {
+        push (@fixed_cmdline, split(' ', $cmdpart)) unless ($cmdpart eq '');
     }
 
-    # Siphon off output and error data so we can then waitpid() to reap
-    # the child process
-    $stdin->close();
+    my $exec_c = create_exec(inert => 1,
+                             c     => $c,
+                             exec  => 'apt-get',
+                             args  => \@fixed_cmdline);
 
-    my @foo = $stdout->getlines();
-    $stdout = [@foo];
-
-    @foo = $stderr->getlines();
-    $stderr = [@foo];
-
-    my $rc = waitpid($pid, 0);
-
-    if ($rc != $pid)
+    unless ($exec_c->start())
     {
         $c->error('apt-get failed to run it seems', 'err');
         return undef;
     }
+    
+    $exec_c->closeinput();
+    
+    my @foo = $exec_c->readlines();
+    my $stdout = [@foo];
+    
+    @foo = $exec_c->readerrorlines();
+    my $stderr = [@foo];
 
+    $exec_c->wait();
+   
     # If there was an error, print it out
-    if ($? >> 8 != 0)
+    if ($exec_c->exitstatus() >> 8 != 0)
     {
         my $errormsg = extract_apt_error($c, $stderr);
 
@@ -241,7 +241,7 @@ sub _exec_apt
 
         if ($verb > 2)
         {
-            $c->error("failed command \[$cmdline\]", 'err');
+            $c->error("failed command \[".join(" ", "apt-get", @cmdline)."\]", 'err');
         }
 
         return undef;
@@ -322,7 +322,7 @@ sub clean_packages
     my $c = shift;
     my $rval = 0;
     my $rpm_bin = $c->getval('rpm_bin');
-    my $rpm_opts = $c->getval('rpm_opts') || qq('');
+    my $rpm_opts = $c->getval('rpm_opts') || '';
 
     # apt understands package.arch but RPM does not. The Spine RPM module
     # uses the "name" tag from the installed RPM and compares that to the 
@@ -350,10 +350,16 @@ sub clean_packages
 
 	unless ($c->getval('c_dryrun'))
 	{
-	    my $result = `$rpm_bin -e $rpm_opts $remv 2>&1`;
+        my @result = simple_exec(merge_error => 1,
+                                 exec        => 'rpm',
+                                 args        => ["-e",
+                                                 $rpm_opts,
+                                                 $remv],
+                                 c           => $c,
+                                 inert       => 0);
 	    if ($? > 0)
 	    {
-	        $c->error("package removal failed \[$result\]", 'err');
+	        $c->error("package removal failed \[". join("",@result) . "\]", 'err');
 	        $rval++;
 	    }
 	}

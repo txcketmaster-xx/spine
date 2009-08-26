@@ -52,9 +52,15 @@ sub descend_order
 {
     my $c = shift;
 
+    my $policy = $c->getvals('policy_hierarchy');
+    unless ($policy) {
+        $c->error('no "policy_hierarchy" key defined.', 'crit');
+        return PLUGIN_FATAL;
+    }
+
     # Walk the policy_hierarchy key and build full list by processing 
     # any "include" or "config/include" files we find.
-    foreach my $dir (@{$c->{policy_hierarchy}}) {
+    foreach my $dir (@{$policy}) {
         push @{$c->{c_hierarchy}}, get_includes($c, $dir);
     }
 

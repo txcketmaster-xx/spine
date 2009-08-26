@@ -335,9 +335,9 @@ sub retrieve
     my $self = shift;
     my $release = shift;
     my $retrieve = "$self->{URL}?a=gimme&release=$release";
-
+    my $file = "spine-config-$release.iso.gz";
     # Check to see if we have it cached locally first
-    my $cached = $self->{_cache}->get("spine-config-$release.iso.gz");
+    my $cached = $self->{_cache}->get($file);
 
     if ($cached)
     {
@@ -360,11 +360,13 @@ sub retrieve
         $self->error("Invalid content type for response in ISO9660::retrieve($release): $ctype");
         goto retrieve_error;
     }
-
-    # It's shame that there isn't a method in the URI class that'll give you
-    # the file name.
-    my @f = split(m|/|, $resp->base->path);
-    my $file = pop @f;
+    
+    # Since the Cache code currently only loads spine-config-$release.iso.gz
+    # this code has been removed. 
+    ## It's shame that there isn't a method in the URI class that'll give you
+    ## the file name.
+    #my @f = split(m|/|, $resp->base->path);
+    #$file = pop @f;
 
     if (not defined($self->{_cache}->add(Buffer => $resp->content,
                                          Filename => $file)))

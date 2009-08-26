@@ -33,6 +33,7 @@ use strict;
 package Spine::Plugin::Finalize;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -48,7 +49,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
           };
 
 
-my ($DRYRUN, $GRUBBY) = (0, '/sbin/grubby');
+my $DRYRUN = 0;
 
 sub boot_loader_config
 {
@@ -64,8 +65,7 @@ sub boot_loader_config
     my $kernel_cmdline_max = $c->getval('kernal_cmdline_max') || qq(256);
 
     $DRYRUN = $c->getval('c_dryrun');
-    $GRUBBY = $c->getval('grubby_bin');
-
+    
     #
     # First: we gather the information we want from the running kernel and
     # existing /boot/grub/grub.conf
@@ -109,8 +109,8 @@ sub boot_loader_config
             # kernel on the filesystem
             if ( ($kernel_version_full) and (-f $kernel_file) )
             {
-                if (run_grubby($c, 'could not set default kernel',
-                               "--set-default=${kernel_file}", '2>&1'))
+                if (run_grubby($c, 'could not set default kernel', 0,
+                               "--set-default=${kernel_file}"))
                 {
                     return PLUGIN_ERROR;
                 }
@@ -212,16 +212,16 @@ sub boot_loader_config
         my $current_args = $grub_default_info->{args};
         $current_args =~ s/'/\\'/;
 
-        $rval += run_grubby($c, 'could not clear kernel args',
+        $rval += run_grubby($c, 'could not clear kernel args', 0,
                             "--update-kernel=${kernel_file}",
-                            "--remove-args='${current_args}'", '2>&1');
+                            "--remove-args='${current_args}'");
 
         # Add the args we want back in
         $new_kernel_args =~ s/'/\\'/;
 
-        $rval += run_grubby($c, 'could not set kernel args',
+        $rval += run_grubby($c, 'could not set kernel args',0,
                             "--update-kernel=${kernel_file}",
-                            "--args='${new_kernel_args}'", '2>&1');
+                            "--args='${new_kernel_args}'");
     }
 
     if ( get_current_cmdline() ne $new_kernel_args )
@@ -239,12 +239,20 @@ sub get_grub_default_kernel
     my $c = shift;
     my $info = {};
 
-    my $default_kernel = `${GRUBBY} --default-kernel 2>/dev/null`;
+    my ($default_kernel) = simple_exec(merge_error => 1,
+                                       args        => "--default-kernel",
+                                       exec        => 'grubby',
+                                       inert       => 1,
+                                       c           => $c);
     chomp($default_kernel);
 
     # Fetch our bootloader info via grubby before we mangle the $default_kernel
     # variable a smidge
-    my @data = `${GRUBBY} --info=${default_kernel} 2> /dev/null`;
+    my @data = simple_exec(exec        => 'grubby',
+                           args        => "--info=${default_kernel}",
+                           merge_error => 1,
+                           inert       => 1,
+                           c           => $c);
 
     # Stash the original value before we start mucking with it.
     $info->{default_kernel} = $default_kernel;
@@ -355,13 +363,18 @@ sub run_grubby
 {
     my $c = shift;
     my $msg = shift;
+    my $inert = shift;
     my $opts = join(' ', @_);
 
-    my $result = `${GRUBBY} ${opts}`;
+    my @result = simple_exec(merge_error => 1,
+                             exec        => 'grubby',
+                             inert       => $inert,
+                             args        => [ @_ ],
+                             c           => $c);
 
     if (($? >> 8) > 0)
     {
-        $c->error("${msg} \[$result\]", 'err');
+        $c->error("${msg} \[".join("", @result)."\]", 'err');
     }
 
     return $? >> 8;

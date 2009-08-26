@@ -469,7 +469,7 @@ sub _build_user_map
     #
 
     my %user_map;
-    foreach (@{$c->getvals('allowed_unix_users')}) {
+    foreach (@{$c->getvals('allowed_unix_users') || []}) {
         my ($key,$val,$extra) = split(/:/);
         #$c->error("Found pair: $key $val",'debug');
         if ($extra ne '') {
@@ -576,7 +576,7 @@ sub _sanity_check_user_map
     # The restructure of auth won't catch this at parse-time, and if we don't
     # catch it here, we have undefined behavior.
     #
-    foreach my $line (@{$c->getvals('allowed_unix_users')}) {
+    foreach my $line (@{$c->getvals('allowed_unix_users') || []}) {
         my ($key, $val) = split(':', $line, 2);
 
         # We don't have to check for 3 colons, we've already checked for it
@@ -730,7 +730,7 @@ sub _build_group_map
 
     # First, walk through the allowed_unix_groups to initially populate our
     # group map
-    foreach my $group (@{$c->getvals('allowed_unix_groups')}) {
+    foreach my $group (@{$c->getvals('allowed_unix_groups') || []}) {
         unless (exists($group_map{$group})) {
             $group_map{$group} = {};
         }

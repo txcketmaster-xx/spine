@@ -674,7 +674,10 @@ sub get_source
         if (not defined($source)) {
             print STDERR 'Failed to initialize config root from command line:'
                 . " $Spine::ConfigSource::FileSystem::ERROR\n";
-            print STDERR "Falling back to configuration file settings.\n";
+            #XXX: I don't think we want to fall back to the config if the
+            #     the caller requested us to use something else
+            goto failure;
+            #print STDERR "Falling back to configuration file settings.\n";
         }
     }
     # If --config-source was provided, use that.

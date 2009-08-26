@@ -24,6 +24,7 @@ use strict;
 package Spine::Plugin::SystemInfo;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
+use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
@@ -58,7 +59,7 @@ use File::Spec::Functions;
 use IO::File;
 use NetAddr::IP;
 use RPM2;
-
+use Spine::Util qw(resolve_address);
 
 #
 # This should really be a much more generic in terms of populating data about
@@ -75,7 +76,10 @@ sub get_sysinfo
 
     $c->cprint('retrieving system information', 3);
 
-    my $platform = `uname`;
+    my ($platform) = simple_exec(c     => $c,
+                                 exec  => 'uname',
+                                 inert => 1);
+                               
     chomp $platform;
     $platform = lc($platform);
 
@@ -83,28 +87,24 @@ sub get_sysinfo
     {
         # Grab the network_device_map key contents as a hash so we can walk it
         # more quickly
-        my %devs = @{$c->getvals('network_device_map')};
+        my $devmap = $c->getvals('network_device_map');
+        my %devs;
+        if ($devmap) {
+            %devs = @{$devmap};
+        } else {
+            $c->error('the "c_netcard" key will be "unknown" as '.
+                        'no "network_device_map" key has been defined',
+                      'warn');
+        }
+        
 
         # We walk the PCI bus to determine which network card we have
-        my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
-        my $fh;
-        if (-f $lspci and -x $lspci)
-        {
-            $fh = new IO::File("$lspci |");
-        }
-        else
-        {
-            $c->error("$lspci not found or not executable!", 'err');
-            return PLUGIN_FATAL;
-        }
-
-        if (not defined($fh))
-        {
-            $c->error("Failed to run $lspci: $!", 'err');
-            return PLUGIN_FATAL;
-        }
-
-        foreach my $line (<$fh>)
+        my @lspci_res = simple_exec(c     => $c,
+                                    exec  => 'lspci',
+                                    inert => 1);
+        return PLUGIN_FATAL unless ($? == 0);
+        
+        foreach my $line (@lspci_res)
         {
             next unless ($line =~ m/Ethernet/);
             # FIXME  This is kind of dumb.  We don't provide any kind of
@@ -112,43 +112,34 @@ sub get_sysinfo
             while (my ($re, $card) = each(%devs)) {
                 $netcard = $card if ($line =~ m/$re/);
             }
-	}
-        $fh->close();
-	$netcard = 'unknown' unless $netcard;
-
-        my $ifconfig = $c->getval('ifconfig_bin') || qq(/sbin/ifconfig);
-        my $cmd = $ifconfig . ' eth' . $iface;
-        if (-f $ifconfig and -x $ifconfig)
-        {
-            $fh->open("$cmd |");
         }
-        else
-        {
-            $c->error("$ifconfig not found or not executable!", 'err');
+        $netcard = 'unknown' unless $netcard;
+
+        unless (defined $iface) {
+            $c->error('no "primary_iface" key defined', 'crit');
             return PLUGIN_FATAL;
         }
 
-        if (not defined($fh))
-        {
-            $c->error("Failed to run $cmd: $!", 'err');
-            return PLUGIN_FATAL;
-        }
+        my @ifconfig_res = simple_exec(c     => $c,
+                                       exec  => 'ifconfig',
+                                       args  => 'eth' . $iface,
+                                       inert => 1);
+        return PLUGIN_FATAL unless (@ifconfig_res);
 
-	foreach my $line (<$fh>)
-	{
-	    if ($line =~
-		m/
-		\s*inet\s+addr:(\d+\.\d+\.\d+\.\d+)
-		\s*Bcast:(\d+\.\d+\.\d+\.\d+)
-		\s*Mask:(\d+\.\d+\.\d+\.\d+)
-		/xi )
-	    {
+        foreach my $line (@ifconfig_res)
+        {
+            if ($line =~
+                m/
+                \s*inet\s+addr:(\d+\.\d+\.\d+\.\d+)
+                \s*Bcast:(\d+\.\d+\.\d+\.\d+)
+                \s*Mask:(\d+\.\d+\.\d+\.\d+)
+                /xi )
+            {
                 $ip_address = $1;
-		$bcast = $2;	
+                $bcast = $2;        
                 $netmask = $3;
-	    }
+            }
         }
-        $fh->close();
     }
 
     $c->{c_platform} = $platform;
@@ -162,7 +153,9 @@ sub get_sysinfo
     return PLUGIN_SUCCESS;
 }
 
-
+# TODO replace this with something more generic
+#      expecting there to be a network directory doesn't
+#      make sense.
 sub get_netinfo
 {
     my $c = shift;
@@ -170,25 +163,42 @@ sub get_netinfo
 
     $c->print(3, 'examining local network');
 
+    # First lets get the IP address in DNS for our hostname.
+    $c->{c_ip_address} = resolve_address("$c->{c_hostname}");
+    unless ($c->{c_ip_address}) {
+        $c->error("Unable to resolve IP address for \"$c->{c_hostname}\"",
+                  'crit');
+        return PLUGIN_FATAL;
+    }
+
+    # Now we need a more usable form of the IP address.
     my ($subnet, $network, $netmask, $bcast, @nets);
     my $nobj = new NetAddr::IP($c->getval('c_ip_address'));
 
     # FIXME  Incorrect and confusing error message here
     unless (defined($nobj)) {
-        $c->error("No IP address found for \"$c->{c_hostname_f}\"", 'err');
+        $c->error("Error interpreting IP \"$c->{c_hostname}\" (NetAddr::IP)",
+                  'crit');
         return PLUGIN_FATAL;
     }
+     
+    # it will all fall apart if this in not there so lets
+    # make life easy for the user and let them know.
+    if ( ! -d "${c_root}/network/" ) {
+        $c->error("no \"$c_root/network\" config directory exists.", 'crit');
+        return PLUGIN_FATAL;
+    }        
 
     # Populate an ordered hierarchy of networks that our address is a member
     # of
 
     foreach my $net (<${c_root}/network/*>)
     {
-	next unless ($net !~ m/^(?:\d{1,3}\.){3}(?:\d{1,3})-\d{1,2}/);
-	$net = basename($net);
-	$net =~ s@-@/@g;
+        next unless ($net !~ m/^(?:\d{1,3}\.){3}(?:\d{1,3})-\d{1,2}/);
+        $net = basename($net);
+        $net =~ s@-@/@g;
 
-	my $sobj = new NetAddr::IP($net);
+        my $sobj = new NetAddr::IP($net);
 
         unless (defined($sobj)) {
             $net =~ s@/@-@g;
@@ -196,7 +206,7 @@ sub get_netinfo
             return PLUGIN_FATAL
         }
 
-	if ($nobj->within($sobj)) {
+        if ($nobj->within($sobj)) {
             push @nets, $sobj;
         }
     }
@@ -207,7 +217,9 @@ sub get_netinfo
 
     my $nobj = @nets[-1];
     unless (ref($nobj) eq 'NetAddr::IP') {
-        $c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
+        $c->error("unable to find a matching network within \"${c_root}/network/\"",
+                     " for \"$c->{c_ip_address}\"",
+                  'crit');
         return PLUGIN_FATAL;
     }
 
@@ -227,8 +239,9 @@ sub get_netinfo
 
     unless (defined $c->{c_subnet})
     {
-	$c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
-	return PLUGIN_FATAL;
+        $c->error("error caculating subnet for \"$c->{c_ip_address}\" ".
+                      "using \"network/$nets[-1]\"", 'crit');
+        return PLUGIN_FATAL;
     }
 
     return PLUGIN_SUCCESS;
@@ -256,24 +269,13 @@ sub is_virtual
 
         return PLUGIN_SUCCESS;
     }
+    my @lspci_res = simple_exec(c     => $c,
+                                exec  => 'lspci',
+                                args  => '-n',
+                                inert => 1);
+    return PLUGIN_FATAL unless ($? == 0);
 
-    # We actually have to parse the lspci output now.
-    my $lspci = $c->getval('lspci_bin') || qq(/sbin/lspci);
-    my $fh;
-
-    if (-f $lspci and -x $lspci) {
-        $fh = new IO::File("$lspci -n |");
-    } else {
-        $c->error("$lspci not found or not executable!", 'err');
-        return PLUGIN_FATAL;
-    }
-
-    if (not defined($fh)) {
-        $c->error("Failed to run $lspci: $!", 'err');
-        return PLUGIN_FATAL;
-    }
-
-    foreach my $line (<$fh>) {
+    foreach my $line (@lspci_res) {
         # 15ad is the PCI vendor ID for VMWare
         #
         # rtilder   Thu Nov  6 09:45:33 PST 2008
@@ -289,8 +291,6 @@ sub is_virtual
             last;
         }
     }
-
-    $fh->close();
 
     return PLUGIN_SUCCESS;
 }
@@ -310,16 +310,21 @@ sub get_distro
             $release_pkgs = $c->getvals('release_packages');
         }
 
-        if (not $distro_map)
+        unless ($distro_map)
         {
-            $distro_map = $c->getvals('distro_map');
+             $distro_map = $c->getvals('distro_map');
         }
 
-        unless ($release_pkgs and $distro_map)
-        {
-            die 'Either the release_packages or distro_map keys are defined'
-                . 'or are empty!  Not good!';
-        }
+       unless ($release_pkgs and $distro_map) {
+           unless ($release_pkgs) {
+               $c->error("linux_release_packages key is not defined or empty");
+           }
+           unless ($distro_map) {
+                $c->error("linux_distro_map key is not defined or empty");
+           }
+           return PLUGIN_FATAL;
+       }
+
     }
 
     # We need to be certain that we unique-ify the release_pkgs list.
@@ -339,18 +344,21 @@ sub get_distro
 
     my $db = RPM2->open_rpm_db();
 
+    # Used to track if any packages are found
+    # regardless of if thye match the release map
+    my $valid_rel_pkg = 0;
     # Find out what our distro release package is
     foreach my $relpkg (@{$release_pkgs}) {
         my $i = $db->find_by_name_iter($relpkg);
 
         while (my $pkg = $i->next) {
+            $valid_rel_pkg = 1;
             $c->print(3, 'Release package: ', $pkg->as_nvre);
-
             while (my ($k, $v) = each(%release_map)) {
                 if (_pkg_vr($pkg) eq $k) {
                     push @matches, $k;
                     # We assign here instead of keeping a separate list because
-                    # we die if @matches has more than one element
+                    # we error if @matches has more than one element
                     $release_pkg = $relpkg;
                     $c->print(0, "found a distro release package: $k");
                 }
@@ -359,13 +367,23 @@ sub get_distro
     }
 
     if (scalar(@matches) > 1) {
-        die 'Multiple release packages installed.  DANGER!  '
-            . join(' ', @matches);
+        $c->error('Multiple release packages installed.'
+                    . join(' ', @matches), 'crit');
+        return PLUGIN_FATAL;        
     }
 
+    # Were any valid release packages found?
+    unless ($valid_rel_pkg) {
+        $c->error('No release packages found. You need to add a '.
+                  'package name to "linux_release_packages" key.', "crit");
+        return PLUGIN_FATAL;
+    }
+
+    # Did ver match the release versions?
     unless ($release_pkg) {
-        die 'No release matching package found!  Not good!  You probably ' .
-            'need to edit the linux_distro_map key!';
+        $c->error('No matching release found. You need to edit '.
+                  'the "linux_distro_map" key.', "crit");
+        return PLUGIN_FATAL;
     }
 
     my $distro_pkg = pop @matches;
@@ -381,10 +399,6 @@ sub get_distro
     $c->{c_distro_dir} = catfile($c->{c_platform_dir}, $c->{c_distro_release});
 
     $c->print(0, 'configuring as an ', $c->{c_distro}, ' system');
-
-    # FIXME  This is causing the plugin it die.  Weirdness.
-    #
-    #$c->get_configdir($c->{c_distro_dir});
 
     # The RPM DB is "automagically" closed by the RPM2 XS code when it passes
     # from scope(actually via the DESTROY method).  Therefore there it isn't
@@ -429,7 +443,8 @@ sub get_hw_arch
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
 
     if (not defined($cpuinfo)) {
-        die "Coundn't open /proc/cpuinfo: $!";
+        $c->error("Coundn't open /proc/cpuinfo: $!", 'crit');
+        return PLUGIN_FATAL;
     }
 
     while (<$cpuinfo>) {
@@ -454,27 +469,23 @@ sub get_num_procs
 
     $c->{c_num_procs} = 1;
 
-    if (-f GETCONF and -x GETCONF) {
-        $c->{c_num_procs} = `$getconf _NPROCESSORS_ONLN`;
+
+    my $cpuinfo = new IO::File('< /proc/cpuinfo');
+    my $nprocs = 0;
+
+    unless (defined($cpuinfo)) {
+        $c->error('Failed to open /proc/cpuinfo', 'err');
+        return PLUGIN_FATAL;
     }
-    else {
-        my $cpuinfo = new IO::File('< /proc/cpuinfo');
-        my $nprocs = 0;
 
-        unless (defined($cpuinfo)) {
-            $c->error('Failed to open /proc/cpuinfo', 'err');
-            return PLUGIN_FATAL;
-        }
-
-        # Try to determine the number of processors
-        while(<$cpuinfo>) {
-            $nprocs++ if m/^processor\s+:\s+\d+/i;
-        }
-
-        $cpuinfo->close();
-
-        $c->{c_num_procs} = $nprocs;
+    # Try to determine the number of processors
+    while(<$cpuinfo>) {
+        $nprocs++ if m/^processor\s+:\s+\d+/i;
     }
+
+    $cpuinfo->close();
+
+    $c->{c_num_procs} = $nprocs;
 
     return PLUGIN_SUCCESS;
 }
@@ -487,8 +498,6 @@ sub get_hardware_platform
 {
 
     my $c = shift;
-    my $dmidecode = $c->getval('dmidecode_bin') || qq(/usr/sbin/dmidecode);
-    my $fh;
 
     # If we are are running on a virtual system just return the 
     # the virtual_type
@@ -498,26 +507,14 @@ sub get_hardware_platform
     }
     else
     {
-        if (-f $dmidecode and -x $dmidecode)
-        {
-            $fh = new IO::File("$dmidecode |");
-        }
-        else
-        {
-            $c->error("$dmidecode not found or not executable!" , 'err');
-            return PLUGIN_FATAL;
-        }
-
-        if (not defined($fh))
-        {
-            $c->error("Failed to run $dmidecode: $!", 'err');
-            return PLUGIN_FATAL;
-        }
+        my @dmidecode_res = simple_exec(exec  => 'dmidecode',
+                                        inert => 1);
+        return PLUGIN_FATAL unless ($? == 0);
 
         my $sys_section = 0;
         my $hardware_platform = 'UNKNOWN';
 
-        foreach my $line (<$fh>)
+        foreach my $line (@dmidecode_res)
         {
             # We need to find the "Product Name:" key under 'DMI type 1'
             # (which is the "System Information" section).
@@ -539,7 +536,6 @@ sub get_hardware_platform
             # If we enter another DMI section we are done.
             last if ($sys_section and $line =~ m/DMI type/i);
         }
-        $fh->close();
 
         $c->{c_hardware_platform} = $hardware_platform;
     }

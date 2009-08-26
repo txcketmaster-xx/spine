@@ -32,14 +32,19 @@ use File::stat;
 use File::Temp;
 use Net::DNS;
 use Template;
+use Scalar::Util;
+use Spine::Util::Exec;
+use Scalar::Util qw(blessed);
 
 use Spine::Constants qw(:basic);
 
 our ($VERSION, @EXPORT_OK, @EXPORT_FAIL);
 
 @EXPORT_OK = qw(mkdir_p makedir safe_copy touch resolve_address do_rsync
-                exec_command exec_initscript octal_conv uid_conv gid_conv);
+                exec_command exec_initscript octal_conv uid_conv gid_conv
+                find_exec simple_exec create_exec);
 @EXPORT_FAIL = qw(_old_do_rsync);
+
 
 
 sub mkdir_p
@@ -47,11 +52,16 @@ sub mkdir_p
     my $dir = shift;
     my $perm = shift || 0755;
 
-    my $part;
-    for my $piece (split(/\//, $dir))
+    # it has to be absolute
+    unless (file_name_is_absolute($dir)) {
+        return 0;
+    }
+    
+    my $part = "";
+    for my $piece (File::Spec->splitdir($dir))
     {
-        $part = $part . "/" . $piece;
-        $part =~ s@//@/@g;
+        die if (! defined $dir);
+        $part = File::Spec->catdir($part, $piece);
         # Save our umask and wipe it so permissions are absolute
         my $mask = umask oct(0000);
         mkdir($part, $perm) unless (-d "$dir");
@@ -70,23 +80,13 @@ sub mkdir_p
 sub makedir
 {
     my $dir = shift;
-    my $mask = 0777;
-    $mask = shift if @_;
-
-    my $pre = '/';
-    foreach my $stub (split('/',$dir))
-    {
-        next unless $stub;
-        unless (-d "$pre$stub")
-        {
-            unless (mkdir("$pre$stub",$mask))
-            {
-                return 0;
-            }
-        }
-        $pre = $pre . $stub . '/';
+    my $perm = shift || 0777;
+    
+    if (mkdir_p($dir, $perm)) {
+        return $dir;
     }
-    return $dir;
+    
+    return 0;
 }
 
 
@@ -141,7 +141,6 @@ sub do_rsync
     my ($tmpfh, $tmpfn);
 
     # Should eventually be replaced with File::Rsync.
-    my $rsync_bin = $c->getval("rsync_bin");
     my @rsync_opts;
 
     #
@@ -201,16 +200,17 @@ sub do_rsync
 	$tmpfh->close();
 	push @rsync_opts, "--exclude-from=$tmpfn"
     }
+   
+    my @result = simple_exec(c           => $c,
+                             exec        => 'rsync',
+                             merge_error => 1,
+                             args        => [@rsync_opts,
+                                             $args{Source},
+                                             $args{Target}]);
 
-    my $rsync_opts = join(' ', @rsync_opts);
-    my $cmd = "$rsync_bin $rsync_opts $args{Source} $args{Target} 2>&1";
-    $c->cprint("rsync command: \"$cmd\"", 4);
-
-    my $result = `$cmd`;
-
-    unless ($? == 0)
-    {
-        $c->error("rsync failed from $args{Source} [$result]", "err");
+    unless ($? == 0) {
+        $c->error("rsync failed from $args{Source} [".join("", @result)."]",
+                  "err");
         unlink($tmpfn);
         return SPINE_FAILURE;
     }
@@ -220,7 +220,7 @@ sub do_rsync
     # Hand back the output for processing if requested
     if (defined($args{Output}) and ref($args{Output}) eq 'SCALAR')
     {
-        ${$args{Output}} = $result;
+        ${$args{Output}} = join("", @result);
     }
 
     unlink($tmpfn);
@@ -231,33 +231,51 @@ sub do_rsync
 sub exec_initscript
 {
     my ($c, $service, $function, $report_error) = @_;
-    return 1 if $c->getval('c_dryrun');
 
-    my $service_bin = $c->getval("service_bin");
-
-    my $result = `$service_bin $service $function 2>&1`;
-    if ($? > 0 and $report_error > 0)
-    {
-        $c->error("failed to $function $service", 'err');
-        return 0;
-    }
+    return 0 unless simple_exec(c      => $c,
+                                exec   => 'service',
+                                args   => [ $service,  $function ],
+                                inert  => 0,
+                                quiet  => $report_error ? 0 : 1);
     return 1;
 }
 
-
-sub exec_command
-{
-    my ($c, $command, $report_error) = @_;
-    return 1 if $c->getval('c_dryrun');
-
-    my $result = `$command 2>&1`;
-    if ($? > 0 and $report_error > 0)
-    {
-        $c->error("failed to execute $command", 'err');
-        return 0;
-    }
-    return 1;
+# wraper to Spine::Util::Exec::simple
+sub simple_exec {
+    return  Spine::Util::Exec->simple(@_);
 }
+
+# wraper to Spine::Util::Exec::new
+sub create_exec {
+    return  Spine::Util::Exec->new(@_);
+}
+
+# wraper to Spine::Util::Exec::find_exec
+sub find_exec {
+    return  Spine::Util::Exec->find_exec(@_);
+}
+
+# DEPRECIATE: for support of old implementation (used in templates)
+sub exec_command {
+    my ($c, $command, $report_error, $inert, $merror) = @_;
+    
+    # Work out what the command is vs arguments
+    $command =~ m/^([\S]+)(?:\s+(.*))?$/;
+    my ($cmd, $args) = ($1, $2);
+    
+    #TODO This should be uncommented in a few releases time
+    #$c->error('use of depreciated "exec_command" please use "simple_exec"',
+    #          'warning');
+
+    return simple_exec(exec        => $cmd,
+                       args        => $args,
+                       inert       => $inert,
+                       quiet       => $report_error ? 0 : 1,
+                       c           => $c,
+                       merge_error => defined $merror ? $merror : 1);
+    
+}
+
 
 
 sub octal_conv
@@ -283,5 +301,7 @@ sub gid_conv
     return $group if (defined $group);
     return $gid;
 }
+
+
 
 1;

@@ -48,10 +48,9 @@ sub restart_services
 {
     my $c = shift;
     my $rval = 0;
+    my %rshash;
 
     my $start_time = $c->getval('c_start_time');
-    my $service_bin = $c->getval('service_bin');
-
     my $startup = $c->getvals('startup');
     my $restart_deps = $c->getvals('restart_deps');
     my $touch = File::Touch->new( no_create => 1 );
@@ -68,22 +67,23 @@ sub restart_services
 
     foreach my $entry (@{$restart_deps})
     {
-	my ($service, $command, @file_dependancies);
-        my $take_action = 0;
+	my ($command, $key, $service);
+	my @file_dependancies;
 	my @fields = split(/:/, $entry);
 
 	# Backwards compatibility with service-only restarts.
 	# We'll assume that any restart dep which begins with
 	# a "/" in field1 references a command rather than service.
+
 	if ($fields[0] =~ /\//)
 	{
+	    $service = "";
 	    $command = shift @fields;
-        }
+	}
 	else
 	{
 	    $service = shift @fields;
 	    $command = shift @fields;	
-
 	    next unless grep(/^${service}$/i, @{$startup});
 	}
 
@@ -96,12 +96,19 @@ sub restart_services
             @file_dependancies = map { glob($_) } @fields;
         }
 
-        foreach my $file ( @file_dependancies )
+        my $key = join(':', $service, $command);
+        push(@{$rshash{$key}}, @file_dependancies);
+    }
+
+    foreach my $key (sort keys %rshash) 
+    {
+        my $take_action = 0;
+        my ($service, $command) = split(/:/, $key);
+
+        foreach my $file ( @{$rshash{$key}} )
         {
             next unless (-f "$file");
-
             my $sb = stat($file);
-
             if ($sb->mtime >= $start_time)
             {
                 $take_action = 1;
@@ -123,7 +130,7 @@ sub restart_services
                 exec_command($c, $command, 1)
 		    or $rval++;
 	    }
-            $touch->touch(@file_dependancies);
+            $touch->touch(@{$rshash{$key}});
         }
     }
 

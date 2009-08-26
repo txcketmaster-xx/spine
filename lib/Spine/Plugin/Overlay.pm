@@ -51,7 +51,7 @@ use File::Touch;
 use Fcntl qw(:mode);
 use IO::File;
 use Spine::Constants qw(:basic);
-use Spine::Util qw(do_rsync mkdir_p octal_conv uid_conv gid_conv);
+use Spine::Util qw(simple_exec do_rsync mkdir_p octal_conv uid_conv gid_conv);
 use Text::Diff;
 
 my $DRYRUN;
@@ -78,7 +78,7 @@ sub build_overlay
 
     $DRYRUN = $c->getval('c_dryrun');
 
-    remove_tmpdir($tmpdir);
+    remove_tmpdir($c, $tmpdir);
     unless (mkdir_p($tmpdir, 0755))
     {
         # Return a fatal error to the caller.
@@ -90,11 +90,19 @@ sub build_overlay
     unlink $tmplink if (-l $tmplink);
     symlink $tmpdir, $tmplink;
 
+    my $descend_order = $c->getvals("c_descend_order");
+    unless ($descend_order) {
+        $c->error("nothing in the descend order so no overlays to process",
+                  'warn');
+        return PLUGIN_SUCCESS;
+    }
+    
     # This is a for loop instead of a foreach because I want to manipulate the
     # $dir variable without affecting the Spine::Data object's data members
     #
     # rtilder    Tue Dec 19 14:11:38 PST 2006
-    for my $dir ( @{$c->getvals("c_descend_order")} )
+    #
+    for my $dir ( @{$descend_order})
     {
         my @overlay_map = ('overlay:/');
         if ( exists $c->{'overlay_map'} )
@@ -103,8 +111,8 @@ sub build_overlay
         }
         for my $element ( @overlay_map )
         {
-            (my $overlay, my $target) = split( /:/, $element);
-            my $overlay = "${dir}/${overlay}/";
+            my ($overlay, $target) = split( /:/, $element);
+            $overlay = "${dir}/${overlay}/";
 
             unless (file_name_is_absolute($dir)) {
                 $overlay = catfile($croot, $overlay);
@@ -166,8 +174,8 @@ sub apply_overlay
 
     if ($overlay_root eq '')
     {
-        $c->error('overlay_root key does not exist, no changes will be'
-                    . 'applied!', 'alert');
+        $c->error('overlay_root key does not exist, no changes will be '
+                    . 'applied!', 'warn');
     }
 
     unless (-d $tmpdir)
@@ -335,7 +343,7 @@ sub clean_overlay
         return PLUGIN_SUCCESS;
     }
 
-    $rc = remove_tmpdir($tmpdir);
+    $rc = remove_tmpdir($c, $tmpdir);
     unlink $tmplink;
 
     return PLUGIN_SUCCESS;
@@ -344,13 +352,18 @@ sub clean_overlay
 
 sub remove_tmpdir
 {
+    my $c = shift;
     my $tmpdir = shift;
 
     # rm -rf paranoia.
     if ( ($tmpdir =~ m@^/tmp/.*@) and ($tmpdir =~ m@[^\.~]*@) )
     {
-	my $result = `/bin/rm -rf $tmpdir 2>&1`;
-	return 1;
+        my $result = simple_exec(merge_error => 1,
+	                             exec        => 'rm',
+	                             inert       => 1,
+	                             c           => $c,
+	                             args        => "-rf $tmpdir");;
+        return 1;
     }
 
     return 0;
