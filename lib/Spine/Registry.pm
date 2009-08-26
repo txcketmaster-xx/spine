@@ -25,6 +25,7 @@ package Spine::Registry;
 use base qw(Spine::Singleton Exporter);
 use Carp qw(cluck);
 use Spine::Constants qw(:basic :plugin);
+use Spine::Chain;
 
 our ($VERSION, $DEBUG, @EXPORT, @EXPORT_OK);
 
@@ -84,7 +85,6 @@ sub create_hook_point
         debug(5, "\tCreating hook point \"$new_point\"");
 
         if (exists($registry->{POINTS}->{$new_point})) {
-            error("Attempt to register existing hook point: \"$new_point\"");
             next;
         }
 
@@ -196,7 +196,7 @@ sub register_plugin
     # We register command line stuff first because it's possible that the
     # hook points supported by this particular plugin don't exist.
 
-    # Register this plugin's command line options
+    # Register this plugins command line options
     if (exists($module->{cmdline})) {
         unless ($registry->add_option($module_name, $module->{cmdline})) {
             error("Failed to register command line for \"$module_name\""),
@@ -204,21 +204,17 @@ sub register_plugin
         }
     }
 
-    if (0) {
-        # Register this plugin's hooks so that other hooks can manipulate them
-        # iffin theys wants to.
-        foreach my $hook_point (keys(%{$module->{hooks}})) {
-            # Make sure we don't have erroneous parameters for the hook point
-            unless (exists($registry->{POINTS}->{$hook_point})) {
-                debug(5, "Invalid hook point name: $hook_point");
-                debug(5, 'Skipping.');
-                next;
-            }
-
-            # Install the new hooks
-            $registry->{POINTS}->{$hook_point}->install_hook($module_name,
-                                                             $module);
+    # Register this plugin's hooks so that other hooks can manipulate them
+    foreach my $hook_point (keys(%{$module->{hooks}})) {
+        unless (exists($registry->{POINTS}->{$hook_point})) {
+	    # we create unknown hook points so they don't have to
+            # be created before the plugin is loaded
+	    $registry->create_hook_point($hook_point);
         }
+
+        # Install the new hooks
+        $registry->{POINTS}->{$hook_point}->install_hook($module_name,
+                                                         $module);
     }
 
     return SPINE_SUCCESS;
@@ -408,7 +404,7 @@ sub new
                        owner => $args{'caller'} ? $args{'caller'} : undef,
                        parameters => $args{parameters} ? $args{parameters} : [],
                        states => {},
-                       hooks => [],
+                       hooks => new Spine::Chain,
                        status => SPINE_NOTRUN,
                        registered => SPINE_NOTRUN }, $klass;
 
@@ -470,7 +466,7 @@ sub install_hook
         $self->debug(5, "\t\tRegistering hook at \"$self->{name}\": ",
                      $hook->{name});
 
-        unless ($self->add_hook($module_name, $hook->{name}, $hook->{code})) {
+        unless ($self->add_hook($module_name, $hook)) {
             $self->error("Failed to add hook \"${module}::$hook->{name}\" ",
                          "to \"$self->{name}\"");
             return PLUGIN_ERROR;
@@ -480,12 +476,26 @@ sub install_hook
     return SPINE_SUCCESS;
 }
 
+sub head
+{
+    return $_[0]->{hooks}->head;
+}
+ 
+sub next
+{
+    if (UNIVERSAL::isa($_[0], 'Spine::Registry::HookPoint')) {
+        shift;
+    }
+    return wantarray ? ($_[0]->{next}, $_[0]->{data}) : $_[0]->{next};
+}
+
+
 
 sub add_hook
 {
     my $self = shift;
 
-    my ($module, $name, $code_ref) = @_;
+    my ($module, $h) = @_;
 
     # If $module is a reference to a Spine::Plugin object, convert it to a
     # string we can use for better error reporting.
@@ -494,12 +504,21 @@ sub add_hook
     }
 
     my $hook = { module => $module,
-                 name => $name,
-                 code => $code_ref,
+                 name => $h->{name},
+                 code => $h->{code},
                  rc => PLUGIN_ERROR,
                  msg => undef };
 
-    push @{ $self->{hooks} }, $hook;
+
+    $self->{hooks}->add(
+        name => $h->{name},
+        data => $hook,
+        provides => exists $h->{provides} ? $h->{provides} : undef,
+        requires => exists $h->{requires} ? $h->{requires} : undef,
+        position => exists $h->{position} ? $h->{position} : undef,
+        successors => exists $h->{successors} ? $h->{successors} : undef,
+        predecessors => exists $h->{predecessors} ? $h->{predecessors} : undef
+    );
 
     return SPINE_SUCCESS;
 }
@@ -538,7 +557,7 @@ sub run_hooks_until {
     }
 
     my (@results, $rc);
-    foreach my $hook (@{$self->{hooks}}) {
+    foreach my $hook ($self->head()) {
         $rc = $self->run_hook($hook, @_);
 
         # Allow the caller to see what happend to every hook

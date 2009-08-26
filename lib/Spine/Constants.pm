@@ -49,6 +49,12 @@ use constant PLUGIN_FATAL => PLUGIN_ERROR | PLUGIN_EXIT;
 # this should never be returned from a plugin only used to match
 use constant PLUGIN_STOP => PLUGIN_FATAL | PLUGIN_FINAL;
 
+use constant {
+    HOOK_START => CHAIN_START,
+    HOOK_MIDDLE => CHAIN_MIDDLE,
+    HOOK_END => CHAIN_END,
+};
+
 $tmp = [qw(CHAIN_START CHAIN_MIDDLE CHAIN_END)];;
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{chain} = $tmp;
@@ -58,7 +64,10 @@ $tmp = [qw(PLUGIN_ERROR
            PLUGIN_FATAL
            PLUGIN_STOP
            PLUGIN_FINAL
-           PLUGIN_SUCCESS)];
+           PLUGIN_SUCCESS
+	   HOOK_START
+	   HOOK_MIDDLE
+	   HOOK_END)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{plugin} = $tmp;
 

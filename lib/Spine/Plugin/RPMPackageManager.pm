@@ -43,7 +43,6 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 use File::Spec::Functions;
 use IO::Handle;
-use IPC::Open3;
 use Spine::RPM;
 use Spine::Util qw(mkdir_p create_exec simple_exec);
 
