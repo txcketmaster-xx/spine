@@ -150,7 +150,14 @@ sub populate
     # discovery and therefore parsing of the tree.
     $self->cprint("retrieving base settings", 3);
     $self->{c_internals_dir} = 'spine_internals';
-    $self->_get_values($self->{c_internals_dir});
+    unless ($self->_get_values($self->{c_internals_dir}, 1)) {
+        $self->error('error parsing config within "' .
+                       $self->{c_internals_dir} . '"', 'crit');
+        # Without this nothing much will work, so rather
+        # then letting the user find out by an indirectly
+        # related error we stop now.
+        return SPINE_FAILURE;
+    }
 
     my @dir_list = (ref($self->{'spine_local_internals_dirs'}) eq 'ARRAY')
         ? @{$self->{'spine_local_internals_dirs'}}
@@ -179,7 +186,10 @@ sub populate
     }
 
     # We *always* parse the top level config directory
-    $self->_get_values($self->{c_croot});
+    unless ($self->_get_values($self->{c_croot} , 1)) {
+        $self->error('error parsing root config', 'crit');
+        return SPINE_FAILURE;
+    }
 
     # HOOKME  Discovery: policy selection
     #
@@ -303,6 +313,7 @@ sub _get_values
 {
     my $self = shift;
     my $directory = shift;
+    my $fatal_if_missing = shift;
     my $keys_dir = $self->getval_last('config_keys_dir') || 'config';
     
     unless (defined $directory) {
@@ -315,8 +326,15 @@ sub _get_values
     # It's perfectly OK to have an overlay-only tree or directory in the
     # descend order that is only a hierachical organizer that doesn't require
     # any config variables be set
+    # XXX: unless fatal_if_missing it true
     unless (-d $directory) {
-            return SPINE_SUCCESS;
+        if ($fatal_if_missing) {
+            $self->error("_get_values(): \" " . $self->{c_croot} .
+                            "/$directory\" does not exists",
+                         'crit');
+            return SPINE_FAILURE
+        }
+        return SPINE_SUCCESS;
     }
 
     # Iterate through each file in a hierarchial endpoint and
@@ -765,11 +783,8 @@ sub get_configdir
         return SPINE_SUCCESS;
     }
 
-    # It is not alright if the directory exists but is empty
-    #
-    # rtilder    Wed Jul  5 10:52:05 PDT 2006
     if (not $self->_get_values($branch)) {
-        $self->error("required directory [$branch] is empty or has errors",
+        $self->error("required directory [$branch] has errors",
                      'err');
         return SPINE_FAILURE;
     }

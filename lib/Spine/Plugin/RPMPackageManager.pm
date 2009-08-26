@@ -54,6 +54,12 @@ sub install_packages
     my $c = shift;
     my $rval = 0;
     my $packages = $c->getvals("packages");
+    
+    unless ($packages) {
+        $c->error('no "packages" key defined', 'crit');
+        return PLUGIN_FATAL;
+    }
+    
     $DRYRUN = $c->getval('c_dryrun');
 
     apt_exec($c, 'autoclean', '', 0) or $rval++;

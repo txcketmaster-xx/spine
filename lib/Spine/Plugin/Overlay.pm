@@ -90,11 +90,19 @@ sub build_overlay
     unlink $tmplink if (-l $tmplink);
     symlink $tmpdir, $tmplink;
 
+    my $descend_order = $c->getvals("c_descend_order");
+    unless ($descend_order) {
+        $c->error("nothing in the descend order so no overlays to process",
+                  'warn');
+        return PLUGIN_SUCCESS;
+    }
+    
     # This is a for loop instead of a foreach because I want to manipulate the
     # $dir variable without affecting the Spine::Data object's data members
     #
     # rtilder    Tue Dec 19 14:11:38 PST 2006
-    for my $dir ( @{$c->getvals("c_descend_order")} )
+    #
+    for my $dir ( @{$descend_order})
     {
         my @overlay_map = ('overlay:/');
         if ( exists $c->{'overlay_map'} )
@@ -166,8 +174,8 @@ sub apply_overlay
 
     if ($overlay_root eq '')
     {
-        $c->error('overlay_root key does not exist, no changes will be'
-                    . 'applied!', 'alert');
+        $c->error('overlay_root key does not exist, no changes will be '
+                    . 'applied!', 'warn');
     }
 
     unless (-d $tmpdir)

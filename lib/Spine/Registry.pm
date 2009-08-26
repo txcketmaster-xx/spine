@@ -544,17 +544,17 @@ sub run_hooks_until {
         # Allow the caller to see what happend to every hook
         push @results, [ $hook->{name}, $rc , $hook];
 
-        if ($rc & PLUGIN_ERROR) {
-            $c->error("ERROR while running hook ".
-                      "\"$hook->{module}::$hook->{name}\" for ".
-		      "\"$self->{name}\"", "warn");
-            $errors++;
-        }
-        elsif (($rc & PLUGIN_FATAL) == PLUGIN_FATAL) {
+        if (($rc & PLUGIN_FATAL) == PLUGIN_FATAL) {
             $c->error("FATAL error while running hook ".
                       "\"$hook->{module}::$hook->{name}\" ".
 		      "for \"$self->{name}\"", "crit");
             $fatal++;
+        }
+        elsif ($rc & PLUGIN_ERROR) {
+            $c->error("ERROR while running hook ".
+                      "\"$hook->{module}::$hook->{name}\" for ".
+		      "\"$self->{name}\"", "warn");
+            $errors++;
         }
 
         if ($until & $rc) {

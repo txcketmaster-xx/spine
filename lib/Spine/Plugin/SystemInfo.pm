@@ -87,7 +87,16 @@ sub get_sysinfo
     {
         # Grab the network_device_map key contents as a hash so we can walk it
         # more quickly
-        my %devs = @{$c->getvals('network_device_map')};
+        my $devmap = $c->getvals('network_device_map');
+        my %devs;
+        if ($devmap) {
+            %devs = @{$devmap};
+        } else {
+            $c->error('the "c_netcard" key will be "unknown" as '.
+                        'no "network_device_map" key has been defined',
+                      'warn');
+        }
+        
 
         # We walk the PCI bus to determine which network card we have
         my @lspci_res = simple_exec(c     => $c,
@@ -105,6 +114,11 @@ sub get_sysinfo
             }
         }
         $netcard = 'unknown' unless $netcard;
+
+        unless (defined $iface) {
+            $c->error('no "primary_iface" key defined', 'crit');
+            return PLUGIN_FATAL;
+        }
 
         my @ifconfig_res = simple_exec(c     => $c,
                                        exec  => 'ifconfig',
@@ -139,7 +153,9 @@ sub get_sysinfo
     return PLUGIN_SUCCESS;
 }
 
-
+# TODO replace this with something more generic
+#      expecting there to be a network directory doesn't
+#      make sense.
 sub get_netinfo
 {
     my $c = shift;
@@ -149,6 +165,11 @@ sub get_netinfo
 
     # First lets get the IP address in DNS for our hostname.
     $c->{c_ip_address} = resolve_address("$c->{c_hostname}");
+    unless ($c->{c_ip_address}) {
+        $c->error("Unable to resolve IP address for \"$c->{c_hostname}\"",
+                  'crit');
+        return PLUGIN_FATAL;
+    }
 
     # Now we need a more usable form of the IP address.
     my ($subnet, $network, $netmask, $bcast, @nets);
@@ -156,9 +177,17 @@ sub get_netinfo
 
     # FIXME  Incorrect and confusing error message here
     unless (defined($nobj)) {
-        $c->error("No IP address found for \"$c->{c_hostname}\"", 'err');
+        $c->error("Error interpreting IP \"$c->{c_hostname}\" (NetAddr::IP)",
+                  'crit');
         return PLUGIN_FATAL;
     }
+     
+    # it will all fall apart if this in not there so lets
+    # make life easy for the user and let them know.
+    if ( ! -d "${c_root}/network/" ) {
+        $c->error("no \"$c_root/network\" config directory exists.", 'crit');
+        return PLUGIN_FATAL;
+    }        
 
     # Populate an ordered hierarchy of networks that our address is a member
     # of
@@ -188,7 +217,9 @@ sub get_netinfo
 
     my $nobj = @nets[-1];
     unless (ref($nobj) eq 'NetAddr::IP') {
-        $c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
+        $c->error("unable to find a matching network within \"${c_root}/network/\"",
+                     " for \"$c->{c_ip_address}\"",
+                  'crit');
         return PLUGIN_FATAL;
     }
 
@@ -208,7 +239,8 @@ sub get_netinfo
 
     unless (defined $c->{c_subnet})
     {
-        $c->error("network for IP \"$c->{c_ip_address}\" is not defined", 'err');
+        $c->error("error caculating subnet for \"$c->{c_ip_address}\" ".
+                      "using \"network/$nets[-1]\"", 'crit');
         return PLUGIN_FATAL;
     }
 
@@ -278,16 +310,21 @@ sub get_distro
             $release_pkgs = $c->getvals('release_packages');
         }
 
-        if (not $distro_map)
+        unless ($distro_map)
         {
-            $distro_map = $c->getvals('distro_map');
+             $distro_map = $c->getvals('distro_map');
         }
 
-        unless ($release_pkgs and $distro_map)
-        {
-            die 'Either the release_packages or distro_map keys are defined'
-                . 'or are empty!  Not good!';
-        }
+       unless ($release_pkgs and $distro_map) {
+           unless ($release_pkgs) {
+               $c->error("linux_release_packages key is not defined or empty");
+           }
+           unless ($distro_map) {
+                $c->error("linux_distro_map key is not defined or empty");
+           }
+           return PLUGIN_FATAL;
+       }
+
     }
 
     # We need to be certain that we unique-ify the release_pkgs list.
@@ -307,18 +344,21 @@ sub get_distro
 
     my $db = RPM2->open_rpm_db();
 
+    # Used to track if any packages are found
+    # regardless of if thye match the release map
+    my $valid_rel_pkg = 0;
     # Find out what our distro release package is
     foreach my $relpkg (@{$release_pkgs}) {
         my $i = $db->find_by_name_iter($relpkg);
 
         while (my $pkg = $i->next) {
+            $valid_rel_pkg = 1;
             $c->print(3, 'Release package: ', $pkg->as_nvre);
-
             while (my ($k, $v) = each(%release_map)) {
                 if (_pkg_vr($pkg) eq $k) {
                     push @matches, $k;
                     # We assign here instead of keeping a separate list because
-                    # we die if @matches has more than one element
+                    # we error if @matches has more than one element
                     $release_pkg = $relpkg;
                     $c->print(0, "found a distro release package: $k");
                 }
@@ -327,13 +367,23 @@ sub get_distro
     }
 
     if (scalar(@matches) > 1) {
-        die 'Multiple release packages installed.  DANGER!  '
-            . join(' ', @matches);
+        $c->error('Multiple release packages installed.'
+                    . join(' ', @matches), 'crit');
+        return PLUGIN_FATAL;        
     }
 
+    # Were any valid release packages found?
+    unless ($valid_rel_pkg) {
+        $c->error('No release packages found. You need to add a '.
+                  'package name to "linux_release_packages" key.', "crit");
+        return PLUGIN_FATAL;
+    }
+
+    # Did ver match the release versions?
     unless ($release_pkg) {
-        die 'No release matching package found!  Not good!  You probably ' .
-            'need to edit the linux_distro_map key!';
+        $c->error('No matching release found. You need to edit '.
+                  'the "linux_distro_map" key.', "crit");
+        return PLUGIN_FATAL;
     }
 
     my $distro_pkg = pop @matches;
@@ -349,10 +399,6 @@ sub get_distro
     $c->{c_distro_dir} = catfile($c->{c_platform_dir}, $c->{c_distro_release});
 
     $c->print(0, 'configuring as an ', $c->{c_distro}, ' system');
-
-    # FIXME  This is causing the plugin it die.  Weirdness.
-    #
-    #$c->get_configdir($c->{c_distro_dir});
 
     # The RPM DB is "automagically" closed by the RPM2 XS code when it passes
     # from scope(actually via the DESTROY method).  Therefore there it isn't
@@ -397,7 +443,8 @@ sub get_hw_arch
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
 
     if (not defined($cpuinfo)) {
-        die "Coundn't open /proc/cpuinfo: $!";
+        $c->error("Coundn't open /proc/cpuinfo: $!", 'crit');
+        return PLUGIN_FATAL;
     }
 
     while (<$cpuinfo>) {
