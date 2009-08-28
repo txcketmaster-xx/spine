@@ -20,7 +20,7 @@
 # (C) Copyright Ticketmaster, Inc. 2007
 #
 
-my $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+our $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 use strict;
 
