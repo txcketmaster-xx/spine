@@ -65,9 +65,9 @@ $tmp = [qw(PLUGIN_ERROR
            PLUGIN_STOP
            PLUGIN_FINAL
            PLUGIN_SUCCESS
-	   HOOK_START
-	   HOOK_MIDDLE
-	   HOOK_END)];
+           HOOK_START
+           HOOK_MIDDLE
+           HOOK_END)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{plugin} = $tmp;
 

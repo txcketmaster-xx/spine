@@ -75,8 +75,8 @@ sub mkdir_p
     return 0;
 }
 
-# Routine that creates directory, default mask 0777 - used for making
-# mountpoints
+# Routine that creates directory, default mask 0777
+# DEPRECIATED, should use mkdir_p
 sub makedir
 {
     my $dir = shift;

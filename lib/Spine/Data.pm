@@ -29,7 +29,7 @@ use File::Basename;
 use File::Spec::Functions;
 use IO::Dir;
 use IO::File;
-use Spine::Constants qw(:basic);
+use Spine::Constants qw(:basic :plugin);
 use Spine::Registry;
 use Spine::Util;
 use Sys::Syslog;
@@ -117,10 +117,6 @@ sub _data
             $rc = SPINE_FAILURE;
         }
     }
-
-    # Clean up our Template instance to make certain that we don't have any
-    # interference with any later ones
-    $KEYTT = undef;
 
     chdir($cwd);
     return $rc;
@@ -407,369 +403,27 @@ sub _read_keyfile
 {
     my $self = shift;
     my ($file, $keyname) = @_;
-    my ($obj, $template, $complex, $buf) = ([], undef, undef, '');
 
-    # If the file is a relative path and doesn't exist, try an absolute
-    unless (-f $file) {
-        unless (file_name_is_absolute($file)) {
-            $file = catfile($self->{c_croot}, $file);
-
-            unless (-f $file) {
-                $self->error("Couldn't find file \"$file\"", 'crit');
-                return undef;
-            }
-        }
-    }
-
-    unless (-r $file) {
-        $self->error("Can't read file \"$file\"", 'crit');
+    # parse the key
+    # HOOKME Parselet expansion
+    my $registry = new Spine::Registry;
+    my $point = $registry->get_hook_point('PARSE/key');
+    my $obj = {
+               file => $file,
+               keyname => $keyname
+    };
+    
+    my (undef, $rc, undef) = $point->run_hooks_until(PLUGIN_STOP, $self, $obj);
+ 
+    # TODO Report Errors
+    if ($rc == PLUGIN_FATAL) {
+        # XXX: is it ok to warn here? Will probably help the user.
+        $self->error("could not parse the \"$keyname\" key ($file)", 'warn');
         return undef;
     }
 
-    # Open a file, read/parse the contents of a file
-    # line by line and store the results in a scalar.
-    my $fh = new IO::File("<$file");
-
-    unless (defined($fh)) {
-        $self->error("Failed to open \"$file\": $!", 'crit');
-        return undef;
-    }
-
-    # I hate this structure so much
-    (undef, $PARSER_FILE) = split(/^$self->{c_croot}/, $file, 2);
-    $self->print(4, "reading key $file");
-
-  LINE: while(<$fh>)
-    {
-        $PARSER_LINE = $fh->input_line_number();
-
-        $_ = $self->_convert_lame_to_TT($_);
-
-        # YAML and JSON key files need to have their first line formatted
-        # specifically, it is then discarded (if it isn't, the JSON
-        # parser throws a syntax error and blows up spine, the YAML
-        # parser just gums up the name of the first item)
-        if ($PARSER_LINE == 1 and m/^#?%(YAML\s+\d+\.\d+|JSON)/o)
-        {
-            $complex = $1;
-            $buf = join('', <$fh>);
-            $template = 1 if (not defined($template) and $buf =~ m/\[%.+/o);
-            last LINE;
-        }
-
-        # Ignore comments and blank lines.
-        if (m/^\s*$/o or m/^\s*#/o) {
-            next LINE;
-        }
-
-        $template = 1 if (not defined($template) and m/\[%.+/o);
-
-        $buf .= $_;
-    }
-
-    $fh->close();
-
-    # Pass it to TT
-    if (defined($template)) {
-        $buf = $self->_templatize_key($buf);
-    }
-
-    # _templatize_key() handles error reporting
-    unless (defined($buf)) {
-        return undef;
-    }
-
-    # Lastly, we parse the key if it's a complex one
-    if (defined($complex)) {
-        $obj = $self->_parse_complex_key($buf, $file, $complex);
-    }
-    else {
-        $obj = [split(m/\n/o, $buf)];
-    }
-
-    # _parse_complex_key() handles error reporting
-    unless (defined($obj)) {
-        return undef;
-    }
-
-    return $self->_evaluate_key($obj, $keyname);
+    return $obj->{obj};
 }
-
-
-#
-# _convert_lame_to_TT tweaks the lame ass TT-like MATCH syntax I created with
-# actual TT logic so that it can all be processed by TT directly.
-#
-sub _convert_lame_to_TT
-{
-    my $self = shift;
-    my $line = shift;
-
-    # If it's not one of our lame syntax lines, just return it
-    unless ($line =~ m/^\[%(\s*)(IF|MATCH|ELSIF)\s+(.+\s*)+%\]\s*$/o) {
-        return $line;
-    }
-
-    my $new  = "[\%$1"; # $1 should be the amount of whitespace
-    $new .= ($2 eq 'MATCH' or $2 eq 'IF') ? 'IF' : 'ELSIF';
-    $new .= ' ';
-    my $criteria = $3;
-
-    # If there isn't a semi-colon, it's not one of ours
-    unless ($criteria =~ qr/;\s*/) {
-        return $line;
-    }
-
-    my @querystring = split(/;\s*/, $criteria);
-    my @conditions;
-
-    foreach my $condition (@querystring) {
-        my ($var, $regex) = split(/=/, $condition, 2);
-
-        push @conditions, "c.$var.search('$regex')";
-    }
-
-    $new .= join(' AND ', @conditions);
-    $new .= " \%]\n";
-    return $new;
-}
-
-
-#
-# Provides the same functionality as
-# http://template-toolkit.org/docs/manual/VMethods.html#method_search but on
-# a list of scalars
-#
-sub _TT_list_search
-{
-    my ($list, $pattern) = @_;
-    my $rc = 0;
-
-    return undef unless defined($list) and defined($pattern);
-
-    foreach my $str (@{$list}) {
-        $rc++ if $str =~ qr/$pattern/o;
-    }
-
-    return $rc;
-}
-
-
-#
-# Throws a TT exception for ease of tracking
-#
-sub _TT_hash_search
-{
-    die (Template::Exception->new('Spine::Data',
-                                  'Attempting to call search() on a complex config key'));
-}
-
-
-#
-# Process a key file's contents as a template
-#
-# TODO:
-#
-#   - Make it possible for plugins to register $ttdata key/value pairs
-#   - Ditto for registering TT virtual methods from plugins
-#
-sub _templatize_key
-{
-    my $self = shift;
-    my $template = shift;
-    my $output = shift;
-    my $ttdata = { c => $self };
-
-    unless (defined($output) and ref($output)) {
-        # For some reason, trying to do:
-        #  $output = \$output;
-        #
-        #  sets $output to a circular reference.  LAME!
-        my $wtf = "";
-        $output = \$wtf;
-    }
-
-    unless (defined($KEYTT)) {
-        Template::Stash->define_vmethod('list', 'search', \&_TT_list_search);
-        Template::Stash->define_vmethod('hash', 'search', \&_TT_hash_search);
-
-        $KEYTT = new Template( { CACHE_SIZE => 0 } );
-    }
-
-    # Note the $template is passed in as a reference to make sure it isn't
-    # mistaken for a filename
-    unless (defined($KEYTT->process(\$template, $ttdata, $output))) {
-        $self->error("could not process templatized key $PARSER_FILE: "
-                     . $KEYTT->error(), 'err');
-        return undef;
-    }
-
-    return ${$output};
-}
-
-
-#
-# Reads YAML and JSON style keys
-#
-sub _parse_complex_key
-{
-    my $self = shift;
-    my $fh   = shift;
-    my $file = shift;
-    my $method = shift || 'YAML 1.0';
-
-    my $obj = undef;
-    my $buf = undef;
-
-    #
-    # Determine what kind if input we have
-    #
-    if (ref($fh)) {
-        if (UNIVERSAL::isa($fh, 'IO::Handle')) {
-            $buf = join('', <$fh>);
-        }
-        elsif (UNIVERSAL::isa($fh, 'SCALAR')) {
-            $buf = ${$fh};
-        }
-        else {
-            $self->error('Invalid object passed to _parse_complex_key: '
-                         . ref($fh), 'crit');
-            return undef;
-        }
-    }
-    elsif (ref(\$fh) eq 'SCALAR') {
-        $buf = $fh;
-    }
-    else {
-        $self->error('Invalid object passed to _parse_complex_key: '
-                     . $fh, 'crit');
-        return undef;
-    }
-
-    #
-    # Now actually try to parse the key
-    #
-    if ($method =~ m/^JSON$/o)
-    {
-        $obj = JSON::Syck::Load($buf);
-    }
-    elsif ($method =~ m/^YAML\s+(\d+\.\d+)$/o)
-    {
-        # Only the YAML v1.0 specification is supported by any YAML parsers
-        # as yet.
-        if ($1 eq '1.0')
-        {
-            $obj = YAML::Syck::Load($buf);
-        }
-        else
-        {
-            $self->error("Invalid YAML version for $file: $1 != 1.0", 'crit');
-        }
-    }
-    else
-    {
-        $self->error("Invalid keyfile format in $file: \"$method\"", 'crit');
-    }
-
-    unless (defined($obj))
-    {
-        $self->error("Failed to load $file!", 'crit');
-    }
-
-    return $obj; # $obj may be undefined here
-}
-
-
-# This is where the fun starts!
-#
-# If we have a reference to a list and the target is a reference to a list
-# then we treat it as an old style config key honouring the old school
-# operators.
-#
-# Otherwise, we don't do anything.  For the moment.
-#
-sub _evaluate_key
-{
-    my $self = shift;
-    my $obj  = shift;
-    my $keyname = shift;
-
-    my $obj_type = ref($obj);
-
-    unless ($obj_type) {
-        $self->error('Non-reference object passed in for evaluation', 'crit');
-        return undef;
-    }
-
-    # Let's handle non-array references first for now.
-    unless ($obj_type eq 'ARRAY') {
-        #if (defined($keyname)) {
-            if (exists($self->{$keyname})) {
-                $self->print(0, "$keyname already exists and is a \"",
-                             ref($self->{$keyname}), '".  Replacing with a "',
-                             $obj_type, '"');
-            }
-        #}
-
-        return $obj;
-    }
-
-    # Handle original style keys and their control characters appropriately
-    #if (defined($keyname)) {
-        if (exists($self->{$keyname})) {
-            my $existing = ref($self->{$keyname});
-            unless ($existing eq 'ARRAY') {
-                $self->error("Mismatched types for $keyname: It seems that "
-                             . "you're trying to use a list on a \""
-                             . lc($existing) . '"', 'crit');
-                return undef;
-            }
-        } else {
-            # Don't create empty keys
-            if ($keyname) {
-                $self->{$keyname} = [];
-            }
-        }
-    #}
-
-    my @final;
-
-    # Now walk the list looking for control characters and interpreting
-    # where necessary.  Otherwise, just append it to the list
-    foreach (@{$obj}) {
-        # Ignore comments and blank lines.
-        if (m/^\s*$/o or m/^\s*#/o) {
-            next;
-        }
-
-        # We allow several metacharacters to manipulate
-        # pre-existing values in a key.  -regex removes
-        # matching values for the key in question.
-        if ($keyname && m/^-(.*)$/o) {
-            next unless defined @{$self->{$keyname}};
-
-            my $rm_regex = $1;
-            @{$self->{$keyname}} = grep(!/$rm_regex/, @{$self->{$keyname}});
-
-            next;
-        }
-
-        # If equals (=) is the first and only character of
-        # a line, clear the array.  This is used to set
-        # absolute values.
-        elsif ($keyname && m/^=\s*$/o) {
-            delete $self->{$keyname} if defined($keyname);
-            next;
-        }
-
-        # If there isn't a control character, just append it.
-        #push @{$self->{$keyname}}, $_;
-        push @final, $_;
-    }
-
-    return \@final;
-}
-
 
 sub get_configdir
 {
@@ -963,7 +617,7 @@ sub set
     #
     # This is ok as long as we're in a key template instance but it's not ok
     # if we're in an overlay template instance.  Ain't life grand?
-    if ($in_template and not defined($KEYTT)) {
+    if ($in_template and not defined($Spine::Plugin::Template::KEYTT)) {
         $self->error("We've got an overlay template that's trying to call "
                      . "Spine::Data::set($key).  This is bad.");
         die (Template::Exception->new('Spine::Data::set()',

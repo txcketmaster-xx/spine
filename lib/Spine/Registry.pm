@@ -90,7 +90,6 @@ sub create_hook_point
 
         my @caller = caller();
 
-        # FIXME  Do we want a Spine::HookPoint class for decent abstractness?
         my $point = new Spine::Registry::HookPoint(name => $new_point,
                                                    'caller' => \@caller);
 
@@ -204,19 +203,6 @@ sub register_plugin
         }
     }
 
-    # Register this plugin's hooks so that other hooks can manipulate them
-    foreach my $hook_point (keys(%{$module->{hooks}})) {
-        unless (exists($registry->{POINTS}->{$hook_point})) {
-	    # we create unknown hook points so they don't have to
-            # be created before the plugin is loaded
-	    $registry->create_hook_point($hook_point);
-        }
-
-        # Install the new hooks
-        $registry->{POINTS}->{$hook_point}->install_hook($module_name,
-                                                         $module);
-    }
-
     return SPINE_SUCCESS;
 }
 
@@ -325,8 +311,7 @@ sub get_hook_point
 
     foreach my $hook_point (@_) {
         unless (exists($registry->{POINTS}->{$hook_point})) {
-            cluck("Invalid hook point \"$hook_point\"");
-            next;
+            $registry->create_hook_point($hook_point);
         }
 
         push @points, $registry->{POINTS}->{$hook_point};

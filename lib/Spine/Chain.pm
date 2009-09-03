@@ -134,6 +134,18 @@ sub add {
         push @{$item->{provides}}, CHAIN_MIDDLE;
     }
     
+    # If we have seen this name before we remove the first
+    # unless we have been told to merge nodes
+    if (exists $self->{lookup}->{$name}) {
+        unless (exists $self->{settings}->{merge_deps}) {
+            debug(3, "Clearing duplicate item ($name)");
+            $self->remove($name);
+        } else {
+            # Merge nodes
+            $self->_merge($item, $name);
+        }
+    }
+    
     # So to make it easy to position things based on provides and requires
     # we cheat by making two hashes one of what provides and one of
     # what requires and provides the same thing
@@ -148,18 +160,6 @@ sub add {
                 $self->{prov_lookup}->{$_} = [];
             }
             push @{$self->{prov_lookup}->{$_}}, $name;
-        }
-    }
-
-    # If we have seen this name before we remove the first
-    # unless we have been told to merge nodes
-    if (exists $self->{lookup}->{$name}) {
-        unless (exists $self->{settings}->{merge_deps}) {
-            debug(3, "Clearing duplicate item ($name)");
-            $self->remove($name);
-        } else {
-            # Merge nodes
-            $self->_merge($item, $name);
         }
     }
 
