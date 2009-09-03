@@ -20,7 +20,7 @@
 # (C) Copyright Ticketmaster, Inc. 2007
 #
 
-our $VERSION = qq(2.0.2);
+our $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 use strict;
 
@@ -77,17 +77,17 @@ use constant DEFAULT_CONFIG => {
          StandardPlugins => {
             PREPARE => 'PrintData Templates Overlay',
             EMIT => 'Templates Auth',
-            APPLY => 'Overlay RPMPackageManager SystemHarden TweakStartup'
+            APPLY => 'Overlay RPMPackageManager TweakStartup'
                          . ' RestartServices Finalize',
-            CLEAN => 'Overlay RPMPackageManager'
+            CLEAN => 'Overlay RPMPackageManager SystemHarden'
          },
 
         FirstRun => {
             PREPARE => 'PrintData Overlay',
             EMIT => 'FirstRun Templates Auth',
-            APPLY => 'Overlay RPMPackageManager SystemHarden TweakStartup'
+            APPLY => 'Overlay RPMPackageManager TweakStartup'
                          . ' Finalize',
-            CLEAN => 'Overlay',
+            CLEAN => 'Overlay SystemHarden',
         }
     };
 

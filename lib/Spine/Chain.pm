@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Chain.pm $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -39,7 +39,7 @@ use strict;
 use Spine::Constants qw(:basic :chain);
 
 our ($VERSION, @EXPORT_OK, %EXPORT_TAGS);
-$VERSION = sprintf("%d", q$Revision: 195 $ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 my $DEBUG = $ENV{SPINE_CHAIN_DEBUG} || 0;
 

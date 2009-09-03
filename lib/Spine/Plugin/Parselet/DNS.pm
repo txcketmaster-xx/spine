@@ -30,7 +30,7 @@ use Net::DNS;
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $resolver;
 
-$VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Parselet::DNS, Will create an object from DNS";
 
 $MODULE = { author => 'osscode@ticketmaster.com',

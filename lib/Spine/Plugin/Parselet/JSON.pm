@@ -1,7 +1,7 @@
 
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Skeleton.pm 22 2007-12-12 00:35:55Z phil@ipom.com $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -31,7 +31,7 @@ use JSON::Syck;
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;
 
-$VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Parselet::JSON, processes JSON keys";
 
 $MODULE = { author => 'osscode@ticketmaster.com',

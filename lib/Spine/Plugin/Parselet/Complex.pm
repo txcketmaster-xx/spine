@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;
 
 
-$VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 $DESCRIPTION = "Parselet::Complex, detects if the buffer is a complex key";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
