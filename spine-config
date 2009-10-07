@@ -24,7 +24,9 @@ our $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 
 use strict;
 
-use lib q(/usr/lib/spine);
+# Allow users to override but putting at the end
+# rather then 'use lib q(/usr/lib/spine)'
+BEGIN { push @INC, q(/usr/lib/spine) }
 
 my $perl_ver = sprintf "%vd", $^V;
 my $error_count = 0;

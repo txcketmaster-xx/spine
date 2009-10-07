@@ -39,10 +39,10 @@ sub _new_instance
 {
     my $klass = shift;
 
-    return bless { CONFIG => shift,
-                   PLUGINS => {},
-                   POINTS => {},
-                   OPTIONS => {}
+    return bless { CONFIG       => shift,
+                   PLUGINS      => {},
+                   POINTS       => {},
+                   OPTIONS      => {}
                  }, $klass;
 }
 
@@ -92,6 +92,14 @@ sub create_hook_point
 
         my $point = new Spine::Registry::HookPoint(name => $new_point,
                                                    'caller' => \@caller);
+        
+        # Add some standard rules (used for START MIDDLE and END)
+        $point->add_rule(provide  => HOOK_MIDDLE,
+                         succedes => [ HOOK_START ]);
+        $point->add_rule(provide  => HOOK_END,
+                         succedes => [ HOOK_START, HOOK_MIDDLE ]);
+
+
 
         $registry->{POINTS}->{$new_point} = $point;
     }
@@ -367,8 +375,6 @@ sub debug
 }
 
 
-
-
 ##############################################################################
 #
 # Finally needed to create a Spine::Registry::HookPoint class
@@ -493,19 +499,33 @@ sub add_hook
                  code => $h->{code},
                  rc => PLUGIN_ERROR,
                  msg => undef };
-
+ 
+    unless (exists $h->{position}) {
+        $h->{position} = HOOK_MIDDLE;
+    }
+    
+    # position is actually just a provides wiht some rules defined
+    # when this hook point was created.
+    $h->{provides} = [] unless exists $h->{provides};
+    push @{$h->{provides}}, $h->{position};
 
     $self->{hooks}->add(
         name => $h->{name},
         data => $hook,
-        provides => exists $h->{provides} ? $h->{provides} : undef,
+        provides => $h->{provides},
         requires => exists $h->{requires} ? $h->{requires} : undef,
-        position => exists $h->{position} ? $h->{position} : undef,
-        successors => exists $h->{successors} ? $h->{successors} : undef,
-        predecessors => exists $h->{predecessors} ? $h->{predecessors} : undef
+        succedes => exists $h->{succedes} ? $h->{succedes} : undef,
+        precedes => exists $h->{precedes} ? $h->{precedes} : undef
     );
 
     return SPINE_SUCCESS;
+}
+
+# TODO document what this does
+sub add_rule {
+    my $self = shift;
+    
+    return $self->{hooks}->add_provide_rule(@_);
 }
 
 # simple wrapper for run_hooks_until, it will run until
@@ -567,6 +587,17 @@ sub run_hooks_until {
             last;
         }
     }
+    
+    # If this is defined then it will either be a missing requirement
+    # or a loop within the dependancies. Hopefuly this will only be hit
+    # by developers.
+    my $last_err = $self->last_head_error();
+    if (defined $last_err) {
+        $c->error("Issue with hook ordering/requirements, $last_err",
+                  'err');
+        return SPINE_FAILURE;
+    }
+                 
 
     # FIXME: not sure this makes much sense, all this will do is
     #        force register_hooks to run again if there were any errors...
@@ -579,6 +610,10 @@ sub run_hooks_until {
     return (\@results, $rc, ($errors + $fatal));
 }
 
+sub last_head_error {
+    my $self = shift;
+    return $self->{hooks}->last_error();
+}
 
 sub run_hook
 {

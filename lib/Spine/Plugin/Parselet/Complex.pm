@@ -38,7 +38,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             version => $VERSION,
             hooks => { 'PARSE/key' => [ { name => "Complex", 
                                           code => \&check_complex,
-                                          provides => ['complex'] } ],
+                                          provides => ['complex', 'PARSE/key/complex'] } ],
                      },
           };
 

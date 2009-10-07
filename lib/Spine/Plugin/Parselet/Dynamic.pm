@@ -39,8 +39,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             version => $VERSION,
             hooks => { 'PARSE/key' => [ { name => "Dynamic", 
                                           code => \&check_dynamic,
-                                          requires => ['complex'],
-                                          provides => ['dynamic'] } ],
+                                          provides => ['dynamic', 'PARSE/key/dynamic'] } ],
                      },
           };
 

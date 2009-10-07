@@ -50,18 +50,21 @@ sub interpolate
     {
         next if ($key =~ m/^c_/);
 
- 	foreach my $value (@{$c->getvals($key)})
-	{
+        my $keyval = $c->getkey($key);
+        next if (ref($keyval) ne "ARRAY");
+        
+        foreach my $value (@{$keyval})
+        {
             # Ooops.  Need to include digits in the regex for stuff like
             # 'lax1_num_instances' style keys
-	    my $regex = '(?:<\$([\w_-]+)>)';
-	    foreach my $match ( split(/$regex/, $value) )
+            my $regex = '(?:<\$([\w_-]+)>)';
+            foreach my $match ( split(/$regex/, $value) )
             {
-		next unless (exists $c->{$match});
-		my $replace = $c->getval($match);
-		$value =~ s/$regex/$replace/;
-	    }
-	}
+                 next unless (exists $c->{$match});
+                 my $replace = $c->getval($match);
+                 $value =~ s/$regex/$replace/;
+            }
+        }
     }
 
     return PLUGIN_SUCCESS;

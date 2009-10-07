@@ -21,23 +21,16 @@
 #
 use strict;
 #
-# Test that Spine::Registry works as expected
+# Test that Spine::Util works as expected
 use Test::More qw(no_plan);
+use Helpers::Data;
 use File::Spec::Functions;
 use Spine::Constants qw(:basic);
 
-# Create a basic spine core for testing util
-# TODO: move this into somethign that can be included
-use Spine::Data;
-my $conf = {
-    spine => { Profile => "fake_profile" },
-    fake_profile => { },
-};
-my $reg = new Spine::Registry($conf);
-isa_ok($reg, "Spine::Registry");
-my $data = new Spine::Data ( croot => "whatever",
-                             config => $conf,
-                             release => 1);
+my ($data, $reg) = Helpers::Data::new_data_obj();
+isa_ok($data, "Spine::Data");
+
+print "Testing Spine::Util\n";
 
 # Check we can use the module
 BEGIN { use_ok('Spine::Util');

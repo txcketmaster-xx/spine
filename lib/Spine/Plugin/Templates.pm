@@ -39,12 +39,10 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                    code => \&process_templates } ],
                       'PARSE/key' => [ { name => "TT",
                                          code => \&_templatize_key,
-                                         position => HOOK_START,
-                                         # It needs the buffer of data
-                                         requires => ['built_buffer'],
-                                         # But it changes it
-                                         provides => ['built_buffer', 'processed_template'],
-                                        } ],
+                                         # this is a markup parselet
+                                         provides => ['markup',
+                                                      'processed_template'],
+                                        } ]
                      },
             cmdline => { _prefix => 'template',
                          options => {
@@ -60,12 +58,54 @@ use File::Find;
 use File::stat;
 use Fcntl qw(:mode);
 use Template;
+use Template::Stash;
 use File::Spec::Functions;
 
 my $TT = undef;
 our $KEYTT = undef;
 
 our (@TEMPLATES, @IGNORE, $TMPDIR);
+
+# XXX: depreciated as of 2.2
+# XXX: to be removed in 2.3
+# converts the old TT-like MATCH to
+# actual TT logic so that it can all be processed by TT directly.
+# This is based on the origianl _convert_lame_to_TT but works on a multi
+# line scalar not an array element.
+sub _convert_to_TT {
+    my $data = shift;
+    my $legacy = 0;
+    while ( $data->{obj} =~ m/(\[%(\s*)(IF|MATCH|ELSIF)\s+(.+?)%\])/sog ) {
+        my $new_pos = pos($data->{obj});  # This is the pos of the end of match
+        my $data_length = length($1);
+
+        my $new = "[\%$2" . (( $3 eq 'MATCH' or $3 eq 'IF' ) ? 'IF' : 'ELSIF');
+        my $criteria = $4;
+        
+        # If there isn't a semi-colon, it's not one of ours
+        unless ( $criteria =~ qr/;\s*/ ) {
+           next;
+        }
+                
+        my @conditions;
+        foreach my $condition (split( /;\s*/, $criteria )) {
+            push @conditions, (sprintf("c.%s.search('%s')",
+                                       split( /=/, $condition)));
+        }
+
+        $new .= ' ' . join( ' AND ', @conditions ) . " \%]";
+                
+        # Replace within the string
+        substr($data->{obj}, ($new_pos - $data_length), $data_length, $new);
+        # Set the position for the next iteration to after out insert (magic)
+        pos($data->{obj}) = ($new_pos - $data_length) + length($new); 
+        # Take note that this is a legacy key
+        $legacy = 1;
+    }
+    
+    return $legacy;
+}
+
 
 sub process_templates
 {
@@ -309,21 +349,27 @@ sub _templatize_key
     my ($c, $data) = @_;
     my $ttdata = { c => $c };
 
-    # For some reason, trying to do:
-    #  $output = \$output;
-    #
-    #  sets $output to a circular reference.  LAME!
-    my $wtf = "";
-    my $output = \$wtf;
 
+    #  $output = \$output would be a cicular ref (as expected)
+    #  so we have to use another var.
+    my $tmp_var = "";
+    my $output = \$tmp_var;
+
+    # TODO optermize again
     # Has templatization been detected?
-    unless (exists $data->{template}) {
-        return PLUGIN_SUCCESS;
-    }
+    #unless (exists $data->{template}) {
+    #    return PLUGIN_SUCCESS;
+    #}
 
     # Skip refs, only scalars
     if (ref($data->{obj})) {
         return PLUGIN_SUCCESS;
+    }
+    
+    # XXX: remove in version 2.3
+    if (_convert_to_TT($data)) {
+        $c->error("$data->{source} uses depreciated flow control syntax",
+                  "warning");
     }
 
     unless (defined($KEYTT)) {
@@ -337,10 +383,11 @@ sub _templatize_key
     # mistaken for a filename
     unless (defined($KEYTT->process(\$data->{obj}, $ttdata, $output))) {
         # FIXME, implement error reporting
-        ##$self->error("could not process templatized key $PARSER_FILE: "
-        ##             . $KEYTT->error(), 'err');
+        $c->error("could not process templatized key ($data->{source}): "
+                     . $KEYTT->error(), 'err');
         return PLUGIN_ERROR;
     }
+    
     $data->{obj} = ${$output};
     return PLUGIN_SUCCESS;
 }

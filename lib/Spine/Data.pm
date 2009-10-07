@@ -33,13 +33,11 @@ use Spine::Constants qw(:basic :plugin);
 use Spine::Registry;
 use Spine::Util;
 use Sys::Syslog;
-use Template;
+####### TODO refactor this out
 use Template::Exception;
-use Template::Stash;
+#######
 use UNIVERSAL;
 
-use YAML::Syck;
-use JSON::Syck;
 
 our $VERSION = sprintf("%d", q$Revision: 1$ =~ /(\d+)/);
 
@@ -74,8 +72,26 @@ sub new {
             . 'number!';
         return undef;
     }
+        
+    $data_object->_create_hookpoints($registry);    
+                   
+    # XXX Right now, the driver script handles error reporting
+    unless ($data_object->_data() == SPINE_SUCCESS) {
+        $data_object->{c_failure} = 1;
+    }
+    return $data_object;
+}
 
-    # Let's register the hookable points we're going to be running
+
+sub _create_hookpoints
+{
+    my $self = shift;
+    my $registry = shift;
+
+
+    # Let's register the hookable points we're going to be running, we don't 
+    # need to do this as they will be created as needed but it makes it clear
+    # what we expect to use.
 
     # Runtime data discovery.  Basically these are keys that will show up in
     # $c(a.k.a. the "c" object in a template) that aren't parsed out of the
@@ -86,16 +102,61 @@ sub new {
     # The actual parsing of the configball
     $registry->create_hook_point(qw(PARSE/initialize
                                     PARSE/pre-descent
+                                    PARSE/key
                                     PARSE/post-descent
                                     PARSE/complete));
 
-    # XXX Right now, the driver script handles error reporting
-    unless ($data_object->_data() == SPINE_SUCCESS) {
-        $data_object->{c_failure} = 1;
-    }
-    return $data_object;
-}
+    
+    # Since we are the owner of PARSE/key we need to set up some odering rules.
+    # This allow an order to be assimed with a single provide given.
+    # (order bellow)
+    #  -init
+    #      -retrieve
+    #      -markup
+    #      -preprocess (PARSE/key/line)
+    #  - process
+    #      -complex (PARSE/key/complex)
+    #      -dynamic (PARSE/key/dynamic)
+    #      -simple
+    #  - finalize
+    #      -tidy
+    #      -operate
+    my $point = $registry->get_hook_point('PARSE/key');
+    #### init
+    # hooks the provide retrieve also provide init
+    $point->add_rule(provide  => "retrieve",
+                     provides => [ "init" ]);
+    $point->add_rule(provide  => "markup",
+                     provides => [ "init" ],
+                     succedes => [ "retrieve" ]);
+    $point->add_rule(provide  => "preprocess",
+                     provides => [ "init" ],
+                     succedes => [ "retrieve", "markup" ]);
+    #### process
+    # hooks that provide process come after hooks that provide init
+    $point->add_rule( provide  => "process",
+                      succedes => [ "init"] );
+    $point->add_rule( provide  => "complex",
+                      provides => [ "process" ] );
+    $point->add_rule( provide  => "dynamic",
+                      provides => [ "process" ],
+                      succedes => [ "complex" ] );
+    $point->add_rule( provide  => "simple",
+                      provides => [ "process" ],
+                      succedes => [ "complex", "dynamic" ] );                     
+    
+    ### finalize                 
+    # hooks that provide finalize come after hooks the provide init and process
+    $point->add_rule( provide  => "finalize",
+                      succedes => [ "init", "process" ] );
+    $point->add_rule( provide  => "tidy",
+                      provides => [ "finalize" ] );
+    $point->add_rule( provide  => "merge",
+                      provides => [ "finalize" ],
+                      succedes => [ "tidy" ] );
+ 
 
+}
 
 sub _data
 {
@@ -366,14 +427,16 @@ sub _get_values
                                               $keyname);
 
         if (not defined($value)) {
+            if ($fatal_if_missing) {
+                $self->error("_get_values(): \" " . $self->{c_croot} .
+                             "/$keyfile\" parse error",
+                             'crit');
+            }
+            
             return SPINE_FAILURE;
         }
 
-        if (ref($value) eq 'ARRAY') {
-            push(@{$self->{$keyname}}, @{$value});
-        } else {
-            $self->{$keyname} = $value;
-        }
+        $self->{$keyname} = $value;
     }
 
     return SPINE_SUCCESS;
@@ -409,19 +472,17 @@ sub _read_keyfile
     my $registry = new Spine::Registry;
     my $point = $registry->get_hook_point('PARSE/key');
     my $obj = {
-               file => $file,
+               source => "file:$file",
                keyname => $keyname
     };
     
     my (undef, $rc, undef) = $point->run_hooks_until(PLUGIN_STOP, $self, $obj);
  
-    # TODO Report Errors
     if ($rc == PLUGIN_FATAL) {
         # XXX: is it ok to warn here? Will probably help the user.
         $self->error("could not parse the \"$keyname\" key ($file)", 'warn');
         return undef;
     }
-
     return $obj->{obj};
 }
 
@@ -479,6 +540,17 @@ sub getval
     }
 }
 
+# like getval but will always return the key
+# never the first element
+sub getkey
+{
+    my $self = shift;
+    my $key = shift;
+    $self->print(4, "getkey -> $key");
+    return undef unless (exists $self->{$key});
+	return $self->{$key};
+
+}
 
 sub getval_last {
     my $self = shift;
@@ -612,8 +684,10 @@ sub set
         }
     }
 
+
+    ####### TODO refactor this out
     # FIXME   This is pretty lame way to differentiate which context the
-    #         template is running in.
+    #         template is running in. (Perhaps use Hash::Util::lock_hash())
     #
     # This is ok as long as we're in a key template instance but it's not ok
     # if we're in an overlay template instance.  Ain't life grand?
@@ -625,9 +699,7 @@ sub set
                                       "Spine::Data::set($key).  Bad template"));
     }
 
-    if (exists($self->{$key})) {
-        push @{ $self->{$key} }, @_;
-    }
+    
     #
     # If it's a reference of any kind, don't make it an array.  This permits
     # plugins to call $c->set('c_my_plugin', $my_plugin_obj).  ONLY do this if
@@ -637,11 +709,12 @@ sub set
     # while it spewed "Out of memory" to the console.
     #
     # rtilder    Tue Dec 19 15:52:52 PST 2006
-    elsif (ref($_[0]) and scalar(@_) == 1) {
+    if (ref($_[0]) and scalar(@_) == 1) {
         $self->{$key} = $_[0];
-    }
-    else {
-        $self->{$key} = [ @_ ];
+    } elsif (exists($self->{$key})) {
+           push @{ $self->{$key} }, @_;
+    } else {
+            $self->{$key} = [ @_ ];
     }
 
     # TT gets awfully confused by return values

@@ -21,28 +21,14 @@
 #
 use strict;
 #
-# Test that Spine::Registry works as expected
+# Test that Spine::Registry + Spine::Data works as expected
 use Test::More qw(no_plan);
 use Spine::Data;
-
+use Helpers::Data;
 use Spine::Constants qw(:basic :plugin);
 
-# Check we can use the module
-BEGIN { use_ok('Spine::Registry'); }
-require_ok('Spine::Registry');
-
-# Create a fake config object
-my $conf = {
-    spine => { Profile => "fake_profile" },
-    fake_profile => { TestPoint => "TestCase" },
-};
-my $reg = new Spine::Registry($conf);
-isa_ok($reg, "Spine::Registry");
-
-my $data = new Spine::Data ( croot => "whatever",
-                             config => $conf,
-                             release => 1);
-
+my ($data, $reg) = Helpers::Data::new_data_obj();
+isa_ok($data, "Spine::Data");
 
 # Attempt to load the Spine::Plugin::TestCase
 is($reg->load_plugin("TestCase"), SPINE_SUCCESS, "register plugin");
@@ -55,7 +41,7 @@ my $point = $reg->get_hook_point("TestPoint");
 isa_ok($point, "Spine::Registry::HookPoint");
 
 is($point->register_hooks(), SPINE_SUCCESS, "register hooks");
-foreach my $hook (@{$point->{hooks}}) {
+foreach my $hook ($point->head()) {
     ok($hook, "retrive a hook");
     is($point->run_hook($hook, $data, "test_data"),
        PLUGIN_SUCCESS, "run plugin for point");
