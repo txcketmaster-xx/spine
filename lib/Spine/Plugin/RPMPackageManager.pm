@@ -354,11 +354,15 @@ sub clean_packages
 
 	unless ($c->getval('c_dryrun'))
 	{
+            my $result;
             # RPM is stupid and thinks extra spaces are package names.
-            my $result = `$rpm_bin -e $rpm_opts $remv 2>&1`;
             if ( $rpm_opts =~ m/''/ )
             {
                 $result = `$rpm_bin -e $remv 2>&1`;
+            }
+            else
+            {
+                $result = `$rpm_bin -e $rpm_opts $remv 2>&1`;
             }
 	    if ($? > 0)
 	    {
