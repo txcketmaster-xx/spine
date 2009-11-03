@@ -507,7 +507,8 @@ sub get_hardware_platform
     }
     else
     {
-        my @dmidecode_res = simple_exec(exec  => 'dmidecode',
+        my @dmidecode_res = simple_exec(c     => $c,
+                                        exec  => 'dmidecode',
                                         inert => 1);
         return PLUGIN_FATAL unless ($? == 0);
 
