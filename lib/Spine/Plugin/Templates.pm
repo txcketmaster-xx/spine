@@ -75,7 +75,8 @@ sub process_templates
     }
 
     # Pre-compile our regular expressions for templates to ignore
-    if (defined($ignore) and scalar(@IGNORE) == 0) {
+    if (defined($ignore) and scalar(@IGNORE) == 0)
+    {
         @IGNORE = map qr/$_/o, @{$ignore};
     }
     undef $ignore;
@@ -165,17 +166,13 @@ sub process_template
     my $destdir;
 
     # Create our template processing instance
-    unless (defined($TT)) {
-
-        #
-        # NOTE!!
-        #
+    unless (defined($TT))
+    {
         # Do *NOT* under any circumstances add INTERPOLATE to the TT object
         # instantiation.  It blows up to all hell in all kinds of file formats,
         # most notably /etc/bashrc.tt
         #
         # rtilder    Thu Jan 11 12:04:08 PST 2007
-        #
         $TT = Template->new( { INCLUDE_PATH => $destdir,
                                EVAL_PERL           => 1,
                                PRE_CHOMP           => 1,
@@ -187,7 +184,8 @@ sub process_template
 
     # If $output isn't a ref to a scalar then we output to a the template's
     # full path name minus the ".tt" extension.
-    unless (defined($output) and ref($output) eq 'SCALAR') {
+    unless (defined($output) and ref($output) eq 'SCALAR')
+    {
         # Seems like a lot of work to get the full path and filename minus the
         # '.tt' extension, but it should be 100% portable.
         $destdir = dirname($template);
@@ -201,9 +199,13 @@ sub process_template
     {
         # If the user has decided they don't want the template
         # from within the template we unlink (skip_template)
-        if ($TT->error() =~ m/__SKIP__TEMPLATE__/) {
+        if ($TT->error() =~ m/__SKIP__TEMPLATE__/)
+        {
             $c->cprint("Template has requested to be skipped, $template", 3);
-            unlink($template);
+            if (! $QUICK)
+            {
+                unlink($template);
+            }
             return PLUGIN_SUCCESS;
         }
         
@@ -212,7 +214,10 @@ sub process_template
         # from the overlay, and return PLUGIN_ERROR to move on instead
         # of PLUGIN_FATAL and blowing up.
         $c->error('could not process template: ' . $TT->error(), "err");
-        unlink($template);
+        if (! $QUICK) 
+        {
+            unlink($template);
+        }
         return PLUGIN_ERROR;
     }
 
@@ -235,22 +240,26 @@ sub quick_template
 {
     my $c = shift;
 
-    unless ($QUICK) {
+    unless ($QUICK) 
+    {
         return PLUGIN_SUCCESS;
     }
 
     # Make sure we don't save state
     $::SAVE_STATE = 0;
 
-    foreach my $template (@ARGV) {
+    foreach my $template (@ARGV)
+    {
         my $output;
 
-        unless (-f $template) {
+        unless (-f $template)
+        {
             print "No such file \"$template\"\n";
             next;
         }
 
-        unless (process_template($c, $template, \$output)) {
+        unless (process_template($c, $template, \$output))
+        {
             $c->error("Failed to process template", 'err');
             return PLUGIN_EXIT;
         }
