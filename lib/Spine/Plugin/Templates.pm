@@ -200,7 +200,10 @@ sub process_template
         # from the overlay, and return PLUGIN_ERROR to move on instead
         # of PLUGIN_FATAL and blowing up.
         $c->error('could not process template: ' . $TT->error(), "err");
-        unlink($template);
+        if (! $QUICK)
+        {
+            unlink($template);
+        }
         return PLUGIN_ERROR;
     }
 
@@ -212,7 +215,10 @@ sub process_template
 	# permissions and ownership to the destination file.
 	chmod $sb->mode, $output;
 	chown $sb->uid, $sb->gid, $output;
-        unlink($template);
+        if (! $QUICK)
+        {
+            unlink($template);
+        }
     }
 
     return PLUGIN_SUCCESS;
