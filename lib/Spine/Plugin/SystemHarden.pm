@@ -45,10 +45,12 @@ use File::stat;
 use Fcntl qw(:mode);
 
 my @HARDEN;
+my $c;
 
 sub system_harden
 {
-    my ($c, $root) = @_;
+    $c = shift;
+    my $root = shift;
 
     my $rval = 0;
     my $find_bin = $c->getval("find_bin");
@@ -69,7 +71,7 @@ sub system_harden
 
 	next if ($c->getval('c_dryrun'));
 
-        my $sb = stat($file);
+        my $sb = lstat($file);
         my $result = chmod $sb->mode & ~(S_ISUID|S_ISGID), $file;
 
         unless ($result == 1)
@@ -85,7 +87,7 @@ sub system_harden
 sub _find_wanted 
 {
 
-    my $st = stat($_);
+    my $st = lstat($_);
 
     # If the file isn't on the local filesystem, ignore it.
     if (-d $_ and $st->dev != $File::Find::topdev)
@@ -94,8 +96,12 @@ sub _find_wanted
         return;
     }
 
-    # Need to test if it is a file first, otherwise $st->mode will be undef.
-    if (-f $_ and ($st->mode & (S_ISUID|S_ISGID)))
+    # If its a link log a warning, else if its a file push it onto the list.
+    if (-l $_ and ($st->mode & (S_ISUID|S_ISGID)))
+    {
+        $c->cprint("skipping symlink ($_) found with SUID/SGID bit set", 2);
+    }
+    elsif (-f $_ and ($st->mode & (S_ISUID|S_ISGID)))
     {
         push @HARDEN, $_;
     }
