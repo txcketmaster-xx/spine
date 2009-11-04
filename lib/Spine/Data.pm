@@ -185,11 +185,8 @@ sub populate
         return SPINE_FAILURE;
     }
 
-    # We *always* parse the top level config directory
-    unless ($self->_get_values($self->{c_croot} , 1)) {
-        $self->error('error parsing root config', 'crit');
-        return SPINE_FAILURE;
-    }
+    # Parse the top level config directory if it exists.
+    $self->_get_values($self->{c_croot});
 
     # HOOKME  Discovery: policy selection
     #
