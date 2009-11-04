@@ -55,7 +55,8 @@ use constant DEFAULT_CONFIG => {
         spine => {
             StateDir => '/var/spine',
             ConfigSource => 'ISO9660',
-            Profile => 'StandardPlugins'
+            Profile => 'StandardPlugins',
+            Parser => 'pureTT'
         },
 
         DefaultPlugins => {
