@@ -323,6 +323,9 @@ sub clean_packages
     my $rval = 0;
     my $rpm_bin = $c->getval('rpm_bin');
     my $rpm_opts = $c->getval('rpm_opts') || '';
+    # RPM is stupid and thinks extra spaces are package names.
+    $rpm_opts =~ s/\s+//;
+    $rpm_opts =~ s/\s+$//;
 
     # apt understands package.arch but RPM does not. The Spine RPM module
     # uses the "name" tag from the installed RPM and compares that to the 
@@ -350,13 +353,17 @@ sub clean_packages
 
 	unless ($c->getval('c_dryrun'))
 	{
-        my @result = simple_exec(merge_error => 1,
-                                 exec        => 'rpm',
-                                 args        => ["-e",
-                                                 $rpm_opts,
-                                                 $remv],
-                                 c           => $c,
-                                 inert       => 0);
+            my $rpm_args = "-e $rpm_opts $remv";
+            if ( $rpm_opts =~ m// )
+            {
+                $rpm_args = "-e $remv";    
+            }
+            my @result = simple_exec(merge_error => 1,
+                                     exec        => 'rpm',
+                                     args        => $rpm_args,
+                                     c           => $c,
+                                     inert       => 0);
+
 	    if ($? > 0)
 	    {
 	        $c->error("package removal failed \[". join("",@result) . "\]", 'err');
