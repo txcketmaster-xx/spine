@@ -408,6 +408,7 @@ sub _read_keyfile
     my $self = shift;
     my ($file, $keyname) = @_;
     my ($obj, $template, $complex, $buf) = ([], undef, undef, '');
+    my $parser = $self->{c_config}->{spine}->{Parser} || 'pureTT';
 
     # If the file is a relative path and doesn't exist, try an absolute
     unless (-f $file) {
@@ -443,7 +444,11 @@ sub _read_keyfile
     {
         $PARSER_LINE = $fh->input_line_number();
 
-        $_ = $self->_convert_lame_to_TT($_);
+        # Only use the old broken lame TT-like syntax if its requested
+        if ($parser eq "lameTT") 
+        {
+            $_ = $self->_convert_lame_to_TT($_, $file);
+        }
 
         # YAML and JSON key files need to have their first line formatted
         # specifically, it is then discarded (if it isn't, the JSON
@@ -504,11 +509,16 @@ sub _convert_lame_to_TT
 {
     my $self = shift;
     my $line = shift;
+    my $file = shift;
 
     # If it's not one of our lame syntax lines, just return it
     unless ($line =~ m/^\[%(\s*)(IF|MATCH|ELSIF)\s+(.+\s*)+%\]\s*$/o) {
         return $line;
     }
+
+    # Stash the name of the lame key for later use.
+    #push(@{$self->{c_lame_keys}}, $file);
+    $self->{c_lame_keys}{$file} = 1;
 
     my $new  = "[\%$1"; # $1 should be the amount of whitespace
     $new .= ($2 eq 'MATCH' or $2 eq 'IF') ? 'IF' : 'ELSIF';

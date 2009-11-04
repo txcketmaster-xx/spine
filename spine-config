@@ -514,6 +514,12 @@ if ($SAVE_STATE)
     }
 }
 
+# Figure out if we had lame keys and report the number.
+if ( defined $c->{c_lame_keys} )
+{
+    my $size = keys %{$c->{c_lame_keys}};
+    print "spine: Encountered $size keys with lame TT syntax!\n";
+}
 
 finished:
 # Release our exclusive lock and exit.
