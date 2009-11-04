@@ -25,7 +25,6 @@ Requires:  perl(Net::DNS) >= 0.49
 Requires:  perl(Template) >= 2.14
 Requires:  perl(Text::Diff) >= 0.35
 Requires:  perl(NetAddr::IP) >= 3.24
-Requires:  perl(File::Touch) >= 0.01
 Requires:  perl(File::Temp) >= 0.14
 Requires:  perl(YAML::Syck)
 Requires:  perl(JSON::Syck)

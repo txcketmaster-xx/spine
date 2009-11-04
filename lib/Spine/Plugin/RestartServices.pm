@@ -39,7 +39,6 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 
 use File::stat;
-use File::Touch;
 use Spine::Util qw(exec_initscript exec_command);
 
 my $DRYRUN;
@@ -53,7 +52,6 @@ sub restart_services
     my $start_time = $c->getval('c_start_time');
     my $startup = $c->getvals('startup');
     my $restart_deps = $c->getvals('restart_deps');
-    my $touch = File::Touch->new( no_create => 1 );
     my $tmpdir = $c->getval('c_tmpdir');
 
     $DRYRUN = $c->getval('c_dryrun');
@@ -130,7 +128,7 @@ sub restart_services
                 exec_command($c, $command, 1)
 		    or $rval++;
 	    }
-            $touch->touch(@{$rshash{$key}});
+            utime(time, time, @{$rshash{$key}});
         }
     }
 
