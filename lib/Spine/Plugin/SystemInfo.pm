@@ -160,7 +160,7 @@ sub get_netinfo
 {
     my $c = shift;
     my $c_root = $c->getval('c_croot');
-
+    my $network_path = $c->getval('network_path') || 'network';
     $c->print(3, 'examining local network');
 
     # First lets get the IP address in DNS for our hostname.
@@ -184,15 +184,15 @@ sub get_netinfo
      
     # it will all fall apart if this in not there so lets
     # make life easy for the user and let them know.
-    if ( ! -d "${c_root}/network/" ) {
-        $c->error("no \"$c_root/network\" config directory exists.", 'crit');
+    if ( ! -d "${c_root}/${network_path}/" ) {
+        $c->error("no \"$c_root/$network_path/\" config directory exists.", 'crit');
         return PLUGIN_FATAL;
     }        
 
     # Populate an ordered hierarchy of networks that our address is a member
     # of
 
-    foreach my $net (<${c_root}/network/*>)
+    foreach my $net (<${c_root}/${network_path}/*>)
     {
         next unless ($net !~ m/^(?:\d{1,3}\.){3}(?:\d{1,3})-\d{1,2}/);
         $net = basename($net);
@@ -217,7 +217,7 @@ sub get_netinfo
 
     my $nobj = @nets[-1];
     unless (ref($nobj) eq 'NetAddr::IP') {
-        $c->error("unable to find a matching network within \"${c_root}/network/\"",
+        $c->error("unable to find a matching network within \"${c_root}/${network_path}/\"",
                      " for \"$c->{c_ip_address}\"",
                   'crit');
         return PLUGIN_FATAL;
@@ -240,7 +240,7 @@ sub get_netinfo
     unless (defined $c->{c_subnet})
     {
         $c->error("error caculating subnet for \"$c->{c_ip_address}\" ".
-                      "using \"network/$nets[-1]\"", 'crit');
+                      "using \"$network_path/$nets[-1]\"", 'crit');
         return PLUGIN_FATAL;
     }
 
