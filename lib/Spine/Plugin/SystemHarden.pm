@@ -67,7 +67,7 @@ sub system_harden
     foreach my $file (@HARDEN)
     {
 	next if $file =~ /^\Q$croot\E/;
-	next if ( grep {/$file/} @{$c->getvals("privfiles")} );
+	next if ( grep {/$file/} @{$c->getvals("privfiles", 1)} );
 
 	$c->cprint("stripping suid/sgid bits from $file", 2);
 

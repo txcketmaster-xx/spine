@@ -854,8 +854,21 @@ sub getvals
 {
     my $self = shift;
     my $key = shift;
+    my $force = shift || 0;
+
     $self->print(4, "getvals -> $key");
-    return undef unless ($key && exists $self->{$key});
+
+    unless ($key && exists $self->{$key})
+    {
+        if ($force)
+        {
+            return [];
+        }
+        else
+        {
+            return undef;
+        }
+    }
 
     if ((ref $self->{$key}) eq "ARRAY")
     {
