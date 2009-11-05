@@ -411,6 +411,7 @@ print 'spine: starting Spine v' . $VERSION . ' -- configuration release ',
 print "spine: initializing data for $hostname\n";
 if ( ${%{$registry->get_options()}->{dryrun}} ) {
     print "spine: running in dryrun mode\n";
+    syslog("info", "running in dryrun mode");
 }
 
 # Create the configuration object.
