@@ -1028,7 +1028,7 @@ sub cprint
     if ($level <= $self->{c_verbosity})
     {
 	print $self->{c_label}, ": $msg\n";
-	syslog("info", "spine: $msg")
+	syslog("info", "$msg")
             if ( not $self->{c_dryrun} or $log_to_syslog );
     }
 }
@@ -1053,7 +1053,7 @@ sub log
     my $msg = shift;
 
     if (not $self->{c_dryrun}) {
-        syslog('info', "spine: $msg");
+        syslog('info', "$msg");
     }
 }
 
@@ -1076,7 +1076,7 @@ sub error
 	print STDERR $self->{c_label} . ": \[$level\] $msg\n";
     }
 
-    syslog("$level", "spine: $msg")
+    syslog("$level", "$msg")
         unless $self->{c_dryrun};
     push(@{$self->{c_errors}}, $msg);
 }

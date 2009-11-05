@@ -42,6 +42,7 @@ use Spine::State;
 use Spine::Util;
 use POSIX qw(ctime);
 use File::Spec::Functions;
+use Sys::Syslog;
 
 use sigtrap 'handler' => \&ignore_signal, 'normal-signals';
 
@@ -56,7 +57,10 @@ use constant DEFAULT_CONFIG => {
             StateDir => '/var/spine',
             ConfigSource => 'ISO9660',
             Profile => 'StandardPlugins',
-            Parser => 'pureTT'
+            Parser => 'pureTT',
+            SyslogIdent => 'spine',
+            SyslogFacility => 'local3',
+            SyslogOptions => 'ndelay,pid',
         },
 
         DefaultPlugins => {
@@ -173,6 +177,18 @@ if (defined($CONFIG->{spine}->{PluginPath}))
 {
     unshift @INC, split(/:/, $CONFIG->{spine}->{PluginPath});
 }
+
+# Run openlog() once so any plugin can use it with the user-configured 
+# facility, options, and program name (or the defaults). 
+openlog($CONFIG->{spine}->{SyslogIdent} ? 
+            $CONFIG->{spine}->{SyslogIdent} : 
+            DEFAULT_CONFIG->{spine}->{SyslogIdent}, 
+        $CONFIG->{spine}->{SyslogFacility} ? 
+            $CONFIG->{spine}->{SyslogFacility} : 
+            DEFAULT_CONFIG->{spine}->{SyslogFacility}, 
+        $CONFIG->{spine}->{SyslogOptions} ? 
+            $CONFIG->{spine}->{SyslogOptions} : 
+            DEFAULT_CONFIG->{spine}->{SyslogOptions}); 
 
 #
 # If specific actions were requested, we don't use our profile,
@@ -523,6 +539,8 @@ if ( defined $c->{c_lame_keys} )
 }
 
 finished:
+# Close syslog
+closelog();
 # Release our exclusive lock and exit.
 release_lock();
 if ($error_count)
@@ -532,6 +550,8 @@ if ($error_count)
 exit(0);
 
 failure:
+# Close syslog
+closelog();
 release_lock();
 exit(1);
 
