@@ -60,6 +60,8 @@ sub system_harden
 
     unless ($c->check_exec($find_bin, $chmod_bin)) { return 1; }
 
+    $c->cprint(" searching for SUID/SGID files", 2);
+
     find( { wanted => \&_find_wanted, no_chdir => 1 }, $overlay_root );
 
     foreach my $file (@HARDEN)
