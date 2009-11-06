@@ -156,7 +156,7 @@ sub load_plugin
         }
     }
 
-    return SPINE_SUCCESS;
+    return $rc;
 }
 
 
