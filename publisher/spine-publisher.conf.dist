@@ -18,6 +18,9 @@ pidfile = /var/run/spine-publisher.pid
 
 # Path to named pipe
 fifo = /var/run/spine-publisher.fifo
+fifo_uid = 0
+fifo_gid = 0
+fifo_perms = 0666
 
 # User and group with which to run.  This is mostly symbolic, as you
 # generally need to run as root to be able to properly manipulate
@@ -38,7 +41,7 @@ password = default
 
 # Repository URL with no trailing slash.  This should be pointed at the
 # top level spine-config directory and can use any valid SVN method.
-repo_url = file:///your/dir/svn/repos/spine-config/trunk
+repo_url = file:///tmp/svnroot
 
 # Temporary directory where SVN checkout/updates are performed for the
 # life of the daemon process.  It is highly recommended that this be

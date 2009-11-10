@@ -39,7 +39,7 @@ use constant EXIT_DIE => 1;
 
 use Fcntl;
 use Getopt::Long qw(:config bundling);
-use POSIX qw(setsid setuid setgid :sys_wait_h);
+use POSIX qw(setsid setuid setgid mkfifo :sys_wait_h);
 use Sys::Syslog qw(:standard :macros);
 
 use Config::Simple;
@@ -73,24 +73,20 @@ openlog(APPNAME, "ndelay,pid", "daemon");
 
 # Set log level to max verbosity if debug mode, otherwise use the
 # configured value.
-
 setlogmask(gen_logmask($c->getval('main.loglevel')));
 setlogmask(gen_logmask(7)) if (exists $opts{debug});
 
 # In queue mode, we only modify the work queue and exit.
-
 if (exists $opts{queue})
 {
     add_to_queue($opts{queue});
     exit 0;
 }
 
-
 my $svn = svn_init();
 
 # Properties only mode applies properties to the directory specified
 # on the command line.
-
 if (exists $opts{restoreprops})
 {
     plog(LOG_CRIT, "Specified directory does not exist \"$opts{restoreprops}\"", 1)
@@ -100,8 +96,10 @@ if (exists $opts{restoreprops})
     exit 0;
 }
 
-# Daemonize.
+# Handle fifo creation and validation of ownership/perms.
+check_or_create_fifo();
 
+# Daemonize.
 %SIG = daemon_set_sighandlers();
 daemon_init($c->getval('main.pidfile'), $c->getval('main.user'),
         $c->getval('main.group') );
@@ -109,8 +107,8 @@ daemon_init($c->getval('main.pidfile'), $c->getval('main.user'),
 my $repo_url =  rm_trail_slash ( $c->getval('svn.repo_url') );
 my $working_dir =  rm_trail_slash ( $c->getval('svn.working_dir') );
 
-# Clean up the working directory and do a full SVN checkout.
 
+# Clean up the working directory and do a full SVN checkout.
 plog(LOG_INFO, "Deleting contents of working directory $working_dir");
 rmtree($working_dir);
 
@@ -121,11 +119,13 @@ eval { $co_rev = $svn->checkout($repo_url, $working_dir, 'HEAD', 1) };
 if ($@) { plog(LOG_CRIT, "Failed initial svn checkout: $@", EXIT_DIE) }
 plog(LOG_INFO, "Completed initial svn checkout at revision $co_rev");
 
+
 # Main program loop.
 plog(LOG_INFO, "Accepting requests");
 
 while (not $s->daemon_check_exit)
 {
+
     open(FIFO, "<" . $c->getval('main.fifo')) ||
         die "ERROR: Could not open named pipe";
 
@@ -227,7 +227,7 @@ sub add_to_queue
     my $rev = shift;
     my $fifo = $c->getval('main.fifo');
 
-    unless ( -e $fifo )
+    unless ( -p $fifo )
     {
         plog(LOG_CRIT, "Invalid fifo specified", 1);
     }
@@ -262,6 +262,58 @@ sub gen_logmask
     return $logmask;
 }
 
+
+sub check_or_create_fifo
+{
+    my $fifo = $c->getval('main.fifo');
+    my $fifo_perms = $c->getval('main.fifo_perms', '0666');
+    my $fifo_uid = $c->getval('main.fifo_uid', 0);
+    my $fifo_gid = $c->getval('main.fifo_gid', 0);
+
+    my $perms = $fifo_perms;
+
+    # Generate a critical error if a file is already present where we expect
+    # our fifo to exist.
+    if ((-e $fifo) and (not -p $fifo))
+    {
+       plog(LOG_CRIT, "Fifo $fifo exists but is not a valid named pipe", 1);
+    }
+
+    # Check if our fifo permissions, uid and gid match the configuration
+    # and report if they do not.
+    if (-p $fifo)
+    {
+        my @stat = stat($fifo);
+        my $cur_perms = sprintf "%04o", $stat[2] & 07777;
+
+        if ($perms != $cur_perms)
+        {
+            plog(LOG_NOTICE, "Fifo permissions do not match config. " .
+                "This will need to be corrected manually.");
+        }
+
+        if (($fifo_uid != $stat[4]) or ($fifo_gid != $stat[5]))
+        {
+            plog(LOG_NOTICE, "Fifo uid/gid do not match config. " .
+                "This will need to be corrected manually.");
+        }
+    }
+
+    # Attempt to create a fifo.
+    if (not -p $fifo)
+    {
+	if (mkfifo($fifo, oct($perms)))
+        {
+            plog(LOG_INFO, "Created fifo $fifo with perms $perms");
+            chmod oct($perms), $fifo;
+            chown $fifo_uid, $fifo_gid, $fifo;
+        }
+        else
+        {
+            plog(LOG_CRIT, "Failed to create fifo $fifo", 1);
+        }
+    }
+}
 
 
 sub bin2dec
@@ -859,6 +911,7 @@ sub getval
 {
     my $self = shift;
     my $key = shift;
+    my $def_value = shift;
 
     my $value = $self->{conf}->param($key);
     $value = $self->_interpolate_string($value);
@@ -867,10 +920,14 @@ sub getval
     # we need to exit as to avoid generating potentially broken
     # configballs.
 
-    if (not defined $value)
+    if ((not defined $value) and (not defined $def_value))
     {
         $self->{plog}->(LOG_ERR,
-            "Requested undefined config value: $key -- exiting.", 1);
+            "Required config value [$key] is missing -- exiting.", 1);
+    }
+    elsif ((not defined $value) and (defined $def_value))
+    {
+	$value = $def_value;
     }
 
     return $value;
