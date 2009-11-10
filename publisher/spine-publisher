@@ -334,7 +334,7 @@ sub is_int
 sub rm_trail_slash
 {
     my $string = shift;
-    $string =~ s#/+$##g;
+    $string =~ s|/+$||g;
     return $string;
 }
 

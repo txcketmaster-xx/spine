@@ -41,7 +41,7 @@ password = default
 
 # Repository URL with no trailing slash.  This should be pointed at the
 # top level spine-config directory and can use any valid SVN method.
-repo_url = file:///tmp/svnroot
+repo_url = file:///your/dir/svn/repos/spine-config/trunk
 
 # Temporary directory where SVN checkout/updates are performed for the
 # life of the daemon process.  It is highly recommended that this be
