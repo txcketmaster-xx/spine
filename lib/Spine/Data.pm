@@ -138,13 +138,13 @@ sub populate
     }
 
     # Some truly basic stuff first.
-    $self->{c_label} = 'spine_core';
+    $self->{c_label} = 'spine-mgmt core';
     $self->{c_start_time} = time();
     $self->{c_ppid} = $$;
 
     # FIXME  Should these be moved to Spine::Plugin::Overlay?
-    $self->{c_tmpdir} = "/tmp/spine." . $self->{c_ppid};
-    $self->{c_tmplink} = "/tmp/spine.lastrun";
+    $self->{c_tmpdir} = "/tmp/spine-mgmt." . $self->{c_ppid};
+    $self->{c_tmplink} = "/tmp/spine-mgmt.lastrun";
 
     # Retrieve "internal" config values nesessary for bootstrapping of
     # discovery and therefore parsing of the tree.

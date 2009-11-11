@@ -19,10 +19,10 @@
 
 DESTDIR  ?= 
 PREFIX   ?= /usr
-ETCDIR   ?= /etc
+ETCDIR   ?= /etc/spine-mgmt
 BINDIR   ?= $(PREFIX)/bin
-LIBDIR   ?= $(PREFIX)/lib/spine
-STATEDIR ?= /var/spine
+LIBDIR   ?= $(PREFIX)/lib/spine-mgmt
+STATEDIR ?= /var/spine-mgmt
 BALLDIR  ?= $(STATEDIR)/configballs
 SUBDIRS   = $(ETCDIR) $(STATEDIR) $(BALLDIR) $(BINDIR) $(LIBDIR)
 MKDIR    ?= /bin/mkdir
@@ -35,13 +35,13 @@ mkdirs:
 		$(MKDIR) -p -m 0755 $(DESTDIR)$$dir; \
 	done
 
-install_config: spine-config.conf scripts/cramfs-publisher.conf
+install_config: spine-mgmt.conf scripts/cramfs-publisher.conf
 	for I in $^; do \
 		$(INSTALL) -m 0644 $$I $(DESTDIR)$(ETCDIR); \
 	done
 
 
-install_scripts: spine-config quick_template ui scripts/spine-cramfs-publish.py
+install_scripts: spine-mgmt quick_template ui scripts/spine-cramfs-publish.py
 	for I in $^; do \
 		$(INSTALL) -m 0755 $$I $(DESTDIR)$(BINDIR); \
 	done
