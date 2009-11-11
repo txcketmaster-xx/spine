@@ -119,14 +119,20 @@ sub restart_services
 	    if ($service)
 	    {
             	$c->cprint("restarting service $service", 2);
-                exec_initscript($c, $service, $command, 1)
-		    or $rval++;
+                unless ($DRYRUN)
+                {
+                    exec_initscript($c, $service, $command, 1)
+		        or $rval++;
+                }
  	    }
 	    else
 	    {
 		$c->cprint("executing command $command", 2);
-                exec_command($c, $command, 1)
-		    or $rval++;
+                unless ($DRYRUN)
+                {
+                    exec_command($c, $command, 1)
+		        or $rval++;
+                }
 	    }
             utime(time, time, @{$rshash{$key}});
         }
