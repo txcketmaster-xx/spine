@@ -1,5 +1,4 @@
 #!/usr/bin/perl
-
 # -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
@@ -741,8 +740,8 @@ Usage: spine-publisher [OPTIONS]
     -c, --configfile <file>
                 Full path to the spine-publisher configuration file.  Specifying
                 this on the command line overrides looking in the default
-                locations, which are /etc/spine-publisher.conf and the current
-                working directory.
+                locations, which are /etc/spine-mgmt/spine-publisher.conf,
+		/etc/spine-publisher.conf, and the current working directory.
 
     -f, --foreground
                 Remain in the foreground, do not daemonize. Generally only used
@@ -891,6 +890,8 @@ sub new
         $configfile = $self->{configfile};
     }
 
+    elsif (-f "/etc/spine-mgmt/spine-publisher.conf") 
+    { $configfile = "/etc/spine-mgmt/spine-publisher.conf" }
     elsif (-f "/etc/spine-publisher.conf")
     { $configfile = "/etc/spine-publisher.conf" }
     elsif (-f "spine-publisher.conf")

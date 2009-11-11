@@ -6,7 +6,7 @@
 # description:	Spine Configball Publisher
 #
 # processname: spine-publisher
-# config: /etc/spine-publisher.conf
+# config: /etc/spine-mgmt/spine-publisher.conf
 # pidfile: /var/run/spine-publisher.pid
 
 # source function library
@@ -16,7 +16,7 @@ RETVAL=0
 prog="spine-publisher"
 SPINE_PUB="/usr/bin/spine-publisher"
 PIDFILE="/var/run/spine-publisher.pid"
-OPTIONS="-c /etc/spine-publisher.conf"
+OPTIONS="-c /etc/spine-mgmt/spine-publisher.conf"
 
 start()
 {

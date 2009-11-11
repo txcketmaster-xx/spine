@@ -20,11 +20,12 @@
 DESTDIR  ?= 
 PREFIX   ?= /usr
 ETCDIR   ?= /etc/spine-mgmt
+INITDIR	 ?= /etc/init.d
 BINDIR   ?= $(PREFIX)/bin
 LIBDIR   ?= $(PREFIX)/lib/spine-mgmt
 STATEDIR ?= /var/spine-mgmt
 BALLDIR  ?= $(STATEDIR)/configballs
-SUBDIRS   = $(ETCDIR) $(STATEDIR) $(BALLDIR) $(BINDIR) $(LIBDIR)
+SUBDIRS   = $(ETCDIR) $(INITDIR) $(STATEDIR) $(BALLDIR) $(BINDIR) $(LIBDIR)
 MKDIR    ?= /bin/mkdir
 INSTALL  ?= /usr/bin/install
 
@@ -35,16 +36,20 @@ mkdirs:
 		$(MKDIR) -p -m 0755 $(DESTDIR)$$dir; \
 	done
 
-install_config: spine-mgmt.conf scripts/cramfs-publisher.conf
+install_config: spine-mgmt.conf publisher/spine-publisher.conf.dist
 	for I in $^; do \
 		$(INSTALL) -m 0644 $$I $(DESTDIR)$(ETCDIR); \
 	done
 
 
-install_scripts: spine-mgmt quick_template ui scripts/spine-cramfs-publish.py
+install_scripts: spine-mgmt quick_template ui publisher/spine-publisher
 	for I in $^; do \
 		$(INSTALL) -m 0755 $$I $(DESTDIR)$(BINDIR); \
 	done
+
+install_init: publisher/spine-publisher.init 
+	dest=`echo $^ | sed -e 's:\.init::' -e 's:publisher/::'`; \ 
+	$(INSTALL) -m 0755 $$I $^ $(DESTDIR)$(INITDIR)/$$dest; \ 
 
 install_lib:
 	cd lib && \
@@ -53,6 +58,6 @@ install_lib:
 	done \
 	&& cd ..
 
-install: mkdirs install_lib install_scripts install_config
+install: mkdirs install_lib install_scripts install_config install_init
 
-.PHONY : all install_lib install_scripts install_config
+.PHONY : all install_lib install_scripts install_init install_config 
