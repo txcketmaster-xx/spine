@@ -226,10 +226,16 @@ sub add_to_queue
     my $rev = shift;
     my $fifo = $c->getval('main.fifo');
 
-    unless ( -p $fifo )
+    unless (-p $fifo)
     {
         plog(LOG_CRIT, "Invalid fifo specified", 1);
     }
+
+    unless (-w $fifo)
+    {
+        plog(LOG_CRIT, "Fifo [$fifo] is not writable", 1);
+    }
+
 
     sysopen(QUEUE_FIFO, $fifo, O_RDWR|O_APPEND|O_NONBLOCK);
     print QUEUE_FIFO $rev . "\n";
