@@ -18,8 +18,14 @@ Group:     System/Libraries
 Source:    %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 BuildArch: noarch
+Requires:  rsync
 Requires:  dialog >= 0.9
 Requires:  lshw
+%if "%{dist}" == ".el3" || "%{dist}" == ".el4"
+Requires:  kernel-utils
+%else
+Requires:  dmidecode
+%endif
 Requires:  perl(Digest::MD5) >= 2.20
 Requires:  perl(Net::DNS) >= 0.49
 Requires:  perl(Template) >= 2.14
