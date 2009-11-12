@@ -20,7 +20,7 @@
 # (C) Copyright Ticketmaster, Inc. 2007
 #
 
-our $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+our $VERSION = qq(2.1.0);
 
 use strict;
 
