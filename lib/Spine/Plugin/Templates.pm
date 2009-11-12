@@ -77,7 +77,7 @@ sub process_templates
     # Pre-compile our regular expressions for templates to ignore
     if (defined($ignore) and scalar(@IGNORE) == 0)
     {
-        @IGNORE = map qr/$_/o, @{$ignore};
+        @IGNORE = map qr/$_/, @{$ignore};
     }
     undef $ignore;
 

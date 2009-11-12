@@ -451,20 +451,20 @@ sub _read_keyfile
         # specifically, it is then discarded (if it isn't, the JSON
         # parser throws a syntax error and blows up spine, the YAML
         # parser just gums up the name of the first item)
-        if ($PARSER_LINE == 1 and m/^#?%(YAML\s+\d+\.\d+|JSON)/o)
+        if ($PARSER_LINE == 1 and m/^#?%(YAML\s+\d+\.\d+|JSON)/)
         {
             $complex = $1;
             $buf = join('', <$fh>);
-            $template = 1 if (not defined($template) and $buf =~ m/\[%.+/o);
+            $template = 1 if (not defined($template) and $buf =~ m/\[%.+/);
             last LINE;
         }
 
         # Ignore comments and blank lines.
-        if (m/^\s*$/o or m/^\s*#/o) {
+        if (m/^\s*$/ or m/^\s*#/) {
             next LINE;
         }
 
-        $template = 1 if (not defined($template) and m/\[%.+/o);
+        $template = 1 if (not defined($template) and m/\[%.+/);
 
         $buf .= $_;
     }
@@ -486,7 +486,7 @@ sub _read_keyfile
         $obj = $self->_parse_complex_key($buf, $file, $complex);
     }
     else {
-        $obj = [split(m/\n/o, $buf)];
+        $obj = [split(m/\n/, $buf)];
     }
 
     # _parse_complex_key() handles error reporting
@@ -509,7 +509,7 @@ sub _convert_lame_to_TT
     my $file = shift;
 
     # If it's not one of our lame syntax lines, just return it
-    unless ($line =~ m/^\[%(\s*)(IF|MATCH|ELSIF)\s+(.+\s*)+%\]\s*$/o) {
+    unless ($line =~ m/^\[%(\s*)(IF|MATCH|ELSIF)\s+(.+\s*)+%\]\s*$/) {
         return $line;
     }
 
@@ -555,7 +555,7 @@ sub _TT_list_search
     return undef unless defined($list) and defined($pattern);
 
     foreach my $str (@{$list}) {
-        $rc++ if $str =~ qr/$pattern/o;
+        $rc++ if $str =~ qr/$pattern/;
     }
 
     return $rc;
@@ -656,11 +656,11 @@ sub _parse_complex_key
     #
     # Now actually try to parse the key
     #
-    if ($method =~ m/^JSON$/o)
+    if ($method =~ m/^JSON$/)
     {
         $obj = JSON::Syck::Load($buf);
     }
-    elsif ($method =~ m/^YAML\s+(\d+\.\d+)$/o)
+    elsif ($method =~ m/^YAML\s+(\d+\.\d+)$/)
     {
         # Only the YAML v1.0 specification is supported by any YAML parsers
         # as yet.
@@ -745,14 +745,14 @@ sub _evaluate_key
     # where necessary.  Otherwise, just append it to the list
     foreach (@{$obj}) {
         # Ignore comments and blank lines.
-        if (m/^\s*$/o or m/^\s*#/o) {
+        if (m/^\s*$/ or m/^\s*#/) {
             next;
         }
 
         # We allow several metacharacters to manipulate
         # pre-existing values in a key.  -regex removes
         # matching values for the key in question.
-        if ($keyname && m/^-(.*)$/o) {
+        if ($keyname && m/^-(.*)$/) {
             next unless defined @{$self->{$keyname}};
 
             my $rm_regex = $1;
@@ -764,7 +764,7 @@ sub _evaluate_key
         # If equals (=) is the first and only character of
         # a line, clear the array.  This is used to set
         # absolute values.
-        elsif ($keyname && m/^=\s*$/o) {
+        elsif ($keyname && m/^=\s*$/) {
             delete $self->{$keyname} if defined($keyname);
             next;
         }
@@ -916,7 +916,7 @@ sub getvals_by_keyname
     $self->print(4, "getvals_by_keyname -> $key_re");
 
     foreach my $key (keys(%{$self})) {
-	if ($key =~ m/$key_re/o) {
+	if ($key =~ m/$key_re/) {
 	    push @matching_vals, $self->{key};
 	}
     }
