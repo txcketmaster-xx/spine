@@ -6,7 +6,7 @@
 %define spine_prefix		/usr
 %define spine_lib_prefix	%{spine_prefix}/lib/spine-mgmt
 
-Name:      spine-mgmt
+Name:      spine
 Summary:   Ticketmaster Configuration System
 Version:   %{spine_ver}
 Release:   %{spine_rel}
@@ -39,7 +39,7 @@ Requires:  perl(Sys::Syslog)
 Ticketmaster Configuration System
 
 %ifarch noarch
-%package -n spine-publisher
+%package publisher
 Summary:   Ticketmaster configuration system's publishing system
 Group:     Ticketmaster
 BuildArch: noarch
@@ -47,7 +47,7 @@ Requires:  perl(SVN::Client)
 Requires:  perl(Config::Simple) 
 Obsoletes: spine-fsball-publisher
 
-%description -n spine-publisher
+%description publisher
 Ticketmaster configuration system's publishing system
 %endif
 
@@ -81,7 +81,7 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %attr(0755,root,root) %{_localstatedir}/spine-mgmt
 
 %ifarch noarch
-%files -n spine-publisher
+%files publisher
 %defattr(-,root,root)
 %{spine_prefix}/bin/spine-publisher 
 %{_sysconfdir}/init.d/spine-publisher 
