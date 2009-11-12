@@ -5,8 +5,6 @@
 %define spine_rel		1
 %define spine_prefix		/usr
 %define spine_lib_prefix	%{spine_prefix}/lib/spine-mgmt
-%define File_Temp_ver		0.16
-%define Sys_Syslog_ver          0.18
 
 Name:      spine-mgmt
 Summary:   Ticketmaster Configuration System
@@ -34,9 +32,8 @@ Requires:  perl(NetAddr::IP) >= 3.24
 Requires:  perl(YAML::Syck)
 Requires:  perl(JSON::Syck)
 Requires:  perl(XML::Simple) >= 2.12
-# Provided by ourself, currently.
-Requires:  perl(File::Temp) >= %{File_Temp_ver}
-Requires:  perl(Sys::Syslog) >= %{Sys_Syslog_ver}
+Requires:  perl(File::Temp) >= 0.16
+Requires:  perl(Sys::Syslog)
 
 %description
 Ticketmaster Configuration System
