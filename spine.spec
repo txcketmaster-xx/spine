@@ -39,7 +39,7 @@ Requires:  perl(Sys::Syslog)
 Ticketmaster Configuration System
 
 %ifarch noarch
-%package publisher
+%package -n spine-publisher
 Summary:   Ticketmaster configuration system's publishing system
 Group:     Ticketmaster
 BuildArch: noarch
@@ -47,7 +47,7 @@ Requires:  perl(SVN::Client)
 Requires:  perl(Config::Simple) 
 Obsoletes: spine-fsball-publisher
 
-%description publisher
+%description -n spine-publisher
 Ticketmaster configuration system's publishing system
 %endif
 
@@ -81,7 +81,7 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %attr(0755,root,root) %{_localstatedir}/spine-mgmt
 
 %ifarch noarch
-%files publisher
+%files -n spine-publisher
 %defattr(-,root,root)
 %{spine_prefix}/bin/spine-publisher 
 %{_sysconfdir}/init.d/spine-publisher 
