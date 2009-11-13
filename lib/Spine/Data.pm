@@ -63,6 +63,7 @@ sub new {
                                c_hostname => $args{hostname}, 
                                c_release => $args{release},
                                c_verbosity => $args{verbosity} || 0,
+                               c_quiet => $args{quiet},
                                c_version => $args{version} || $::VERSION,
                                c_config => $args{config},
                                c_croot => $croot,
@@ -1040,7 +1041,9 @@ sub cprint
 
     if ($level <= $self->{c_verbosity})
     {
-	print $self->{c_label}, ": $msg\n";
+	print $self->{c_label}, ": $msg\n"
+            unless $self->{c_quiet};
+
 	syslog("info", "$msg")
             if ( not $self->{c_dryrun} or $log_to_syslog );
     }
@@ -1055,7 +1058,8 @@ sub print
     if ($lvl <= $self->{c_verbosity})
     {
 #	print $self->{c_label}, '[', join('::', caller()), ']: ', @_, "\n";
-	print $self->{c_label}, ': ', @_, "\n";
+	print $self->{c_label}, ': ', @_, "\n"
+            unless $self->{c_quiet};
     }
 }
 

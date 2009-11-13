@@ -129,10 +129,12 @@ Getopt::Long::Configure('pass_through');
 
 my $profile = undef;
 my $conf_file = undef;
+my $quiet = undef;
 my @actions = ();
 
 GetOptions('config-file=s' => \$conf_file,
             'action|plugin=s@' => \@actions,
+            'quiet|q' => \$quiet,
             'actiongroup|profile=s' => \$profile);
 
 Getopt::Long::Configure('no_pass_through');
@@ -148,7 +150,9 @@ foreach my $file (@cfiles)
 {
     if (-f $file)
     {
-        print "spine-mgmt: Using config file at $file\n";
+
+        print "spine-mgmt: Using config file at $file\n"
+            unless(defined($quiet));
         $CONFIG = new Spine::ConfigFile(Filename => $file, Type => 'Ini');
         if (not defined($CONFIG))
         {
@@ -371,7 +375,12 @@ if (not defined($release))  # There was an error
 }
 
 
-print 'spine-mgmt core: Using configuration: ', $source->source_info(), "\n";
+
+unless(defined($quiet))
+{
+    print 'spine-mgmt core: Using configuration: ', 
+         $source->source_info(), "\n";
+}
 
 
 # Determine the hostname.
@@ -402,9 +411,14 @@ else
 
 
 # Announce what we're doing
-print 'spine-mgmt: starting Spine v' . $VERSION . ' -- configuration release ',
-      $source->release(), "\n";
-print "spine-mgmt: initializing data for $hostname\n";
+unless(defined($quiet))
+{
+    print 'spine-mgmt: starting Spine v' . $VERSION . 
+        ' -- configuration release ', $source->release(), "\n";
+
+    print "spine-mgmt: initializing data for $hostname\n";
+}
+
 if ( ${%{$registry->get_options()}->{dryrun}} ) {
     print "spine-mgmt: running in dryrun mode\n";
     syslog("info", "running in dryrun mode");
@@ -413,6 +427,7 @@ if ( ${%{$registry->get_options()}->{dryrun}} ) {
 # Create the configuration object.
 my $c = Spine::Data->new(hostname    => $hostname,
                          verbosity   => $verbosity,
+                         quiet       => $quiet,
                          source      => $source,
                          release     => $release,
                          config      => $CONFIG);
@@ -492,7 +507,8 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
         #
         # rtilder    Wed May  9 10:33:20 PDT 2007
         #
-        print STDOUT "\tAt least one plugin requested a clean exit.\n";
+        print STDOUT "\tAt least one plugin requested a clean exit.\n"
+            unless(defined($quiet));
         last PHASE;
     }
 }
@@ -532,7 +548,8 @@ if ($SAVE_STATE)
 if ( defined $c->{c_lame_keys} )
 {
     my $size = keys %{$c->{c_lame_keys}};
-    print "spine-mgmt: Encountered $size keys with lame TT syntax!\n";
+    print "spine-mgmt: Encountered $size keys with lame TT syntax!\n"
+        unless(defined($quiet));
 }
 
 finished:
