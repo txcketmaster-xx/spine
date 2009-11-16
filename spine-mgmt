@@ -420,7 +420,10 @@ unless(defined($quiet))
 }
 
 if ( ${%{$registry->get_options()}->{dryrun}} ) {
-    print "spine-mgmt: running in dryrun mode\n";
+    unless(defined($quiet))
+    {
+        print "spine-mgmt: running in dryrun mode\n";
+    }
     syslog("info", "running in dryrun mode");
 }
 
@@ -519,7 +522,10 @@ $source->clean();
 if ($SAVE_STATE)
 {
     # Store our config object to disk.
-    print STDERR "Saving state...\n";
+    unless(defined($quiet))
+    {
+        print STDERR "Saving state...\n";
+    }
     unless ($state->store())
     {
         $c->error('failed to write session object [' . $state->error . ']',
