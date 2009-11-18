@@ -122,6 +122,7 @@ sub build_overlay
             {
                 $c->print(4, "performing overlay from $dir");
                 unless (do_rsync(Config => $c,
+                                 Inert => 1,
                                  Source => $overlay,
                                  Target => catfile($tmpdir, $target),
                                  Excludes => \@excludes)) {

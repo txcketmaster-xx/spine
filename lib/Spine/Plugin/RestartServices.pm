@@ -39,7 +39,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 
 use File::stat;
-use Spine::Util qw(exec_initscript exec_command);
+use Spine::Util qw(exec_initscript simple_exec);
 
 my $DRYRUN;
 
@@ -128,11 +128,17 @@ sub restart_services
 	    else
 	    {
 		$c->cprint("executing command $command", 2);
-                unless ($DRYRUN)
-                {
-                    exec_command($c, $command, 1)
-		        or $rval++;
-                }
+
+                # Work out what th command is vs arguments
+                $command =~ m/^([\S]+)(?:\s+(.*))?$/;
+                my ($cmd, $args) = ($1, $2);
+
+                simple_exec(exec        => $cmd,
+                            args        => $args,
+                            inert       => 0,
+                            quiet       => 1,
+                            c           => $c,
+                            merge_error => 1) or $rval++;
 	    }
             utime(time, time, @{$rshash{$key}});
         }
