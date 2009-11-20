@@ -75,7 +75,7 @@ our (@TEMPLATES, @IGNORE, $TMPDIR);
 sub _convert_to_TT {
     my $data = shift;
     my $legacy = 0;
-    while ( $data->{obj} =~ m/(\[%(\s*)(IF|MATCH|ELSIF)\s+(.+?)%\])/sog ) {
+    while ( $data->{obj} =~ m/(\[%(\s*)(IF|MATCH|ELSIF)\s+(.+?)%\])/sg ) {
         my $new_pos = pos($data->{obj});  # This is the pos of the end of match
         my $data_length = length($1);
 
