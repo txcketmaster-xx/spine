@@ -185,16 +185,9 @@ sub _exec_apt
         @cmdline = @{ +shift };
     }
     
-    # NOTE: there is a split in the bellow lines because of an
-    #       apt-get 'feature'.
-    #          - If you pass arguments to apt-get as a single
-    #            argv then open3 splits it and it works.
-    #          - If you split them all out it also works.
-    #          - If you do a mixture it apt-get gets very upset.
+
     # NOTE: passing blank arguments causes strange apt-get errors
     #       like "E: Line 1 too long in source list" (it lies)
-    # rpounder Tue Aug 25 2009
-    #
     my @fixed_cmdline;
     foreach my $cmdpart (@cmdline) {
         push (@fixed_cmdline, split(' ', $cmdpart)) unless ($cmdpart eq '');
