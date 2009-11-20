@@ -410,13 +410,16 @@ sub add_parameter
     return push @{ $self->{parameters} }, @_;
 }
 
-
+# Wil normally register all plugins hooks based on profile.
+# if a plugin name is passed then it will register it's hooks
 sub register_hooks
 {
     my $self = shift;
+    # optinal
+    my $plugin = shift;
     my $registry = Spine::Registry->instance();
 
-    unless ($self->{registered} == SPINE_NOTRUN) {
+    unless ($self->{registered} == SPINE_NOTRUN || defined $plugin) {
         return $self->{registered};
     }
 
@@ -425,13 +428,18 @@ sub register_hooks
     # If we've already loaded our plugin lists, make sure we add populate
     # this hook point's children
     my $c = $registry->{CONFIG};
-    # make sure there is something defined in the config, if not it's
-    # not really an error just means ther user doesn't want anythign run
-    unless (exists $c->{$c->{spine}->{Profile}}->{$self->{name}}) {
-    	return SPINE_SUCCESS;
+    my @modules;
+    if (defined $plugin) {
+        @modules = ($registry->find_plugin($plugin));
+    } else {
+        # make sure there is something defined in the config, if not it's
+        # not really an error just means ther user doesn't want anythign run
+        unless (exists $c->{$c->{spine}->{Profile}}->{$self->{name}}) {
+        	return SPINE_SUCCESS;
+        }
+        @modules = $registry->find_plugin(split(/(?:\s*,?\s+)/,
+                                                $c->{$c->{spine}->{Profile}}->{$self->{name}}));
     }
-    my @modules = $registry->find_plugin(split(/(?:\s*,?\s+)/,
-                                               $c->{$c->{spine}->{Profile}}->{$self->{name}}));
 
     foreach my $module (@modules) {
         unless ($self->install_hook($module, $registry->{PLUGINS}->{$module})) {
