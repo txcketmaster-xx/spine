@@ -78,12 +78,12 @@ is(Spine::Util::find_exec($data, $file_name, "randomesomethign",
 unlink($file);
 
 ### Test Spine::Util::Exec
-$data->{dryrun} = 0;
+$data->{c_dryrun} = 0;
 
 my %config = (c     => $data,
-              exec  => "echo",
+              exec  => "printf",
               quiet => 1,
-              args  => [ "-ne", 'test 1\ntest 2\ntest 3' ],
+              args  => [ 'test 1\ntest 2\ntest 3' ],
               inert => 0);
 
 my $exec_controler = Spine::Util::create_exec(%config);

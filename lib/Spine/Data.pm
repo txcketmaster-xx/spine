@@ -415,7 +415,7 @@ sub _get_values
 
         if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
             $self->error("ignoring $directory/$keyname because of lame"
-                         . ' file name');
+                         . ' file name', 'err');
             next;
        }
 
@@ -704,7 +704,7 @@ sub set
     # if we're in an overlay template instance.  Ain't life grand?
     if ($in_template and not defined($Spine::Plugin::Templates::KEYTT)) {
         $self->error("We've got an overlay template that's trying to call "
-                     . "Spine::Data::set($key).  This is bad.");
+                     . "Spine::Data::set($key).  This is bad.", 'err ');
         die (Template::Exception->new('Spine::Data::set()',
                                       'Overlay template trying to call ' .
                                       "Spine::Data::set($key).  Bad template"));

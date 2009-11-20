@@ -23,7 +23,7 @@
 
 use strict;
 
-use lib qw(/usr/lib/spine);
+use lib qw(/usr/lib/spine-mgmt);
 
 use Getopt::Long;
 use Spine::Util;

@@ -58,43 +58,10 @@ use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
 use constant DEFAULT_CONFIG => {
         spine => {
             StateDir => '/var/spine-mgmt',
-            ConfigSource => 'ISO9660',
-            Profile => 'StandardPlugins',
-            Parser => 'pureTT',
             SyslogIdent => 'spine-mgmt',
             SyslogFacility => 'local3',
             SyslogOptions => 'ndelay,pid',
         },
-
-        DefaultPlugins => {
-            'DISCOVERY/populate' => 'DryRun SystemInfo',
-            'DISCOVERY/policy-selection' => 'DescendOrder',
-            'PARSE/complete' => 'Interpolate',
-        },
-
-        FileSystem => {
-            Path => '/software/spine/config'
-        },
-
-        ISO9660 => {
-            URL => 'http://repository/cgi-bin/rcrb.pl',
-            Destination => '/var/spine-mgmt/configballs',
-            Timeout => 5
-        },
-
-         StandardPlugins => {
-            PREPARE => 'PrintData Templates Overlay',
-            EMIT => 'Templates',
-            APPLY => 'Overlay RestartServices Finalize',
-            CLEAN => 'Overlay'
-         },
-
-        FirstRun => {
-            PREPARE => 'PrintData Templates Overlay',
-            EMIT => 'FirstRun Templates',
-            APPLY => 'Overlay Finalize',
-            CLEAN => 'Overlay',
-        }
     };
 
 #
@@ -145,7 +112,7 @@ my @cfiles = (DEFAULT_CONFIGFILE, DEFAULT_CONFIGFILE_FALLBACK);
 
 if (defined($conf_file))
 {
-    my @cfiles = ($conf_file);
+    @cfiles = ($conf_file);
 }
 
 foreach my $file (@cfiles)
@@ -167,8 +134,8 @@ foreach my $file (@cfiles)
 
 if (not defined($CONFIG))
 {
-    print STDERR "spine-mgmt: No config file found. Using hardcoded defaults.\n";
-    $CONFIG = DEFAULT_CONFIG;
+    print STDERR "spine-mgmt: No config file found.\n";
+    goto failure;
 }
 
 $CONFIG->{spine}->{Profile} = $profile if defined($profile);
