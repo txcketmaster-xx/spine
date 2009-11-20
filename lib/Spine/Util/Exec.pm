@@ -177,7 +177,7 @@ sub start {
     # can we run? if we are in dryrun and the command
     # has not been described as inert then we will skip
     # running.
-    if ($self->{c}->getval('dryrun') &&
+    if ($self->{c}->getval('c_dryrun') &&
         (! exists $self->{inert} ||
          ! $self->{inert} )) {
         $self->{dryrun} = 1;
@@ -234,8 +234,13 @@ sub lasterror {
 sub _readlines {
     my $self = shift;
     my $type = shift;
-      
-    return undef unless $self->{ready};
+
+    # If we are in dryrun we didn't run so just return undef.
+    # Also if we aren't ready yet, return undef.
+    if ( (exists $self->{dryrun} && $self->{dryrun}) || ! $self->{ready} ) 
+    {
+        return undef;
+    }
     
     my @output = $self->{$type}->getlines();
     if ($self->{$type}->error()) {

@@ -39,8 +39,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 
 use File::stat;
-use File::Touch;
-use Spine::Util qw(exec_initscript exec_command);
+use Spine::Util qw(exec_initscript simple_exec);
 
 my $DRYRUN;
 
@@ -53,7 +52,6 @@ sub restart_services
     my $start_time = $c->getval('c_start_time');
     my $startup = $c->getvals('startup');
     my $restart_deps = $c->getvals('restart_deps');
-    my $touch = File::Touch->new( no_create => 1 );
     my $tmpdir = $c->getval('c_tmpdir');
 
     $DRYRUN = $c->getval('c_dryrun');
@@ -121,16 +119,28 @@ sub restart_services
 	    if ($service)
 	    {
             	$c->cprint("restarting service $service", 2);
-                exec_initscript($c, $service, $command, 1)
-		    or $rval++;
+                unless ($DRYRUN)
+                {
+                    exec_initscript($c, $service, $command, 1)
+		        or $rval++;
+                }
  	    }
 	    else
 	    {
 		$c->cprint("executing command $command", 2);
-                exec_command($c, $command, 1)
-		    or $rval++;
+
+                # Work out what th command is vs arguments
+                $command =~ m/^([\S]+)(?:\s+(.*))?$/;
+                my ($cmd, $args) = ($1, $2);
+
+                simple_exec(exec        => $cmd,
+                            args        => $args,
+                            inert       => 0,
+                            quiet       => 1,
+                            c           => $c,
+                            merge_error => 1) or $rval++;
 	    }
-            $touch->touch(@{$rshash{$key}});
+            utime(time, time, @{$rshash{$key}});
         }
     }
 

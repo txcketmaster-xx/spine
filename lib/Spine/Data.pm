@@ -61,6 +61,7 @@ sub new {
                                c_hostname => $args{hostname}, 
                                c_release => $args{release},
                                c_verbosity => $args{verbosity} || 0,
+                               c_quiet => $args{quiet},
                                c_version => $args{version} || $::VERSION,
                                c_config => $args{config},
                                c_croot => $croot,
@@ -195,13 +196,13 @@ sub populate
     }
 
     # Some truly basic stuff first.
-    $self->{c_label} = 'spine_core';
+    $self->{c_label} = 'spine-mgmt core';
     $self->{c_start_time} = time();
     $self->{c_ppid} = $$;
 
     # FIXME  Should these be moved to Spine::Plugin::Overlay?
-    $self->{c_tmpdir} = "/tmp/spine." . $self->{c_ppid};
-    $self->{c_tmplink} = "/tmp/spine.lastrun";
+    $self->{c_tmpdir} = "/tmp/spine-mgmt." . $self->{c_ppid};
+    $self->{c_tmplink} = "/tmp/spine-mgmt.lastrun";
 
     # Retrieve "internal" config values nesessary for bootstrapping of
     # discovery and therefore parsing of the tree.
@@ -242,11 +243,8 @@ sub populate
         return SPINE_FAILURE;
     }
 
-    # We *always* parse the top level config directory
-    unless ($self->_get_values($self->{c_croot} , 1)) {
-        $self->error('error parsing root config', 'crit');
-        return SPINE_FAILURE;
-    }
+    # Parse the top level config directory if it exists.
+    $self->_get_values($self->{c_croot});
 
     # HOOKME  Discovery: policy selection
     #
@@ -573,8 +571,21 @@ sub getvals
 {
     my $self = shift;
     my $key = shift;
+    my $force = shift || 0;
+
     $self->print(4, "getvals -> $key");
-    return undef unless ($key && exists $self->{$key});
+
+    unless ($key && exists $self->{$key})
+    {
+        if ($force)
+        {
+            return [];
+        }
+        else
+        {
+            return undef;
+        }
+    }
 
     if ((ref $self->{$key}) eq "ARRAY")
     {
@@ -622,7 +633,7 @@ sub getvals_by_keyname
     $self->print(4, "getvals_by_keyname -> $key_re");
 
     foreach my $key (keys(%{$self})) {
-	if ($key =~ m/$key_re/o) {
+	if ($key =~ m/$key_re/) {
 	    push @matching_vals, $self->{key};
 	}
     }
@@ -747,8 +758,10 @@ sub cprint
 
     if ($level <= $self->{c_verbosity})
     {
-	print $self->{c_label}, ": $msg\n";
-	syslog("info", "spine: $msg")
+	print $self->{c_label}, ": $msg\n"
+            unless $self->{c_quiet};
+
+	syslog("info", "$msg")
             if ( not $self->{c_dryrun} or $log_to_syslog );
     }
 }
@@ -762,7 +775,8 @@ sub print
     if ($lvl <= $self->{c_verbosity})
     {
 #	print $self->{c_label}, '[', join('::', caller()), ']: ', @_, "\n";
-	print $self->{c_label}, ': ', @_, "\n";
+	print $self->{c_label}, ': ', @_, "\n"
+            unless $self->{c_quiet};
     }
 }
 
@@ -773,7 +787,7 @@ sub log
     my $msg = shift;
 
     if (not $self->{c_dryrun}) {
-        syslog('info', "spine: $msg");
+        syslog('info', "$msg");
     }
 }
 
@@ -796,7 +810,7 @@ sub error
 	print STDERR $self->{c_label} . ": \[$level\] $msg\n";
     }
 
-    syslog("$level", "spine: $msg")
+    syslog("$level", "$msg")
         unless $self->{c_dryrun};
     push(@{$self->{c_errors}}, $msg);
 }

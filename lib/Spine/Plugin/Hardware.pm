@@ -224,7 +224,7 @@ sub scrub_value
         $changed++;
         $v = 1;
     }
-    elsif ($v =~ m/^\d\+$/o) {
+    elsif ($v =~ m/^\d\+$/) {
         $changed++;
         $v = int($v);
     }
@@ -455,7 +455,7 @@ sub num_cores
     my @dies =  $self->find_items(class => 'processor', name => qr/^cpu:/);
 
     foreach my $die (@dies) {
-        if ($die->{product} =~ m/(?i:dual\s+core|duo)/o) {
+        if ($die->{product} =~ m/(?i:dual\s+core|duo)/) {
             $cores++;
         }
     }

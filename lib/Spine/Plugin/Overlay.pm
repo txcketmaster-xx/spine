@@ -47,7 +47,6 @@ use Digest::MD5;
 use File::Find;
 use File::Spec::Functions;
 use File::stat;
-use File::Touch;
 use Fcntl qw(:mode);
 use IO::File;
 use Spine::Constants qw(:basic);
@@ -123,6 +122,7 @@ sub build_overlay
             {
                 $c->print(4, "performing overlay from $dir");
                 unless (do_rsync(Config => $c,
+                                 Inert => 1,
                                  Source => $overlay,
                                  Target => catfile($tmpdir, $target),
                                  Excludes => \@excludes)) {
@@ -163,7 +163,6 @@ sub apply_overlay
     my $overlay_root = $c->getval('overlay_root');
     my $excludes = $c->getvals('apply_overlay_excludes');
     my $max_diff_lines = $c->getval('max_diff_lines_to_print');
-    my $touch = File::Touch->new( no_create => 1 );
     my %rsync_args = (Config => $c, Source => $tmpdir, Output => undef,
                       Target => $overlay_root, Options => [qw(-c)],
                       Excludes => $excludes);
@@ -247,7 +246,7 @@ sub apply_overlay
                         $c->cprint("    $line", 2, 0) if ($line =~ /^[+-]/);
                     }
                 }
-                $touch->touch($srcfile);
+                utime(time, time, $srcfile);
             }
         }
         elsif (not -e $destfile)
@@ -259,7 +258,7 @@ sub apply_overlay
                       . ' owner/group ' . uid_conv($src_stat->uid) . ':'
                       . gid_conv($src_stat->gid) . ']');
 
-            $touch->touch($srcfile);
+            utime(time, time, $srcfile);
         }
     }
 

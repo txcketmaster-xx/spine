@@ -82,20 +82,20 @@ sub parse_line {
     # i.e. _spine_replace() would be in the key as
     # spine_replace().
     $re = '_(_*' . CONTROL_PREFIX . '\w+\(.*\)\s*)';
-    if ( $$line_ref =~ m/^$re$/o ) {
+    if ( $$line_ref =~ m/^$re$/ ) {
         $$line_ref = $1;
         return PLUGIN_SUCCESS;
     }
 
     # Detect legacy '=' operator and convert
-    if ( $line_no == 1 && $$line_ref =~ m/^=\s*$/o ) {
+    if ( $line_no == 1 && $$line_ref =~ m/^=\s*$/ ) {
         unshift @{ $data->{control} }, ["replace"];
         $$line_ref = undef;
         return PLUGIN_SUCCESS;
     }
 
     # Detect legacy '-' operator and convert
-    if ( $$line_ref =~ m/^-(.*)/o ) {
+    if ( $$line_ref =~ m/^-(.*)/ ) {
         push @{ $data->{control} }, [ "remove", $1 ];
         $$line_ref = undef;
         return PLUGIN_SUCCESS;
@@ -104,7 +104,7 @@ sub parse_line {
     # Detect real control ops i.e. spine_replace()
     # these will be processed by another plugin
     $re = CONTROL_PREFIX . '(\w+)\((.*)\)\s*';
-    if ( $$line_ref =~ m/^$re$/o ) {
+    if ( $$line_ref =~ m/^$re$/ ) {
         push @{ $data->{control} }, [ $1, $2 ];
         next;
     }
@@ -121,7 +121,7 @@ sub process_operators {
     # once people use the new format.
     if ( ref($data->{obj}) eq "ARRAY"
          && exists $data->{obj}->[0]
-         && $data->{obj}->[0] =~ m/^=\s*$/o )
+         && $data->{obj}->[0] =~ m/^=\s*$/ )
     {
         shift @{$data->{obj}};
         $data->{control} = [] unless exists $data->{control};

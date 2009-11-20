@@ -362,7 +362,7 @@ sub _parse_maps
         }
 
         foreach my $value (@{$values}) {
-            my @list = split(m/:/o, $value);
+            my @list = split(m/:/, $value);
 
             if (scalar(@list) != 2) {
                 $c->error("Invalid line in $map: \"$value\"", 'crit');
@@ -427,7 +427,7 @@ sub _expand_auth_group
         #
         # Grep all further groups, pass in at once, limit recursion
         #
-        my @nested_groups = grep(m/^@/o, @{$auth_groups->{$group}});
+        my @nested_groups = grep(m/^@/, @{$auth_groups->{$group}});
 
         if (scalar(@nested_groups)) {
             push @list, _expand_auth_group($auth_groups, $group);
@@ -1489,7 +1489,7 @@ sub _copy_skel_dir
     }
 
     while (defined(my $d_entry = readdir(DIR))) {
-        if ($d_entry =~ m/^.{1,2}$/o) {
+        if ($d_entry =~ m/^.{1,2}$/) {
             next;
         }
         push @entries, $d_entry;

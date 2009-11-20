@@ -200,8 +200,10 @@ sub do_rsync
 	$tmpfh->close();
 	push @rsync_opts, "--exclude-from=$tmpfn"
     }
-   
+  
+    my $inert = exists $args{Inert} ? $args{Inert} : 0;
     my @result = simple_exec(c           => $c,
+                             inert       => $inert,
                              exec        => 'rsync',
                              merge_error => 1,
                              args        => [@rsync_opts,
@@ -240,42 +242,20 @@ sub exec_initscript
     return 1;
 }
 
-# wraper to Spine::Util::Exec::simple
+# wrapper to Spine::Util::Exec::simple
 sub simple_exec {
     return  Spine::Util::Exec->simple(@_);
 }
 
-# wraper to Spine::Util::Exec::new
+# wrapper to Spine::Util::Exec::new
 sub create_exec {
     return  Spine::Util::Exec->new(@_);
 }
 
-# wraper to Spine::Util::Exec::find_exec
+# wrapper to Spine::Util::Exec::find_exec
 sub find_exec {
     return  Spine::Util::Exec->find_exec(@_);
 }
-
-# DEPRECIATE: for support of old implementation (used in templates)
-sub exec_command {
-    my ($c, $command, $report_error, $inert, $merror) = @_;
-    
-    # Work out what the command is vs arguments
-    $command =~ m/^([\S]+)(?:\s+(.*))?$/;
-    my ($cmd, $args) = ($1, $2);
-    
-    #TODO This should be uncommented in a few releases time
-    #$c->error('use of depreciated "exec_command" please use "simple_exec"',
-    #          'warning');
-
-    return simple_exec(exec        => $cmd,
-                       args        => $args,
-                       inert       => $inert,
-                       quiet       => $report_error ? 0 : 1,
-                       c           => $c,
-                       merge_error => defined $merror ? $merror : 1);
-    
-}
-
 
 
 sub octal_conv

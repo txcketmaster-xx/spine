@@ -39,28 +39,29 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => {
-                       "PKGMGR/Init"           => [ { name => 'APT Init',
+                       "PKGMGR/Init/APT"           => [ { name => 'APT Init',
                                                       code => \&init_apt } ],
-                       "PKGMGR/CheckUpdates"   => [ { name => 'APT Check Update',
+                       "PKGMGR/CheckUpdates/APT"   => [ { name => 'APT Check Update',
                                                       code => \&check_update } ],
                        # Update installation
-                       "PKGMGR/Update"         => [ { name => 'APT Update',
+                       "PKGMGR/Update/APT"         => [ { name => 'APT Update',
                                                       code => \&update } ],
                        # Work out the deps of what is to be installed and resolve
                        # virtual provides
-                       "PKGMGR/ResolveMissing" => [ { name => 'APT Resolve',
+                       "PKGMGR/ResolveMissing/APT" => [ { name => 'APT Resolve',
                                                       code => \&_check_missing } ],
                        # install missing packages
-                       "PKGMGR/Install"        => [ { name => 'APT Install',
+                       "PKGMGR/Install/APT"        => [ { name => 'APT Install',
                                                       code => \&install } ],
                        # remove packages
-                       "PKGMGR/Remove"        => [ { name => 'APT Remove',
+                       "PKGMGR/Remove/APT"        => [ { name => 'APT Remove',
                                                       code => \&remove } ],
                      },
 
           };
 
-our $PKGPLUGNAME = 'APT';
+use constant PKGPLUGNAME => 'APT';
+
 our $DRYRUN = undef; 
 
 sub _report_stderr {
@@ -85,9 +86,11 @@ sub _split_pkg_name {
 }
 
 sub _create_pkg_name {
-    my $node = shift;
+    my $item = shift;
+    return undef unless defined $item;
+    my $node = $item->[1];
     my $name = $node->{name};
-    if (exists $node->{version}) {
+    if (exists $node->{version} && defined $node->{version}) {
         $name .= "#".$node->{version};
     }
     if (exists $node->{arch}) {
@@ -103,11 +106,7 @@ sub _create_pkg_name {
 # Initialize the apt environment for this instance. Most of this code was
 # stolen from the original package manager plugin.
 sub init_apt {
-    my ($c, $pic, undef, $section) = @_;
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }
+    my ($c, $pic, undef) = @_;
 
     if (exists $pic->{dryrun}) {
         $DRYRUN=1;
@@ -118,10 +117,10 @@ sub init_apt {
                          aptget_args => [],
                          aptget_bin =>  'apt-get',
                        );
-    unless (defined $pic->{package_config}->{PKGPLUGNAME}) {
-        $pic->{package_config}->{PKGPLUGNAME} = {};
+    unless (exists $pic->{plugin_config}->{PKGPLUGNAME}) {
+        $pic->{plugin_config}->{PKGPLUGNAME} = {};
     }
-    my $conf = $pic->{package_config}->{PKGPLUGNAME};
+    my $conf = $pic->{plugin_config}->{PKGPLUGNAME};
     while (my ($key, $value) = each %default_conf) {
         $conf->{$key} = $value unless exists $conf->{$key};
     }
@@ -206,12 +205,9 @@ sub update {
 # FIXME lots of duplication of _install
 sub _update {
 
-    my ($checkrun, $c, $instance_conf, undef, $section) = @_;
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }   
-    my $aptconf = $instance_conf->{package_config}->{PKGPLUGNAME};
+    my ($checkrun, $c, $instance_conf, undef) = @_;
+
+    my $aptconf = $instance_conf->{plugin_config}->{PKGPLUGNAME};
     my $s = $instance_conf->{store};
     # only carry on if there are any packages to resolve
     my $ret;
@@ -238,14 +234,10 @@ sub _update {
 }    
 
 sub _check_missing {
-    my ($c, $instance_conf, undef, $section) = @_;
+    my ($c, $instance_conf) = @_;
 
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }
-    
-    my $aptconf = $instance_conf->{package_config}->{PKGPLUGNAME};
+
+    my $aptconf = $instance_conf->{plugin_config}->{PKGPLUGNAME};
     my $s = $instance_conf->{store};
     my @missing = $s->get_node_val('name',$s->find_node('missing', 'name'));
     
@@ -257,6 +249,7 @@ sub _check_missing {
 
     _report_stderr($c, $ret->{stderr});
     if ($ret->{rc} != 0) {
+        $c->error('Could not run apt-get','warning');
         return PLUGIN_ERROR;
     }
     
@@ -334,18 +327,17 @@ sub _check_missing {
     
 
 sub _install {
-    my ($checkrun, $c, $instance_conf, undef, $section) = @_;
+    my ($checkrun, $c, $instance_conf, undef) = @_;
 
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }
-    my $aptconf = $instance_conf->{package_config}->{PKGPLUGNAME};
+
+    my $aptconf = $instance_conf->{plugin_config}->{PKGPLUGNAME};
     my $s = $instance_conf->{store};
-    my @missing = map {  _create_pkg_name($_) } $s->find_node('missing', 'name');
-    #my @missing = $s->get_node_val('name',$s->find_node('missing', 'name'));
-    # only carry on if there are any packages to resolve
+    
+    my @missing = $s->find_node('missing', 'name');
     return PLUGIN_FINAL unless (@missing > 0);
+    @missing = map {  _create_pkg_name($_) } @missing;
+    
+    
     $c->cprint("Working out deps and provides for missing packages", 4);
     my $ret;
     if ($checkrun || exists $instance_conf->{dryrun}) {
@@ -365,13 +357,10 @@ sub _install {
     my %missing = map { $_ => undef } @missing;
     # Check out what the deps are and that we can find all the packages...
     foreach (@{$ret->{stdout}}) {
-
-        if (m/^Inst\s+([^\s]+)\s+\((?:[0-9]+:)?([^\s]+)\s+.*$/) {
+        if (m/^Selecting.*package\s+([^\s]+).\s*$/) {
                 my ($pkname, undef, undef) = _split_pkg_name($1);
                 if (exists $missing{$pkname}) {
                     $found{$pkname} = undef;
-                } else {
-                    $s->create_node('new_deps', 'name', $pkname, 'version', $2) if $checkrun;
                 }
         }
     }
@@ -386,15 +375,11 @@ sub _install {
 }
 
 sub remove {
-    my ($c, $instance_conf, undef, $section) = @_;
+    my ($c, $instance_conf, undef) = @_;
 
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }
 
     my $s = $instance_conf->{store};
-    my $aptconf = $instance_conf->{package_config}->{PKGPLUGNAME};
+    my $aptconf = $instance_conf->{plugin_config}->{PKGPLUGNAME};
 
     # only carry on if there is anything to remove
     my @packages = $s->get_node_val('name', $s->find_node('remove', 'name'));
@@ -434,6 +419,85 @@ sub install {
     _install(undef, @_);
 }
 
+# Actually handles the exec'ing and IO
+#sub _exec_apt
+#{
+#    my $c = shift;
+#    my $conf = shift;
+#    my @cmdline = @_;
+#    my $pid = -1;
+#
+#    if (ref($_[0]) eq 'ARRAY')
+#    {
+#        # The plus sign is so that we actually call the shift function
+#        @cmdline = @{ +shift };
+#    }
+#    
+#    # NOTE: there is a split in the bellow lines because of an
+#    #       apt-get 'feature'.
+#    #          - If you pass arguments to apt-get as a single
+#    #            argv then open3 splits it and it works.
+#    #          - If you split them all out it also works.
+#
+#    # NOTE: passing blank arguments causes strange apt-get errors
+#    #       like "E: Line 1 too long in source list" (it lies)
+#    # rpounder Tue Aug 25 2009
+#    #
+#    my @fixed_cmdline;
+#    foreach my $cmdpart (@{$conf->{aptget_args}}, @cmdline) {
+#        push (@fixed_cmdline, split(' ', $cmdpart)) unless ($cmdpart eq '');
+#    }
+#
+#    my $exec_c = create_exec(inert => 1,
+#                             c     => $c,
+#                             exec  => exists $conf->{aptget-bin} ?  $conf->{aptget-bin} : 'apt-get',
+#                             args  => \@fixed_cmdline);
+#
+#    unless ($exec_c->start())
+#    {
+#        $c->error('apt-get failed to run it seems', 'err');
+#        return undef;
+#    }
+#    
+#    $exec_c->closeinput();
+#    
+#    my @foo = $exec_c->readlines();
+#    my $stdout = [@foo];
+#    
+#    @foo = $exec_c->readerrorlines();
+#    my $stderr = [@foo];
+#
+#    $exec_c->wait();
+#   
+#    # If there was an error, print it out
+#    if ($exec_c->exitstatus() >> 8 != 0)
+#    {
+#        my $errormsg = extract_apt_error($c, $stderr);
+#
+#        $c->error("apt-get $apt_func failed \[$errormsg\]", 'err');
+#
+#        my $verb = $c->getval('c_verbosity');
+#
+ #       if ($verb > 1)
+   #     {
+   #         foreach (@{$stdout})
+   #         {
+   #             $c->error("\t$_", 'err');
+  #          }
+ #       }
+#
+#    3    if ($verb > 2)
+   #     {
+  #          $c->error("failed command \[".join(" ", "apt-get", @cmdline)."\]", 'err');
+ #       }
+#
+#
+ #       return undef;
+#
+ #   return $stdout;
+#}
+
+
 sub run_apt {
     my $conf = shift;
     my @args = @_;
@@ -448,7 +512,7 @@ sub run_apt {
                 stdout => [],
                 stderr => [] };
 
-    my $cmdline = join(' ', $conf->{aptget_bin}, @{$conf->{aptget_args}}, @args);
+    my $cmdline = join(' ', $conf->{aptget_bin}, @{$conf->{aptget_args} ? $conf->{aptget_args} : []}, @args);
 
     # Reset our fh handles
     my $stdin  = new IO::Handle();
@@ -459,6 +523,7 @@ sub run_apt {
     # IO::Handle objects and the command to run is pass in as an array,
     # it won't exec the command line properly.  However, if you join() it
     # head of time, it'll run just fine.
+    
     eval { $pid = open3($stdin, $stdout, $stderr, $cmdline); };
 
     # Siphon off output and error data so we can then waitpid() to reap

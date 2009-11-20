@@ -25,8 +25,8 @@ our $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 use strict;
 
 # Allow users to override but putting at the end
-# rather then 'use lib q(/usr/lib/spine)'
-BEGIN { push @INC, q(/usr/lib/spine) }
+# rather then 'use lib q(/usr/lib/spine-mgmt)'
+BEGIN { push @INC, q(/usr/lib/spine-mgmt) }
 
 my $perl_ver = sprintf "%vd", $^V;
 my $error_count = 0;
@@ -44,26 +44,32 @@ use Spine::State;
 use Spine::Util;
 use POSIX qw(ctime);
 use File::Spec::Functions;
+use Sys::Syslog;
 
 use sigtrap 'handler' => \&ignore_signal, 'normal-signals';
 
 use constant NODEFILE => '/etc/nodename';
-use constant LOCKFILE => '/var/run/spine.lock';
-use constant DEFAULT_CONFIGFILE => '/etc/spine-config.conf';
-use constant DEFAULT_CONFIGFILE_FALLBACK => '/etc/spine.conf';
+use constant LOCKFILE => '/var/run/spine-mgmt.lock';
+use constant DEFAULT_CONFIGFILE => '/etc/spine-mgmt/spine-mgmt.conf';
+use constant DEFAULT_CONFIGFILE_FALLBACK => ('/etc/spine-config.conf',\
+                                             '/etc/spine.conf');
 use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
 
 use constant DEFAULT_CONFIG => {
         spine => {
-            StateDir => '/var/spine',
+            StateDir => '/var/spine-mgmt',
             ConfigSource => 'ISO9660',
-            Profile => 'StandardPlugins'
+            Profile => 'StandardPlugins',
+            Parser => 'pureTT',
+            SyslogIdent => 'spine-mgmt',
+            SyslogFacility => 'local3',
+            SyslogOptions => 'ndelay,pid',
         },
 
         DefaultPlugins => {
             'DISCOVERY/populate' => 'DryRun SystemInfo',
             'DISCOVERY/policy-selection' => 'DescendOrder',
-            'PARSE/complete' => 'Auth Interpolate',
+            'PARSE/complete' => 'Interpolate',
         },
 
         FileSystem => {
@@ -72,24 +78,22 @@ use constant DEFAULT_CONFIG => {
 
         ISO9660 => {
             URL => 'http://repository/cgi-bin/rcrb.pl',
-            Destination => '/var/spine/configballs',
+            Destination => '/var/spine-mgmt/configballs',
             Timeout => 5
         },
 
          StandardPlugins => {
             PREPARE => 'PrintData Templates Overlay',
-            EMIT => 'Templates Auth',
-            APPLY => 'Overlay RPMPackageManager TweakStartup'
-                         . ' RestartServices Finalize',
-            CLEAN => 'Overlay RPMPackageManager SystemHarden'
+            EMIT => 'Templates',
+            APPLY => 'Overlay RestartServices Finalize',
+            CLEAN => 'Overlay'
          },
 
         FirstRun => {
-            PREPARE => 'PrintData Overlay',
-            EMIT => 'FirstRun Templates Auth',
-            APPLY => 'Overlay RPMPackageManager TweakStartup'
-                         . ' Finalize',
-            CLEAN => 'Overlay SystemHarden',
+            PREPARE => 'PrintData Templates Overlay',
+            EMIT => 'FirstRun Templates',
+            APPLY => 'Overlay Finalize',
+            CLEAN => 'Overlay',
         }
     };
 
@@ -125,48 +129,49 @@ if ($DEBUG)
 #
 Getopt::Long::Configure('pass_through');
 
-my $cfile = DEFAULT_CONFIGFILE;
-if (not -f $cfile)
-{
-    $cfile = DEFAULT_CONFIGFILE_FALLBACK;
-}
-
 my $profile = undef;
+my $conf_file = undef;
+my $quiet = undef;
 my @actions = ();
 
-GetOptions('config-file=s' => \$cfile,
+GetOptions('config-file=s' => \$conf_file,
             'action|plugin=s@' => \@actions,
+            'quiet|q' => \$quiet,
             'actiongroup|profile=s' => \$profile);
 
 Getopt::Long::Configure('no_pass_through');
 
+my @cfiles = (DEFAULT_CONFIGFILE, DEFAULT_CONFIGFILE_FALLBACK);
 
-# Parse the config file
-$CONFIG = new Spine::ConfigFile(Filename => $cfile, Type => 'Ini');
-$CONFIG->{spine}->{Profile} = $profile if defined($profile);
+if (defined($conf_file))
+{
+    my @cfiles = ($conf_file);
+}
+
+foreach my $file (@cfiles)
+{
+    if (-f $file)
+    {
+
+        print "spine-mgmt: Using config file at $file\n"
+            unless(defined($quiet));
+        $CONFIG = new Spine::ConfigFile(Filename => $file, Type => 'Ini');
+        if (not defined($CONFIG))
+        {
+            print STDERR $Spine::ConfigFile::ERROR;
+            goto failure;
+        }
+        last;
+    }
+}
 
 if (not defined($CONFIG))
 {
-    if ($cfile ne DEFAULT_CONFIGFILE)
-    {
-	print STDERR $Spine::ConfigFile::ERROR;
-	goto failure;
-    }
-
-    if (-f $cfile and (not -r $cfile))
-    {
-	print STDERR "Default config file $cfile exists but isn't readable.\n";
-	goto failure;
-    }
-
-    if (not -f DEFAULT_CONFIGFILE)
-    {
-	print STDERR "No config file found at default $cfile. "
-            . "Using hardcoded defaults.\n";
-
-        $CONFIG = DEFAULT_CONFIG;
-    }
+    print STDERR "spine-mgmt: No config file found. Using hardcoded defaults.\n";
+    $CONFIG = DEFAULT_CONFIG;
 }
+
+$CONFIG->{spine}->{Profile} = $profile if defined($profile);
 
 
 # Take care of our PluginPath if provided
@@ -174,6 +179,18 @@ if (defined($CONFIG->{spine}->{PluginPath}))
 {
     unshift @INC, split(/:/, $CONFIG->{spine}->{PluginPath});
 }
+
+# Run openlog() once so any plugin can use it with the user-configured 
+# facility, options, and program name (or the defaults). 
+openlog($CONFIG->{spine}->{SyslogIdent} ? 
+            $CONFIG->{spine}->{SyslogIdent} : 
+            DEFAULT_CONFIG->{spine}->{SyslogIdent}, 
+        $CONFIG->{spine}->{SyslogFacility} ? 
+            $CONFIG->{spine}->{SyslogFacility} : 
+            DEFAULT_CONFIG->{spine}->{SyslogFacility}, 
+        $CONFIG->{spine}->{SyslogOptions} ? 
+            $CONFIG->{spine}->{SyslogOptions} : 
+            DEFAULT_CONFIG->{spine}->{SyslogOptions}); 
 
 #
 # If specific actions were requested, we don't use our profile,
@@ -360,7 +377,12 @@ if (not defined($release))  # There was an error
 }
 
 
-print 'spine_core: Using configuration: ', $source->source_info(), "\n";
+
+unless(defined($quiet))
+{
+    print 'spine-mgmt core: Using configuration: ', 
+         $source->source_info(), "\n";
+}
 
 
 # Determine the hostname.
@@ -391,16 +413,26 @@ else
 
 
 # Announce what we're doing
-print 'spine: starting Spine v' . $VERSION . ' -- configuration release ',
-      $source->release(), "\n";
-print "spine: initializing data for $hostname\n";
+unless(defined($quiet))
+{
+    print 'spine-mgmt: starting Spine v' . $VERSION . 
+        ' -- configuration release ', $source->release(), "\n";
+
+    print "spine-mgmt: initializing data for $hostname\n";
+}
+
 if ( ${%{$registry->get_options()}->{dryrun}} ) {
-    print "spine: running in dryrun mode\n";
+    unless(defined($quiet))
+    {
+        print "spine-mgmt: running in dryrun mode\n";
+    }
+    syslog("info", "running in dryrun mode");
 }
 
 # Create the configuration object.
 my $c = Spine::Data->new(hostname    => $hostname,
                          verbosity   => $verbosity,
+                         quiet       => $quiet,
                          source      => $source,
                          release     => $release,
                          config      => $CONFIG);
@@ -409,7 +441,7 @@ my $c = Spine::Data->new(hostname    => $hostname,
 #
 # rtilder  Tue Jun 27 12:23:39 PDT 2006
 if (not defined($c)) {
-    print STDERR 'spine initialization: Errors encountered parsing '
+    print STDERR 'spine-mgmt initialization: Errors encountered parsing '
         . "data tree.\n";
     goto failure;
 }
@@ -418,7 +450,7 @@ if (not defined($c)) {
 # have had a critical parsing error.
 if ($c->getval('c_failure'))
 {
-    print STDERR 'spine initialization: Errors encountered parsing '
+    print STDERR 'spine-mgmt initialization: Errors encountered parsing '
         . "data tree.\n";
     goto failure;
 }
@@ -480,7 +512,8 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
         #
         # rtilder    Wed May  9 10:33:20 PDT 2007
         #
-        print STDOUT "\tAt least one plugin requested a clean exit.\n";
+        print STDOUT "\tAt least one plugin requested a clean exit.\n"
+            unless(defined($quiet));
         last PHASE;
     }
 }
@@ -491,7 +524,10 @@ $source->clean();
 if ($SAVE_STATE)
 {
     # Store our config object to disk.
-    print STDERR "Saving state...\n";
+    unless(defined($quiet))
+    {
+        print STDERR "Saving state...\n";
+    }
     unless ($state->store())
     {
         $c->error('failed to write session object [' . $state->error . ']',
@@ -516,8 +552,17 @@ if ($SAVE_STATE)
     }
 }
 
+# Figure out if we had lame keys and report the number.
+if ( defined $c->{c_lame_keys} )
+{
+    my $size = keys %{$c->{c_lame_keys}};
+    print "spine-mgmt: Encountered $size keys with lame TT syntax!\n"
+        unless(defined($quiet));
+}
 
 finished:
+# Close syslog
+closelog();
 # Release our exclusive lock and exit.
 release_lock();
 if ($error_count)
@@ -527,6 +572,8 @@ if ($error_count)
 exit(0);
 
 failure:
+# Close syslog
+closelog();
 release_lock();
 exit(1);
 
@@ -857,7 +904,7 @@ sub usage
 {
     print STDERR (<<EOF);
 Spine v$VERSION -- Configuration management system.
-Usage: spine [options]
+Usage: spine-mgmt [options]
 
     --action <action>	
 			Run the specified action(s). Actions are defined
@@ -873,7 +920,7 @@ Usage: spine [options]
     --croot <directory>
 			Location of the configuration hierarchy.
 			By default, this path will be relative
-			to the spine executable in config/.
+			to the spine-mgmt executable in config/.
 
     --autofqdn
 			Attempt to determine the FQDN. Use this
@@ -913,7 +960,7 @@ Usage: spine [options]
 
     --config-file <file>
                         The configuration file to use for this script.
-                        The default is /etc/spine.conf.
+                        The default is /etc/spine-mgmt/spine-mgmt.conf.
 
     --config-source <configuration source type>
                         The type of configuration source to use.  Defined by
@@ -941,9 +988,9 @@ Usage: spine [options]
 
 Examples:
 
-    spine --profile apply_auth
-    spine --action apply_overlay --action process_templates
-    spine --croot /tmp/testconfig --hostname some.host.name.tld
+    spine-mgmt --profile apply_auth
+    spine-mgmt --action apply_overlay --action process_templates
+    spine-mgmt --croot /tmp/testconfig --hostname some.host.name.tld
 
 Notes:
 

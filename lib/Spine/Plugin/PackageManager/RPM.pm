@@ -1,7 +1,7 @@
 
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: Skeleton.pm 22 2007-12-12 00:35:55Z phil@ipom.com $
+# $Id$
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -26,45 +26,40 @@ use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 use Spine::RPM;
 
-our ($VERSION, $DESCRIPTION, $MODULE);
+our ( $VERSION, $DESCRIPTION, $MODULE );
 my $CPATH;
 
-$VERSION = sprintf("%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/);
+$VERSION     = sprintf( "%d.%02d", q$Revision: 22 $ =~ /(\d+)\.(\d+)/ );
 $DESCRIPTION = "PackageManager::RPM, RPM implementation";
 
-$MODULE = { author => 'osscode@ticketmaster.com',
-            description => $DESCRIPTION,
-            version => $VERSION,
-            hooks => {
-                       "PKGMGR/ResolveInstalled" => [ { name => 'RPM ResolveInstaledDeps',
-                                                        code => \&_resolve_deps } ],
-                       "PKGMGR/Lookup" => [ { name => 'RPM ResolveInstaled',
-                                                        code => \&get_installed } ],
-                       
-            },
+$MODULE = {
+    author      => 'osscode@ticketmaster.com',
+    description => $DESCRIPTION,
+    version     => $VERSION,
+    hooks       => {
+        "PKGMGR/ResolveInstalled/RPM" => [ 
+            { name => 'RPM ResolveInstaledDeps',
+              code => \&_resolve_deps } ],
+        "PKGMGR/Lookup/RPM" => [
+            { name => 'RPM ResolveInstaled',
+              code => \&get_installed } ],
 
-          };
+    },
 
-our $PKGPLUGNAME = 'RPM';
+};
 
 sub _resolve_deps {
-    my ($c, $instance_conf, undef, $section) = @_;
-
-
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }
+    my ( $c, $instance_conf, undef ) = @_;
 
     my $s = $instance_conf->{store};
-    my @packages = $s->find_node('install', 'name');
-    my @remove = Spine::RPM->new->keep($s->get_node_val('name', @packages));
-    my %remove = map {  $_ => undef } @remove;
+    my @packages = $s->find_node( 'install', 'name' );
+    my @remove = Spine::RPM->new->keep( $s->get_node_val( 'name', @packages ) );
+    my %remove = map { $_ => undef } @remove;
 
-    my @packages = $s->find_node('installed', 'name');
-    foreach ($s->get_node_val('name', @packages)) {
-        unless (exists $remove{$_}) {
-            $s->create_node('deps', 'name', $_);
+    my @packages = $s->find_node( 'installed', 'name' );
+    foreach ( $s->get_node_val( 'name', @packages ) ) {
+        unless ( exists $remove{$_} ) {
+            $s->create_node( 'deps', 'name', $_ );
         }
     }
 
@@ -72,27 +67,20 @@ sub _resolve_deps {
 }
 
 sub get_installed {
-    my ($c, $instance_conf, undef, $section) = @_;
-
-    # Are we to deal with this?
-    unless (exists $section->{$PKGPLUGNAME}) {
-        return PLUGIN_SUCCESS;
-    }
+    my ( $c, $instance_conf, undef ) = @_;
 
     my $s = $instance_conf->{store};
 
     my $node;
-    foreach (split(/\n/, `rpm -qa  --qf "%{NAME}\t%{VERSION}\t%{ARCH}\n"`)  ) {
-        my ($name, $version, $arch) = split (/\t/, $_);
-       
-        $s->create_node('installed',
-                         'name', $name,
-                         'arch', $arch,
-                         'version', $version);
+    foreach ( split( /\n/, `rpm -qa  --qf "%{NAME}\t%{VERSION}\t%{ARCH}\n"` ) )
+    {
+        my ( $name, $version, $arch ) = split( /\t/, $_ );
+
+        $s->create_node( 'installed', 'name', $name, 'arch', $arch, 'version',
+                         $version );
     }
 
     return PLUGIN_FINAL;
 }
-
 
 1;

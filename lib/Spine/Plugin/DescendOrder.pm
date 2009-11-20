@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 use Spine::Data;
 use Spine::Plugin::Interpolate;
 
-our ($VERSION, $DESCRIPTION, $MODULE, $CURRENT_DEPTH, $MAX_NESTING_DEPTH);
+our ($VERSION, $DESCRIPTION, $MODULE, $ABORT, $CURRENT_DEPTH, $MAX_NESTING_DEPTH);
 
 $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Determines which policies to apply based on the spine-config" .
@@ -44,6 +44,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 use File::Spec::Functions;
 
+$ABORT = 0;
 $CURRENT_DEPTH = 0;
 $MAX_NESTING_DEPTH = 15;
 
@@ -64,7 +65,14 @@ sub descend_order
         push @{$c->{c_hierarchy}}, get_includes($c, $dir);
     }
 
-    return PLUGIN_SUCCESS;
+    if ($ABORT)
+    {
+        return PLUGIN_FATAL;
+    }
+    else
+    {
+        return PLUGIN_SUCCESS;
+    }
 }
 
 
@@ -77,7 +85,9 @@ sub get_includes
 
     # FIXME  Too deep.  Log something.
     if (++$CURRENT_DEPTH > $MAX_NESTING_DEPTH) {
-        goto empty_set;
+        $c->error('Search depth limit exceeded, aborting!', 'crit');
+        $ABORT = 1;
+        goto empty_set; 
     }
 
     # If we want includes to appear before their children do so now.
@@ -120,6 +130,7 @@ sub get_includes
     }
 
     --$CURRENT_DEPTH;
+    empty_set:
     return wantarray ? @included : \@included;
 }
 
