@@ -702,7 +702,7 @@ sub set
     #
     # This is ok as long as we're in a key template instance but it's not ok
     # if we're in an overlay template instance.  Ain't life grand?
-    if ($in_template and not defined($Spine::Plugin::Template::KEYTT)) {
+    if ($in_template and not defined($Spine::Plugin::Templates::KEYTT)) {
         $self->error("We've got an overlay template that's trying to call "
                      . "Spine::Data::set($key).  This is bad.");
         die (Template::Exception->new('Spine::Data::set()',

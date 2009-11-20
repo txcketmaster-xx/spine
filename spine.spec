@@ -1,12 +1,10 @@
 # $Id$
 # vim:ts=8:noet
 
-%define spine_ver		2.0
-%define spine_rel		rc22
+%define spine_ver		2.1.0
+%define spine_rel		1
 %define spine_prefix		/usr
-%define spine_lib_prefix	%{spine_prefix}/lib/spine
-%define File_Temp_ver		0.16
-%define Sys_Syslog_ver          0.18
+%define spine_lib_prefix	%{spine_prefix}/lib/spine-mgmt
 
 Name:      spine
 Summary:   Ticketmaster Configuration System
@@ -18,33 +16,38 @@ Group:     System/Libraries
 Source:    %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 BuildArch: noarch
+Requires:  rsync
 Requires:  dialog >= 0.9
 Requires:  lshw
+%if "%{dist}" == ".el3" || "%{dist}" == ".el4"
+Requires:  kernel-utils
+%else
+Requires:  dmidecode
+%endif
 Requires:  perl(Digest::MD5) >= 2.20
 Requires:  perl(Net::DNS) >= 0.49
 Requires:  perl(Template) >= 2.14
 Requires:  perl(Text::Diff) >= 0.35
 Requires:  perl(NetAddr::IP) >= 3.24
-Requires:  perl(File::Touch) >= 0.01
-Requires:  perl(File::Temp) >= 0.14
 Requires:  perl(YAML::Syck)
 Requires:  perl(JSON::Syck)
 Requires:  perl(XML::Simple) >= 2.12
-# Provided by ourself, currently.
-Requires:  perl(File::Temp) >= %{File_Temp_ver}
-Requires:  perl(Sys::Syslog) >= %{Sys_Syslog_ver}
+Requires:  perl(File::Temp) >= 0.16
+Requires:  perl(Sys::Syslog)
 
 %description
 Ticketmaster Configuration System
 
 %ifarch noarch
-%package fsball-publisher
+%package publisher
 Summary:   Ticketmaster configuration system's publishing system
 Group:     Ticketmaster
 BuildArch: noarch
-Requires:  python >= 2.2.3-5
+Requires:  perl(SVN::Client) 
+Requires:  perl(Config::Simple) 
+Obsoletes: spine-fsball-publisher
 
-%description fsball-publisher
+%description publisher
 Ticketmaster configuration system's publishing system
 %endif
 
@@ -66,33 +69,31 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %files
 %defattr(-,root,root)
 %attr(0755,root,root) %{spine_prefix}/bin/ui
-%attr(0755,root,root) %{spine_prefix}/bin/spine-config
+%attr(0755,root,root) %{spine_prefix}/bin/spine-mgmt
 %attr(0755,root,root) %{spine_prefix}/bin/quick_template
 %dir %{spine_lib_prefix}
-%dir %{spine_lib_prefix}/Spine
-%dir %{spine_lib_prefix}/Spine/ConfigSource
-%dir %{spine_lib_prefix}/Spine/Plugin
-%{spine_lib_prefix}/Spine/*.pm
-%{spine_lib_prefix}/Spine/ConfigSource/*.pm
-%{spine_lib_prefix}/Spine/Plugin/*.pm
-%config(noreplace) /etc/spine-config.conf
+%{spine_lib_prefix}/Spine/*
+%config(noreplace) /etc/spine-mgmt/spine-mgmt.conf
 #
 # This makes RPM 4.4 angry
 #
-#%{_localstatedir}/spine
-%attr(0755,root,root) %{_localstatedir}/spine
+#%{_localstatedir}/spine-mgmt
+%attr(0755,root,root) %{_localstatedir}/spine-mgmt
 
 %ifarch noarch
-%files fsball-publisher
+%files publisher
 %defattr(-,root,root)
-%{spine_prefix}/bin/spine-cramfs-publish.py
-%{spine_prefix}/bin/spine-cramfs-publish.pyo
-%{spine_prefix}/bin/spine-cramfs-publish.pyc
-%config(noreplace) /etc/cramfs-publisher.conf
-
+%{spine_prefix}/bin/spine-publisher 
+%{_sysconfdir}/init.d/spine-publisher 
+%config(noreplace) %{_sysconfdir}/spine-mgmt/spine-publisher.conf 
 %endif
 
 %changelog
+* Wed Nov 02 2009 Jeff Schroeder <jeffschroeder@computer.org> 2.1.0-1
+- Change to the faster pure perl configball publisher.
+- Update the spec file to not barf on Fedora.
+- Minor formating cleanups.
+
 * Wed Oct 03 2007 Phil Dibowitz <phil.dibowitz@ticketmaster.com> 2.0-rc22
 - Add support for parsing lshw output
 - Add --action and --actiongroup support

@@ -18,6 +18,9 @@ pidfile = /var/run/spine-publisher.pid
 
 # Path to named pipe
 fifo = /var/run/spine-publisher.fifo
+fifo_uid = 0
+fifo_gid = 0
+fifo_perms = 0666
 
 # User and group with which to run.  This is mostly symbolic, as you
 # generally need to run as root to be able to properly manipulate

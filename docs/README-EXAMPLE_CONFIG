@@ -91,7 +91,7 @@ tree before attempting to use it. The FS permissions on all overlay
 directories are directly translated to the permissions on the resulting file.
 Once you've done that, spine can be used like this:
 
-  spine --dryrun --croot /path/to/example_spine_config --host <hostname>
+  spine-mgmt --dryrun --croot /path/to/example_spine_config --host <hostname>
 
 Note that the hostname MUST resolve using DNS.
 
