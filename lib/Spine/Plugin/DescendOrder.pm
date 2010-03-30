@@ -23,116 +23,237 @@ use strict;
 
 package Spine::Plugin::DescendOrder;
 use base qw(Spine::Plugin);
-use Spine::Constants qw(:plugin);
+use Spine::Constants qw(:plugin :keys);
 use Spine::Data;
 use Spine::Plugin::Interpolate;
-
-our ($VERSION, $DESCRIPTION, $MODULE, $ABORT, $CURRENT_DEPTH, $MAX_NESTING_DEPTH);
-
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
-$DESCRIPTION = "Determines which policies to apply based on the spine-config" .
-    " directory hierarchy layout";
-
-$MODULE = { author => 'osscode@ticketmaster.com',
-            description => $DESCRIPTION,
-            version => $VERSION,
-            hooks => { 'DISCOVERY/policy-selection' =>
-                                            [ { name => 'descend',
-                                                code => \&descend_order } ]
-                     }
-          };
-
 use File::Spec::Functions;
 
-$ABORT = 0;
-$CURRENT_DEPTH = 0;
-$MAX_NESTING_DEPTH = 15;
+our ( $VERSION, $DESCRIPTION, $MODULE, $ABORT, $CURRENT_DEPTH,
+      $MAX_NESTING_DEPTH );
 
+$VERSION = sprintf( "%d", q$Revision$ =~ /(\d+)/ );
+$DESCRIPTION =
+    "Determines which policies to apply based on the spine-config"
+  . " directory hierarchy layout";
 
-sub descend_order
-{
-    my $c = shift;
+$MODULE = { author      => 'osscode@ticketmaster.com',
+            description => $DESCRIPTION,
+            version     => $VERSION,
+            hooks       => {
+                       "DISCOVERY/populate" => [{ name => 'init_descend_order',
+                                                  code => \&init,
+                                                  provides => ["hierarchy_key"]
+                                                }, ],
+                       "DISCOVERY/policy-selection" => [
+                                              { name => 'create_descend_order',
+                                                code => \&create_order,
+                                                provides => ["hierarchy"] }, ],
+                     } };
 
-    my $policy = $c->getvals('policy_hierarchy');
-    unless ($policy) {
-        $c->error('no "policy_hierarchy" key defined.', 'crit');
-        return PLUGIN_FATAL;
-    }
+use constant POLICY_KEY => "policy_hierarchy";
 
-    # Walk the policy_hierarchy key and build full list by processing 
-    # any "include" or "config/include" files we find.
-    foreach my $dir (@{$policy}) {
-        push @{$c->{c_hierarchy}}, get_includes($c, $dir);
-    }
-
-    if ($ABORT)
-    {
-        return PLUGIN_FATAL;
-    }
-    else
-    {
-        return PLUGIN_SUCCESS;
-    }
+# put the special descend key in place
+sub init {
+    my ($c) = shift;
+    $c->set( SPINE_HIERARCHY_KEY,
+             new Spine::Plugin::DescendOrder::Key( \&resolve, [$c] ) );
+    return PLUGIN_SUCCESS;
 }
 
+# load the policy key into the descend key
+sub create_order {
+    my ($c) = @_;
 
-sub get_includes
-{
-    my $c = shift;
-    my $directory = shift;
+    my $descend_key = $c->getkey(SPINE_HIERARCHY_KEY);
+    my $policy_key  = $c->getkey(POLICY_KEY);
 
-    my (@included, $entry);
-
-    # FIXME  Too deep.  Log something.
-    if (++$CURRENT_DEPTH > $MAX_NESTING_DEPTH) {
-        $c->error('Search depth limit exceeded, aborting!', 'crit');
-        $ABORT = 1;
-        goto empty_set; 
-    }
-
-    # If we want includes to appear before their children do so now.
-    if ($c->getval_last('include_ordering') eq 'post') {
-        push @included, $directory;
-    }
-
-    foreach my $path (qw(include config/include)) {
-        my $inc_file = catfile($directory, $path);
-
-        # An empty set is perfectly acceptable
-        unless (-f $inc_file) {
-            next;
-        }
-
-        my $includes = $c->read_keyfile($inc_file);
-
-        unless (defined($includes)) {
-            next;
-        }
-
-        foreach my $entry (@{$includes})
-        {
-            $c->print(3, "including $entry");
-            my $inc_dir = catfile($c->getval_last('include_dir'), $entry);
-            $c->print(3, "including $inc_dir");
-
-            # If it looks like an absolute path, assume that it's from the top
-            # of the configuration root.
-            if ($entry =~ m#^/#) {
-                $inc_dir = catfile($c->{c_croot}, $entry);
-            }
-            push @included, @{get_includes($c, $inc_dir)};
-        }
-    }
-
-    # If we want includes to appear after their children (default) do so now.
-    if ($c->getval_last('include_ordering') ne 'post') {
-        push @included, $directory;
-    }
-
-    --$CURRENT_DEPTH;
-    empty_set:
-    return wantarray ? @included : \@included;
+    $descend_key->merge($policy_key);
+    return PLUGIN_SUCCESS;
 }
 
+# This is a callback that gets used each time an item is added to the
+# policy_hirearchy key
+sub resolve {
+    my ( $descend_key, $item, $c ) = @_;
+
+    my $registry = new Spine::Registry;
+    my $point    = $registry->get_hook_point('DISCOVERY/Descend/resolve');
+    my ( undef, $rc, undef ) =
+      $point->run_hooks_until( PLUGIN_STOP, $c, $descend_key, $item );
+    return $rc;
+}
+
+# The following package is a special implementation of a spine key
+# just for descend items
+#
+# You can think of set/get calls as a way to store standard data
+# merge is magic and actaully puts the data into the chain as well as
+# building dependancies between items
+package Spine::Plugin::DescendOrder::Key;
+use base qw(Spine::Key);
+
+sub new {
+    my $klass = shift;
+
+    # These are used to resolve items as they are added
+    # so we expand a descend item when added
+    my $add_cb   = shift;
+    my $add_args = shift;
+
+    my $chain = new Spine::Chain( merge_deps     => 1,
+                                  remove_orphans => 1 );
+
+    my $self = Spine::Key->new();
+
+    $self = bless( $self, $klass );
+
+    # store the call back for later use.
+    $self->metadata_set( "add_callback" => [ $add_cb, $add_args ] );
+    $self->metadata_set( "chain"        => $chain );
+
+    return $self;
+}
+
+# item is always a hash containing at least name uri and posiably dependencies
+sub _add {
+    my ( $self, $item ) = @_;
+
+    my $chain = $self->metadata("chain");
+
+    if ( exists $item->{dependencies} && defined $item->{dependencies} ) {
+        my $deps = $item->{dependencies};
+
+        # the user might have passed dependencies as single items
+        # outside of array refs if they only have one item i.e succedes => "foo"
+        # rather then succedes => [ "foo" ], lets clean up!
+        foreach ( keys %$deps ) {
+            $deps->{$_} = [ $deps->{$_} ] unless ( ref( $deps->{$_} ) );
+        }
+
+    }
+
+    # the item to be added to the chain and protentiall also the dependancies
+    my %to_add = (name => $item->{name},
+                  data => $item,
+                  %{ exists $item->{dependencies} ? $item->{dependencies} : {} }
+                 );
+
+    # We use the uri as the name if no name is given
+    $chain->add(%to_add);
+
+    # FIXME: at this point we do a call to resolv_order
+    # to detect loops, it's not very clean to do this
+    # for every addition so I will REFACTOR this
+    # TODO: log loop errors
+    return undef unless ( $self->resolv_order() );
+
+    # call the add callback with will expand this item
+    # this includes resolving related overlays, config and
+    # child descend location.
+    my $cb_info = $self->metadata("add_callback");
+    &{ $cb_info->[0] }( $self, $item, @{ $cb_info->[1] } );
+}
+
+sub remove {
+    my ( $self, $name ) = @_;
+
+    # If passed the item rather then name we might as well deal with it.
+    # Also since we will add items using the uri as the name if no name is given
+    # deal with that two.
+    if ( ref($name) ) {
+        if ( exists $name->{name} ) {
+            $name = $name->{name};
+        }
+        $name = $name->{uri};
+    }
+
+    my $chain = $self->metadata("chain");
+    $chain->remove($name);
+}
+
+sub resolv_order {
+    my ($self) = @_;
+    return $self->metadata("chain")->head();
+}
+
+sub data_getref {
+    my $self = shift;
+    return \[ $self->metadata("chain")->head() ];
+}
+
+# merge in some new branches, parent can relate to either
+# the parent item or name or undef if it's a root item
+sub merge {
+    my ( $self, $item, $parent ) = @_;
+
+    my $deps = undef;
+
+    if ( $self->is_related($item) ) {
+        $item = $item->merge_helper($self);
+    }
+
+    # Recursive call if we have more then one item
+    if ( ref($item) eq "ARRAY" ) {
+        foreach (@$item) {
+            $self->merge( $_, $parent );
+
+        }
+        return undef;
+    }
+
+    if ( ref($item) eq "HASH" ) {
+
+        # if it's a hash make sure it has a name not just a uri
+        # we use the uri as the name if missing.
+        unless ( exists $item->{name} ) {
+            $item->{name} = $item->{uri};
+        }
+    } else {
+
+        # if it's just a scalar then we expect that the item is the uri
+        $item = { name => $item,
+                  uri  => $item, };
+    }
+
+    if ( defined $parent ) {
+
+        # make sure it's the name not the item it self
+        if ( ref($parent) ) {
+            $parent = $parent->{name};
+        }
+
+        # add it as a dependency
+        $item->{dependencies} = {} unless exists( $item->{dependencies} );
+        $item->{dependencies}->{succedes} = []
+          unless exists( $item->{dependencies}->{succedes} );
+        push @{ $item->{dependencies}->{succedes} }, $parent;
+    }
+
+    # add the item to the key
+    $self->_add($item);
+
+    # finally blank anything pending within data
+    # all data is used for is pending stuff to merge anyhow
+    $self->clear();
+}
+
+# I don't think you would ever use this but it's here in case....
+sub replace {
+    my $self = shift;
+
+    #blank out the chain
+    my $chain = new Spine::Chain( merge_deps     => 1,
+                                  remove_orphans => 1 );
+
+    $self->metadata_set( "chain", $chain );
+
+    # add in the replacement data
+    $self->merge(@_);
+}
+
+# This is used to tell operators that this key should be merged by default
+sub merge_default() {
+    return 1;
+}
 
 1;

@@ -30,7 +30,7 @@ our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;
 
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Parselet::Complex, detects if the buffer is a complex key";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -45,17 +45,17 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 # This means we only have to check if the key is complex once
 # and cut's down the number of plugins we have to cascade through
 sub check_complex {
-    my ($c, $data) = @_;
+    my ($c, $obj) = @_;
 
     # only scalars
-    if (ref($data->{obj})) {
+    if (ref($obj->get())) {
         return PLUGIN_SUCCESS;
     }
 
     # If the object contains something that looks
     # like an indication of a complex type we parse it
     # it's not a problem if we make a mistake however.
-    unless ($data->{obj} =~ m/^#?%/) {
+    unless ($obj->get() =~ m/^#?%/) {
         return PLUGIN_SUCCESS;
     }
 
@@ -64,7 +64,7 @@ sub check_complex {
     # HOOKME: Complex keys
     my $point = $registry->get_hook_point("PARSE/key/complex");
     # HOOKME, go through ALL complex plugins
-    my $rc = $point->run_hooks_until(PLUGIN_FATAL, $c, $data);
+    my $rc = $point->run_hooks_until(PLUGIN_FATAL, $c, $obj);
     if ($rc & PLUGIN_FATAL) {
         $c->error("There was a problem processing key data", 'crit');
         return PLUGIN_ERROR;

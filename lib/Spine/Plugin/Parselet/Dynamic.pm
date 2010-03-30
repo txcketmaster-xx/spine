@@ -31,7 +31,7 @@ my $CPATH;
 
 my $init = 0;
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Parselet::Dynamic, detects if the object can be expanded";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -46,16 +46,21 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 # This means we only have to check if the key is dynamic once
 # and cut's down the number of plugins we have to cascade through
 sub check_dynamic {
-    my ($c, $data) = @_;
+    my ($c, $obj) = @_;
 
+    my $data = $obj->get();
+    
     # only hash refs  / complex
-    unless (ref($data->{obj}) eq 'HASH') {
+    unless (ref($data) eq 'HASH') {
         return PLUGIN_SUCCESS;
     }
 
+
+    # we support both dynamix_type and advanced_type
     # If the object contains dynamic_type then we
     # will kick it through the PARSE/key/dynamic phase
-    unless (exists $data->{obj}->{dynamic_type}) {
+    unless (exists $data->{dynamic_type} ||
+            exists $data->{advanced_type}) {
         return PLUGIN_SUCCESS;
     }
 
@@ -64,7 +69,7 @@ sub check_dynamic {
     # HOOKME: Dynamic complex keys
     my $point = $registry->get_hook_point("PARSE/key/dynamic");
     # HOOKME, go through ALL dynamic plugins
-    my $rc = $point->run_hooks_until(PLUGIN_FATAL, $c, $data);
+    my $rc = $point->run_hooks_until(PLUGIN_FATAL, $c, $obj);
     if ($rc & PLUGIN_FATAL) {
         $c->error("There was a problem getting key data", 'crit');
         return PLUGIN_ERROR;

@@ -31,7 +31,7 @@ use JSON::Syck;
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Parselet::JSON, processes JSON keys";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -45,16 +45,19 @@ $MODULE = { author => 'osscode@ticketmaster.com',
           };
 
 sub _parse_json_key {
-    my ($c, $data) = @_;
+    my ($c, $obj) = @_;
 
+    my $data = $obj->get();
+    
     # Skip refs, only scalars
-    if (ref($data->{obj})) {
+    if (ref($data)) {
         return PLUGIN_SUCCESS;
     }
 
-    if ( $data->{obj} =~ m/^#?%JSON/ ) {
-        $data->{obj} = JSON::Syck::Load($data->{obj});
-        if (defined ($data->{obj})) {
+    if ( $data =~ m/^#?%JSON/ ) {
+        $data = JSON::Syck::Load($data);
+        if (defined ($data)) {
+            $obj->set($data);
             return PLUGIN_SUCCESS;
         }
         return PLUGIN_ERROR;

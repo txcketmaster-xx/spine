@@ -19,17 +19,24 @@
 # (C) Copyright Ticketmaster, Inc. 2007
 #
 
-# Attempt to run tests in a useful order...
-# Modules (not plugins)
-tests = spine-mod-*.t
-# Test the core parts of spineof spine
-tests += spine-core.t spine-core-*.t
-# Plugin tests (core plugins then other plugins)
-tests += spine-coreplug-*.t spine-plug-*.t
 
-all:
-	PERL5LIB=../lib perl -MTest::Harness -e \
-	    '$$Test::Harness::verbose=0; runtests @ARGV;' $(tests)
-verbose:
-	 PERL5LIB=../lib perl -MTest::Harness -e \
-	    '$$Test::Harness::verbose=1; runtests @ARGV;' $(tests)
+# small wrapper for loading descend order for testing descend plugins
+package Helpers::DescendOrder;
+use Helpers::Data;
+
+sub init {
+    my ($data, $reg) = @_;
+    Helpers::Data::auto_load_plugin($data, $reg, "DescendOrder");
+    my $point = $reg->get_hook_point("DISCOVERY/populate");
+    $point->run_hooks($data);
+     
+}
+
+sub run {
+    my ($data, $reg) = @_; 
+    my $point = $reg->get_hook_point("DISCOVERY/policy-selection");
+    $point->run_hooks($data);
+       
+}
+
+1;

@@ -148,7 +148,8 @@ sub get_sysinfo
     $c->{c_local_netmask} = $netmask;
     $c->{c_netcard} = $netcard;
 
-    $c->get_values("platform/$platform");
+    # FIXME: this is reall reall bad, there should be a platform uri key
+    $c->read_config_branch(uri => "file:///platform/$platform");
 
     return PLUGIN_SUCCESS;
 }

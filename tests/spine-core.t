@@ -30,8 +30,9 @@ use Spine::Constants qw(:basic :plugin);
 my ($data, $reg) = Helpers::Data::new_data_obj();
 isa_ok($data, "Spine::Data");
 
-# Attempt to load the Spine::Plugin::TestCase
-is($reg->load_plugin("TestCase"), SPINE_SUCCESS, "register plugin");
+#### XXX: now done withing Helpers::Data
+#### Attempt to load the Spine::Plugin::TestCase
+###is($reg->load_plugin("TestCase"), SPINE_SUCCESS, "register plugin");
 
 # Attempt to create a hook point
 ok($reg->create_hook_point("TestPoint"), "create hook point");
@@ -51,3 +52,15 @@ my ($results, $rc, $errs) = $point->run_hooks_until(PLUGIN_SUCCESS, $data, "test
 is($rc, PLUGIN_SUCCESS, "run_hooks_until (rc)");
 is($errs, 0, "run_hooks_until (error count)");
 is($results->[0]->[0], "test",  "run_hooks_until (name return)");
+
+# does key hiding work?
+use Spine::Key;
+my $obj = new Spine::Key("test");
+$data->set("my_key", $obj);
+# Does Spine::Data hide the fact that my_key is a Spine::Key?
+is($data->getval("my_key"), "test", "Hidden Spine::Key within Spine::Data");
+# Does Spine::Data::getkey reveal the key
+is($data->getkey("my_key")->get(), "test",
+   "Hidden Spine::Key reveald by Spine::Data::getkey");
+
+

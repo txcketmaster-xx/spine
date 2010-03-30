@@ -73,10 +73,11 @@ our (@TEMPLATES, @IGNORE, $TMPDIR);
 # This is based on the origianl _convert_lame_to_TT but works on a multi
 # line scalar not an array element.
 sub _convert_to_TT {
-    my $data = shift;
+    my $obj = shift;
+    my $data = $obj->get_ref();
     my $legacy = 0;
-    while ( $data->{obj} =~ m/(\[%(\s*)(IF|MATCH|ELSIF)\s+(.+?)%\])/sg ) {
-        my $new_pos = pos($data->{obj});  # This is the pos of the end of match
+    while ( $$data =~ m/(\[%(\s*)(IF|MATCH|ELSIF)\s+(.+?)%\])/sg ) {
+        my $new_pos = pos($$data);  # This is the pos of the end of match
         my $data_length = length($1);
 
         my $new = "[\%$2" . (( $3 eq 'MATCH' or $3 eq 'IF' ) ? 'IF' : 'ELSIF');
@@ -96,9 +97,9 @@ sub _convert_to_TT {
         $new .= ' ' . join( ' AND ', @conditions ) . " \%]";
                 
         # Replace within the string
-        substr($data->{obj}, ($new_pos - $data_length), $data_length, $new);
+        substr($$data, ($new_pos - $data_length), $data_length, $new);
         # Set the position for the next iteration to after out insert (magic)
-        pos($data->{obj}) = ($new_pos - $data_length) + length($new); 
+        pos($$data) = ($new_pos - $data_length) + length($new); 
         # Take note that this is a legacy key
         $legacy = 1;
     }
@@ -355,9 +356,10 @@ sub _TT_hash_search
 
 sub _templatize_key
 {
-    my ($c, $data) = @_;
+    my ($c, $obj) = @_;
     my $ttdata = { c => $c };
 
+    my $data = $obj->get_ref();
 
     #  $output = \$output would be a cicular ref (as expected)
     #  so we have to use another var.
@@ -371,13 +373,13 @@ sub _templatize_key
     #}
 
     # Skip refs, only scalars
-    if (ref($data->{obj})) {
+    if (ref($$data)) {
         return PLUGIN_SUCCESS;
     }
     
     # XXX: remove in version 2.3
-    if (_convert_to_TT($data)) {
-        $c->error("$data->{source} uses depreciated flow control syntax",
+    if (_convert_to_TT($obj)) {
+        $c->error($obj->metadata("description") . " uses depreciated flow control syntax",
                   "warning");
     }
 
@@ -387,17 +389,16 @@ sub _templatize_key
         $KEYTT = new Template( { CACHE_SIZE => 0 } );
     }
 
-    my $template = $data->{obj};
     # Note the $template is passed in as a reference to make sure it isn't
     # mistaken for a filename
-    unless (defined($KEYTT->process(\$data->{obj}, $ttdata, $output))) {
+    unless (defined($KEYTT->process($data, $ttdata, $output))) {
         # FIXME, implement error reporting
         $c->error("could not process templatized key ($data->{source}): "
                      . $KEYTT->error(), 'err');
         return PLUGIN_ERROR;
     }
     
-    $data->{obj} = ${$output};
+    $obj->set(${$output});
     return PLUGIN_SUCCESS;
 }
 

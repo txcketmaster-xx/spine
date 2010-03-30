@@ -30,7 +30,7 @@ use Net::DNS;
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $resolver;
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Parselet::DNS, Will create an object from DNS";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -45,38 +45,38 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 # Currently this is a simple example plugin. It should be expanded to allow
 # more complicated things to be done.
 sub dns_key {
-    my ($c, $data) = @_;
+    my ($c, $obj) = @_;
 
     $resolver = Net::DNS::Resolver->new unless $resolver;
 
     # Is it for us?
-    unless ($data->{obj}->{dynamic_type} =~ m/^\s*dns\s+lookup\s*$/i) {
+    unless ($obj->get->()->{dynamic_type} =~ m/^\s*dns\s+lookup\s*$/i) {
         return PLUGIN_SUCCESS;
     }
-    my $obj = $data->{obj};
+    my $data = $obj->get();
     
-    unless (exists $obj->{query}) {
+    unless (exists $data->{query}) {
         $c->error("Missing 'query' from dns lookup", 'crit');
         return PLUGIN_ERROR;
     }
     
-    $obj = $obj->{query};
+    $data = $data->{query};
 
-    unless (exists $obj->{type}) {
+    unless (exists $data->{type}) {
         $c->error("Missing query 'type' from dns lookup", 'crit');
         return PLUGIN_ERROR;
     }
 
-    if ($obj->{type} =~ m/axfr/i) {
-        if (exists $obj->{domain}) {
-            $data->{obj} = do_axfr($obj->{domain});
+    if ($data->{type} =~ m/axfr/i) {
+        if (exists $data->{domain}) {
+            $obj->set(do_axfr($obj->{domain}));
             return PLUGIN_FINAL;
         }
         $c->error("Missing query 'domain' from AXFR lookup", 'crit');
         return PLUGIN_ERROR;
-    } elsif ($obj->{type} =~ m/host/i) {
-        if (exists $obj->{host}) {
-            $data->{obj} = lookup_host($obj->{host});
+    } elsif ($data->{type} =~ m/host/i) {
+        if (exists $data->{host}) {
+            $obj->seT(lookup_host($obj->{host}));
             return PLUGIN_FINAL;
         }
         $c->error("Missing query 'host' from HOST lookup", 'crit');

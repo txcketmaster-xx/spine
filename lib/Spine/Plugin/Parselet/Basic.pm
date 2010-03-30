@@ -26,11 +26,10 @@ use Spine::Constants qw(:plugin);
 use File::Spec::Functions;
 use Spine::Registry;
 
-
 our ( $VERSION, $DESCRIPTION, $MODULE );
 my $CPATH;
 
-$VERSION     = sprintf( "%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/ );
+$VERSION     = sprintf( "%d", q$Revision$ =~ /(\d+)/ );
 $DESCRIPTION = "Parselet::Basic, processes Basic keys";
 
 $MODULE = {
@@ -39,34 +38,36 @@ $MODULE = {
     version     => $VERSION,
     hooks       => {
         'PARSE/key' => [
-            {  name => "Basic_Init",
-               code => \&_init_key,
+            {  name     => "Basic_Init",
+               code     => \&_init_key,
                provides => [ 'retrieve', 'basic_init' ], },
-            {  name => "Basic_Parse_Lines",
-               code => \&_preprocess,
+            {  name     => "Basic_Parse_Lines",
+               code     => \&_preprocess,
                provides => [ 'preprocess', 'PARSE/key/line' ], },
             {  name => "Basic_Final",
                code => \&_parse_basic_key,
+
                # this does finalization
                provides => [ 'simple', 'basic_key' ], }, ], }, };
 
 # preprocess keys that are scalars, scalar refs or filenames
 sub _init_key {
-    my ( $c, $data ) = @_;
+    my ( $c, $obj ) = @_;
 
     # Do we need to read a file?
-    if ( exists $data->{source} && $data->{source} =~ m/^file:(.*)$/  
-         && !defined $data->{obj} )
+    my $source = $obj->metadata("uri");
+    if (    $source
+         && $source =~ m%^file://[^/]*/(.*)$%
+         && !$obj->does_exist() )
     {
-        $data->{file} = $1;
+        my $file = $1;
         my $fh   = undef;
-        my $file = $data->{file};
+
         unless ( -f $file ) {
             $file = catfile( $c->{c_croot}, $file );
-            if ( -f $file ) {
-                $data->{file} = $file;
-            }
         }
+
+        $obj->metadata_set( 'file', $file );
         unless ( -r $file ) {
             $c->error( "Can't read file \"$file\"", 'crit' );
             return PLUGIN_ERROR;
@@ -79,21 +80,23 @@ sub _init_key {
         $c->print( 4, "reading key $file" );
 
         # Trun the file into an array
-        $data->{obj} = join('',  $fh->getlines());
+        $obj->set( join( '', $fh->getlines() ) );
         close($fh);
-
-        # Is this a ref to a scalar
-    } elsif ( ref( $data->{obj} ) eq "SCALAR" ) {
-        $data->{obj} = ${$data->{obj}};
     }
-    
+
+    # make sure there is always a description
+    unless ( defined $obj->metadata("description") ) {
+        $obj->metadata_set( "description", $source );
+    }
+
     return PLUGIN_SUCCESS;
 }
 
+# If we have a sclar then we allow plugins to process each line
 sub _preprocess {
-    my ( $c, $data ) = @_;
+    my ( $c, $obj ) = @_;
 
-    if (ref($data->{obj})) {
+    if ( ref( $obj->get() ) ) {
         return PLUGIN_SUCCESS;
     }
 
@@ -101,13 +104,15 @@ sub _preprocess {
 
     my $lineno = 0;
     my $point  = $registry->get_hook_point("PARSE/key/line");
-    my $buf = "";
-    while ($data->{obj} =~ /([^\r\n]*[\r\n]*)/sog) {
+    my $buf    = "";
+    my $data   = $obj->get();
+    while ( $data =~ /([^\r\n]*[\r\n]*)/sg ) {
         my $line = $1;
         $lineno++;
-        
-        my $rc = $point->run_hooks_until( PLUGIN_ERROR, $c, \$line,
-                                          $lineno, $data );
+
+        my $rc =
+          $point->run_hooks_until( PLUGIN_ERROR, $c, \$line, $lineno, $obj );
+
         # This should never happen
         if ( $rc & PLUGIN_ERROR ) {
             $c->error( "Error parsing key line", 'crit' );
@@ -115,26 +120,22 @@ sub _preprocess {
         }
         $buf .= $line if defined $line;
     }
-    $data->{obj} = $buf;
+    $obj->set($buf);
     return PLUGIN_SUCCESS;
 }
-
 
 # This gets called near the end, it will skip
 # anything that has been turned into a ref
 sub _parse_basic_key {
-    my ( $c, $data ) = @_;
+    my ( $c, $obj ) = @_;
 
     # Skip refs, only scalars
-    if ( ref( $data->{obj} ) ) {
+    if ( $obj->does_exist() && ref( $obj->get() ) ) {
         return PLUGIN_SUCCESS;
     }
-#use Data::Dumper; print Dumper($data->{obj});
-
 
     # Ignore comments and blank lines.
-    $data->{obj} =
-      [ grep( !/^\s*(?:#.*)?$/, split( m/[\n\r]+/, $data->{obj} ) ) ];
+    $obj->set( [ grep( !/^\s*(?:#.*)?$/, split( m/[\n\r]+/, $obj->get() ) ) ] );
     return PLUGIN_SUCCESS;
 }
 

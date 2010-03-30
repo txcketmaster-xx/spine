@@ -220,11 +220,12 @@ sub _parse_auth_data
             next;
         }
 
-        my $values = $c->read_keyfile($keyfile);
+        my $values = $c->read_keyuri(uri => "file:///$keyfile",
+                                     description => "file:///$keyfile Auth key");
 
-        # read_keyfile() returns an undef when there's an error
+        # read_keyuri() returns an undef when there's an error
         unless (defined($values)) {
-            $c->error("Spine::Data::read_keyfile() failed on $keyfile!",
+            $c->error("Spine::Data::read_keyuri() failed on $keyfile!",
                       'crit');
             die('Bad data');
         }
@@ -313,11 +314,12 @@ sub _parse_auth_groups
 
         my $keyname = basename($keyfile);
 
-        my $values = $c->read_keyfile($keyfile);
+        my $values = $c->read_keyuri(uri => "file:///$keyfile",
+                                     description => "file:///$keyfile Auth key");
 
-        # read_keyfile() returns an undef when there's an error
+        # read_keyuri() returns an undef when there's an error
         unless (defined($values)) {
-            $c->error("Spine::Data::read_keyfile() failed on auth_groups/$keyname!",
+            $c->error("Spine::Data::read_keyuri() failed on auth_groups/$keyname!",
                       'crit');
             die('Bad data');
         }
@@ -353,11 +355,12 @@ sub _parse_maps
         my $keyfile = "$directory/$map";
         my $keyname = basename($keyfile);
 
-        my $values = $c->read_keyfile($keyfile);
+        my $values = $c->read_keyuri(uri => "file:///$keyfile",
+                                     description => "file:///$keyfile Auth key");
 
-        # read_keyfile() returns an undef when there's an error
+        # read_keyuri() returns an undef when there's an error
         unless (defined($values)) {
-            $c->error("Spine::Data::read_keyfile() failed on $map!", 'crit');
+            $c->error("Spine::Data::read_keyuri() failed on $map!", 'crit');
             die('Bad data');
         }
 

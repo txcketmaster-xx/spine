@@ -29,7 +29,7 @@ use YAML::Syck;
 our ($VERSION, $DESCRIPTION, $MODULE);
 my $CPATH;
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Parselet::YAML, processes YAML keys";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -42,18 +42,21 @@ $MODULE = { author => 'osscode@ticketmaster.com',
           };
 
 sub _parse_yaml_key {
-    my ($c, $data) = @_;
+    my ($c, $obj) = @_;
 
+
+    my $data = $obj->get();
     # Skip refs, only scalars
-    if (ref($data->{obj})) {
+    if (ref($data)) {
         return PLUGIN_SUCCESS;
     }
 
-    if ( $data->{obj} =~ m/^#?%YAML\s+(\d+\.\d+)/ ) {
+    if ( $data =~ m/^#?%YAML\s+(\d+\.\d+)/ ) {
         return PLUGIN_ERROR if ($1 ne "1.0");
 
-        $data->{obj} = YAML::Syck::Load($data->{obj});
-        if (defined ($data->{obj})) {
+        $data = YAML::Syck::Load($data);
+        if (defined ($data)) {
+            $obj->set($data);
             return PLUGIN_SUCCESS;
         }
         return PLUGIN_ERROR;
