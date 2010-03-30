@@ -211,8 +211,11 @@ sub do_rsync
                                              $args{Target}]);
 
     unless ($? == 0) {
-        $c->error("rsync failed from $args{Source} [".join("", @result)."]",
-                  "err");
+        $c->error("rsync failed from $args{Source} to $args{Target}", "err");
+        foreach (@result) {
+            chomp;
+            $c->error("rsync: $_", "err");
+        }
         unlink($tmpfn);
         return SPINE_FAILURE;
     }
