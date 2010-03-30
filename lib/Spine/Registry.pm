@@ -1,3 +1,4 @@
+
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
@@ -410,6 +411,7 @@ sub add_parameter
     return push @{ $self->{parameters} }, @_;
 }
 
+
 # Wil normally register all plugins hooks based on profile.
 # if a plugin name is passed then it will register it's hooks
 sub register_hooks
@@ -478,6 +480,11 @@ sub install_hook
 sub head
 {
     return $_[0]->{hooks}->head;
+}
+
+sub count
+{
+    return $_[0]->{hooks}->count();
 }
  
 sub next
@@ -569,7 +576,11 @@ sub run_hooks_until {
         return PLUGIN_FATAL;
     }
 
+    # catch no hooks and return NOHOOKS
+    return ([], PLUGIN_NOHOOKS, 0) unless $self->count();
+
     my (@results, $rc);
+    
     foreach my $hook ($self->head()) {
         $rc = $self->run_hook($hook, @_);
 

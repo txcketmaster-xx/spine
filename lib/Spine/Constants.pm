@@ -37,6 +37,7 @@ use constant {
     PLUGIN_ERROR   => 1 << 0,
     PLUGIN_SUCCESS => 1 << 1,
     PLUGIN_FINAL   => 1 << 2,
+    PLUGIN_NOHOOKS => 1 << 3,
     PLUGIN_EXIT    => 1 << 31,
     CHAIN_START    => "__START",
     CHAIN_MIDDLE   => "__MIDDLE",
@@ -65,6 +66,7 @@ $tmp = [qw(PLUGIN_ERROR
            PLUGIN_STOP
            PLUGIN_FINAL
            PLUGIN_SUCCESS
+           PLUGIN_NOHOOKS
            HOOK_START
            HOOK_MIDDLE
            HOOK_END)];
@@ -80,6 +82,18 @@ use constant {
 $tmp = [qw(SPINE_NOTRUN SPINE_FAILURE SPINE_SUCCESS)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{basic} = $tmp;
+
+# core key names as constants so they are easy to alter
+# these keys have a well defined structure and are used across
+# multiple plugins, calls to these keys not using a constant
+# are bad.
+use constant {
+    SPINE_HIERARCHY_KEY => "c_hierarchy",
+    SPINE_OVERLAY_KEY => "overlay",
+};
+$tmp = [qw(SPINE_HIERARCHY_KEY SPINE_OVERLAY_KEY)];
+push @EXPORT_OK, @{$tmp};
+$EXPORT_TAGS{keys} = $tmp;
 
 
 1;
