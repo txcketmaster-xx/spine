@@ -60,6 +60,11 @@ sub printdata
     $::SAVE_STATE = 0;
 
     require Data::Dumper;
+    
+    # Used so that objects can return something useful if they wish
+    # (if you have an object in the tree and it supports spine_freeze)
+    $Data::Dumper::Freezer = "spine_freeze";
+    
     $Data::Dumper::Sortkeys = 1;
 
     if ($PRINTALL|$PRINTDATA)
