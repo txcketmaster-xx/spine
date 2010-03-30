@@ -25,6 +25,7 @@ use IPC::Open3;
 use Scalar::Util qw(blessed);
 use IO::Select;
 use IO::Handle;
+use Time::HiRes qw(ualarm);
 use POSIX ":sys_wait_h";
 use Spine::Constants qw(:basic);
 use File::Spec::Functions;
@@ -38,7 +39,7 @@ use constant SPINE_PATH_KEY => "executable_search_paths";
 #        quiet        => <HIDE ERRORS>
 #        exec         => <WHAT TO EXEC>
 #        args         => <ARGS>
-#        merge_error  => <JOIN STDERR to SEDOUT>
+#        merge_error  => <JOIN STDERR to STDOUT>
 #        c            => <Spine::Data object>
 #        inert        => <RUN WHEN IN DRYRUN>
 sub new {
@@ -107,7 +108,7 @@ sub new {
     
     # create a new error descripter unless we
     # are merging out and error
-    if ( !exists $settings{merge_error} &&
+    if ( exists $settings{merge_error} &&
          $settings{merge_error} ) {
         $err = $out;
     }
@@ -119,7 +120,6 @@ sub new {
     $self->{out} = $out;
     $self->{err} = $err;    
 
-    # at this point 
     return $self;
 }
 
@@ -134,7 +134,6 @@ sub simple {
                                    
     my $c = $self->{c} if exists $self->{c};
     
-    # FIXME:
     #   spine should deal with reporting this error, we can't
     #   since the error functions are within Spine::Data.
     #   perhaps error reporting should be a singlton?
@@ -314,9 +313,9 @@ sub _readline {
     my $line = undef;
     eval {
         $SIG{ALRM} = sub { die "timeout" };
-        alarm($timeout || 0);   
+        ualarm(($timeout || 0) * 1000000);   
         $line =  $self->{$type}->getline();
-        alarm(0);
+        ualarm(0);
     };
     if ($@) {
         $self->{last_error} = "$@";
