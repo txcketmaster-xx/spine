@@ -23,7 +23,7 @@ use base qw(Exporter);
 #
 # It supports
 #   provides  - things that the item provides (own name is autmatically added)
-#   requires  - things that the item  requires (it will error if it is missing)
+#   requires  - things that the item requires (it will error if it is missing)
 #   precedes  - things that the item comes before
 #   succedes  - things that the item comes after
 #
@@ -63,8 +63,6 @@ sub new {
     # clean is used to note when the order needs to be rebuilt
     my $self = { chain          => [],
                  lookup         => {},
-                 prov_lookup    => {},
-                 provreq_lookup => {},
                  prov_rules     => {},
                  lasterr        => undef,
                  settings       => \%settings, };
@@ -126,7 +124,6 @@ sub add {
             $self->_merge( $item, $name );
         }
     }
-
     # If the items hasn't been stored yet then its
     # time to store our item, make it easy to find it again.
     unless ( exists $self->{lookup}->{$name} ) {
@@ -220,7 +217,6 @@ sub add_provide_rule {
 # FIXME, this has never been tested!
 sub remove {
     my ( $self, $name ) = @_;
-
     # note that we will need to resort the chain
     $self->{clean} = undef;
     if ( exists $self->{lookup}->{$name} ) {
@@ -585,4 +581,5 @@ sub tsort {
     }
     return $head;
 }
+
 1;
