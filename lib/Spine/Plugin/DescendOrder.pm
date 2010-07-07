@@ -40,7 +40,7 @@ $MODULE = { author      => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version     => $VERSION,
             hooks       => {
-                       "DISCOVERY/populate" => [{ name => 'init_descend_order',
+                       "INIT" => [{ name => 'init_descend_order',
                                                   code => \&init,
                                                   provides => ["hierarchy_key"]
                                                 }, ],
@@ -55,8 +55,10 @@ use constant POLICY_KEY => "policy_hierarchy";
 # put the special descend key in place
 sub init {
     my ($c) = shift;
+
     $c->set( SPINE_HIERARCHY_KEY,
              new Spine::Plugin::DescendOrder::Key( \&resolve, [$c] ) );
+
     return PLUGIN_SUCCESS;
 }
 
@@ -91,6 +93,7 @@ sub resolve {
 # building dependancies between items
 package Spine::Plugin::DescendOrder::Key;
 use base qw(Spine::Key);
+use Spine::Resource qw(resolve_resource);
 
 sub new {
     my $klass = shift;
@@ -200,19 +203,13 @@ sub merge {
         }
         return undef;
     }
+    
 
-    if ( ref($item) eq "HASH" ) {
-
-        # if it's a hash make sure it has a name not just a uri
-        # we use the uri as the name if missing.
-        unless ( exists $item->{name} ) {
-            $item->{name} = $item->{uri};
-        }
-    } else {
-
-        # if it's just a scalar then we expect that the item is the uri
-        $item = { name => $item,
-                  uri  => $item, };
+    my $resource = resolve_resource($item);
+    
+    unless ( defined $resource ) {
+        # TODO, attempt to give an indication as to why????
+        return undef;
     }
 
     if ( defined $parent ) {
@@ -223,14 +220,15 @@ sub merge {
         }
 
         # add it as a dependency
-        $item->{dependencies} = {} unless exists( $item->{dependencies} );
-        $item->{dependencies}->{succedes} = []
-          unless exists( $item->{dependencies}->{succedes} );
-        push @{ $item->{dependencies}->{succedes} }, $parent;
+        $resource->{dependencies} = {}
+          unless exists( $resource->{dependencies} );
+        $resource->{dependencies}->{succedes} = []
+          unless exists( $resource->{dependencies}->{succedes} );
+        push @{ $resource->{dependencies}->{succedes} }, $parent;
     }
 
     # add the item to the key
-    $self->_add($item);
+    $self->_add($resource);
 
     # finally blank anything pending within data
     # all data is used for is pending stuff to merge anyhow

@@ -90,8 +90,10 @@ $EXPORT_TAGS{basic} = $tmp;
 use constant {
     SPINE_HIERARCHY_KEY => "c_hierarchy",
     SPINE_OVERLAY_KEY => "overlay",
+    SPINE_PDR_KEY => "predefined_resources",
 };
-$tmp = [qw(SPINE_HIERARCHY_KEY SPINE_OVERLAY_KEY)];
+$tmp = [qw(SPINE_HIERARCHY_KEY SPINE_OVERLAY_KEY
+           SPINE_PDR_KEY)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{keys} = $tmp;
 

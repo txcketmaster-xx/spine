@@ -27,7 +27,7 @@ use Helpers::Data;
 sub init {
     my ($data, $reg) = @_;
     Helpers::Data::auto_load_plugin($data, $reg, "DescendOrder");
-    my $point = $reg->get_hook_point("DISCOVERY/populate");
+    my $point = $reg->get_hook_point("INIT");
     $point->run_hooks($data);
      
 }

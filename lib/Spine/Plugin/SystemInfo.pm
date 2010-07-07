@@ -149,7 +149,7 @@ sub get_sysinfo
     $c->{c_netcard} = $netcard;
 
     # FIXME: this is reall reall bad, there should be a platform uri key
-    $c->read_config_branch(uri => "file:///platform/$platform");
+    $c->read_config_branch(uri => "file:platform/$platform");
 
     return PLUGIN_SUCCESS;
 }

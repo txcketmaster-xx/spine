@@ -1,4 +1,5 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
+
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
 # $Id$
@@ -40,7 +41,7 @@ $MODULE = { author      => 'osscode@ticketmaster.com',
                                                 { name => 'build_disk_overlay',
                                                   code => \&build_disk_overlay }
                        ],
-                       "PREPARE/Overlay/load" => [
+                       "PARSE/Overlay/load" => [
                                              { name => "load_descent_overlays",
                                                code => \&descent_overlays } ], }
           };
@@ -49,13 +50,15 @@ use Spine::Constants qw(:basic);
 
 sub build_disk_overlay {
     my $c        = shift;
-    my $settings = shift;
- 
-    # we only deal with file URIs
-    return PLUGIN_SUCCESS unless substr( $settings->{uri}, 0, 5 ) eq "file:";
+    my $item     = shift;
+    
+    my $resource = $item->{resource};
+
+    # we only deal with file URIs    
+    return PLUGIN_SUCCESS unless $resource->{uri_scheme} eq "file";
 
     # XXX: we don't actauly support host yet, so it will be ignored
-    my ( $host, $overlay ) = ( $settings->{uri} =~ m%file://([^/]*)/(.*)% );
+    my $overlay = $resource->{uri_path};
 
     # does it start with a '/' if not then add in the croot as rsync gets upset
     # FIXME: use filespec absolute...
@@ -63,7 +66,7 @@ sub build_disk_overlay {
         $overlay = catfile( $c->getval("c_croot"), $overlay );
     }
 
-    my $target = catfile( $settings->{tmpdir}, $settings->{path} );
+    my $target = catfile( $item->{tmpdir}, $item->{path} );
 
     # Deal with makeing sure '/' appears where needed and make sure the
     # src exists
@@ -75,7 +78,7 @@ sub build_disk_overlay {
             $target .= "/" unless ( $target =~ m%/^% );
         }
     } else {
-        $c->print( 3, "disk overlay ($settings->{uri}) src does not exist" );
+        $c->print( 3, "disk overlay ($item->{uri}) src does not exist" );
         return PLUGIN_SUCCESS;
     }
 
@@ -84,7 +87,7 @@ sub build_disk_overlay {
                        Inert    => 1,
                        Source   => $overlay,
                        Target   => $target,
-                       Excludes => $settings->{excludes} ) )
+                       Excludes => $item->{excludes} ) )
     {
         return PLUGIN_FATAL;
     }
@@ -96,9 +99,9 @@ sub descent_overlays {
     my ( $c, $branch ) = @_;
 
     # we only deal with file URIs
-    return PLUGIN_SUCCESS unless substr( $branch->{uri}, 0, 5 ) eq "file:";
+    return PLUGIN_SUCCESS unless $branch->{uri_scheme} eq "file";
 
-    my ( undef, $descend_item ) = ( $branch->{uri} =~ m%file://([^/]*)/(.*)% );
+    my $descend_item = $branch->{uri_path};
 
     # Note down any overlays related to this disk descend
     my @overlay_map = ('overlay:/');
@@ -106,24 +109,25 @@ sub descent_overlays {
         @overlay_map = @{ $c->getvals("overlay_map") };
     }
 
-    my $croot = $c->getval('c_croot');
+    my $default_path = $c->getval('c_croot');
 
-    if ( $descend_item =~ m#^/# ) {
-        $descend_item = catfile( $croot, $descend_item );
+    unless ( file_name_is_absolute($descend_item) ) {
+        $descend_item = catfile( $default_path, $descend_item );
     }
-
+    
+    my $overlay_key = $c->getkey(SPINE_OVERLAY_KEY);
+    unless ( defined $overlay_key ) {
+        $c->error("Could not getkey (" . SPINE_OVERLAY_KEY . ")", 'crit');
+        return PLUGIN_FATAL;
+    }
+    
     for my $element (@overlay_map) {
         my ( $overlay, $target ) = split( /:/, $element );
-        $overlay = "${descend_item}/${overlay}/";
-
-        unless ( file_name_is_absolute($overlay) ) {
-            $overlay = catfile( $croot, $overlay );
-            $overlay .= '/';    # catfile() removes trailing slashes
-        }
-
+        $overlay = catfile( $descend_item, $overlay ) . "/";
+        next unless ( -e $overlay );
         # Add the overlay to the overlays key
-        $c->getkey(SPINE_OVERLAY_KEY)->merge( { uri  => "file:///$overlay",
-                                         bind => $target } );
+        $overlay_key->merge( { uri  => "file:$overlay",
+                               bind => $target } );
     }
 
 }

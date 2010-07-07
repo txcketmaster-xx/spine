@@ -33,7 +33,7 @@ $DESCRIPTION = "Spine::Plugin skeleton";
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
-            hooks => { 'DISCOVERY/populate' => [ { name => 'dryrun',
+            hooks => { 'INIT' => [ { name => 'dryrun',
                                                    code => \&is_dryrun } ]
                      },
             cmdline => { options => { dryrun => \$DRYRUN } }

@@ -69,7 +69,7 @@ is( scalar(@$items), 1, "One bound item" );
 # add and bind in one (using simple syntax)
 $okey->merge("another://uri/location");
 $items = $okey->get_bound();
-is( scalar(@$items), 2, "Two bound item" );
+is( scalar(@$items), 2, "Two bound items" );
 
 #check that they have the correct data
 is( join( " ", map { $_->{name} } @$items ),
@@ -82,12 +82,6 @@ is( join( " ", map { $_->{path} } @$items ), "/somewhere /", "Correct paths" );
 
 # Some tests require data from DescendOrder
 Helpers::DescendOrder::init($data, $reg);
-
-# test that load_overlays runs. Note that it does very little since
-# no plugins are loaded in the PREPARE/Overlay/load hook point
-is( Spine::Plugin::Overlay::load_overlays($data),
-    PLUGIN_SUCCESS, "load_overlays" );
-
 
 # test build_overlay. Not going to do much as no plugins are registers
 is( Spine::Plugin::Overlay::build_overlay($data),

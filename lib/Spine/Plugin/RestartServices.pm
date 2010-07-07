@@ -34,7 +34,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { APPLY => [ { name => 'restart_services',
-                                    code => \&restart_services } ] },
+                                    code => \&restart_services,
+                                    position => HOOK_END } ] },
           };
 
 

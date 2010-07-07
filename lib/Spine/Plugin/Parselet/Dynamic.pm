@@ -46,30 +46,30 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 # This means we only have to check if the key is dynamic once
 # and cut's down the number of plugins we have to cascade through
 sub check_dynamic {
-    my ($c, $obj) = @_;
+    my ( $c, $obj, $cur_key, $result_ref ) = @_;
 
-    my $data = $obj->get();
+    my $data = $obj->get_ref();
     
     # only hash refs  / complex
-    unless (ref($data) eq 'HASH') {
+    unless (ref($$data) eq 'HASH') {
         return PLUGIN_SUCCESS;
     }
 
+    $data = $$data;
 
     # we support both dynamix_type and advanced_type
     # If the object contains dynamic_type then we
     # will kick it through the PARSE/key/dynamic phase
-    unless (exists $data->{dynamic_type} ||
-            exists $data->{advanced_type}) {
+    unless (exists $data->{advanced_type}) {
         return PLUGIN_SUCCESS;
     }
-
+    
     my $registry = new Spine::Registry();
 
     # HOOKME: Dynamic complex keys
     my $point = $registry->get_hook_point("PARSE/key/dynamic");
     # HOOKME, go through ALL dynamic plugins
-    my $rc = $point->run_hooks_until(PLUGIN_FATAL, $c, $obj);
+    my $rc = $point->run_hooks_until(PLUGIN_FATAL, $c, $obj, $cur_key, $result_ref);
     if ($rc & PLUGIN_FATAL) {
         $c->error("There was a problem getting key data", 'crit');
         return PLUGIN_ERROR;

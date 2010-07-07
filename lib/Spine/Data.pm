@@ -23,7 +23,6 @@ package Spine::Data;
 
 use strict;
 use Cwd;
-use Data::Dumper;
 use File::Basename;
 use File::Spec::Functions;
 use IO::Dir;
@@ -33,6 +32,7 @@ use Spine::Constants qw(:basic :plugin :keys);
 use Spine::Registry;
 use Spine::Util;
 use Spine::Key;
+use Spine::Resource qw(resolve_resource);
 use Sys::Syslog;
 ####### TODO refactor this out
 use Template::Exception;
@@ -204,6 +204,23 @@ sub populate {
     $self->{c_tmpdir}  = "/tmp/spine-mgmt." . $self->{c_ppid};
     $self->{c_tmplink} = "/tmp/spine-mgmt.lastrun";
 
+
+    # HOOKME  INIT
+    # use this hook for anything that must be done before
+    # parsing any config items. 
+    my $point = $registry->get_hook_point('INIT');
+
+    my $rc = $point->run_hooks($self);
+
+    # Spine::Registry::HookPoint::run_hooks() returns the number of
+    # errors + failures encountered by plugins
+    if ( $rc != 0 ) {
+        $DATA_POPULATED = SPINE_FAILURE;
+        $self->error( 'INIT: Failed to run at least one hook!',
+                      'crit' );
+        return SPINE_FAILURE;
+    }
+
     # Retrieve "internal" config values nesessary for bootstrapping of
     # discovery and therefore parsing of the tree.
     $self->cprint( "retrieving base settings", 3 );
@@ -213,7 +230,7 @@ sub populate {
     #       i.e. there is no reason why this has to be a file uri
     # XXX: this location will be processed by Spine::Plugins::Data::Disk
     $self->{c_internals_dir} = 'spine_internals';
-    if ( $self->read_config_branch(uri => "file:///" . $self->{c_internals_dir},
+    if ( $self->read_config_branch(uri => "file:" . $self->{c_internals_dir},
                                    fatal_if_missing => 1) != 0 )
     {
         $self->error(
@@ -234,7 +251,7 @@ sub populate {
       : ( $self->{'spine_local_internals_dirs'} );
     foreach my $dir (@dir_list) {
         next unless defined $dir;
-        $self->read_config_branch( uri => "file:///$dir",
+        $self->read_config_branch( uri => "file:$dir",
                                    fatal_if_missing => 1 );
     }
 
@@ -243,9 +260,9 @@ sub populate {
     #
 
     # HOOKME  Discovery: populate
-    my $point = $registry->get_hook_point('DISCOVERY/populate');
+    $point = $registry->get_hook_point('DISCOVERY/populate');
 
-    my $rc = $point->run_hooks($self);
+    $rc = $point->run_hooks($self);
 
     # Spine::Registry::HookPoint::run_hooks() returns the number of
     # errors + failures encountered by plugins
@@ -353,11 +370,12 @@ sub parse {
 # See Spine::Plugins::Data::* for implementaions
 sub read_config_branch {
     my $self = shift;
-    my $branch;
-    if ( scalar(@_) > 1 ) {
-        $branch = {@_};
-    } else {
-        $branch = shift;
+    
+    my $branch = Spine::Resource::resolve_resource(@_);
+    
+    unless (defined $branch) {
+        $self->error("Issue resolving resource used to define a branch", 'err');
+        return PLUGIN_ERROR;
     }
 
     my $registry = new Spine::Registry();
@@ -483,6 +501,14 @@ sub read_key {
     # XXX: should we log an error here?
     return undef unless defined $return_item;
     
+    # a final special case. If the return_item is not the same as the item
+    # that was put then we always turn on return_obj. This is done becuase
+    # one of the key parses has decided that the result should be a special
+    # key object.
+    if (ref($new_key) ne ref($return_item)) {
+        $return_obj = 1;
+    }
+    
     # Will we return an object or it's data? If the caller passed in objects
     # then we assume they expect to get some back!
     $return_item = $return_obj ? $return_item : $return_item->get();
@@ -491,6 +517,8 @@ sub read_key {
     if (defined $keyname) {
         $self->set($keyname, $return_item);
     }
+    
+ 
     
     return $return_item;
 }
@@ -517,10 +545,7 @@ sub _call_key_hook {
     if ( ($rc & PLUGIN_FATAL) == PLUGIN_FATAL) {
         return undef;
     }
-    
-    # just in case ret_key didn't get set during the run i.e. no plugins loaded
-    return undef unless (defined $ret_key);
-    
+        
     return $$ret_key;
 }
 
@@ -553,7 +578,9 @@ sub getkey {
 # that it gets what it expects
 sub hidekey {
     my ( $self, $keyname, $obj ) = @_;
-    $self->{$keyname} = "";
+    unless (exists $self->{$keyname} ) {
+        $self->{$keyname} = "";
+    }
     tie $self->{$keyname}, "Spine::Data::HiddenKey", $obj;
 }
 

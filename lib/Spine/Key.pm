@@ -66,21 +66,20 @@ sub metadata_remove {
 
 # get contained data
 sub get {
-    return exists $_[0]->{data} ? $_[0]->{data} : undef;
+    return ${$_[0]->get_ref()};
 }
 
 # used by Spine::Data for getval calls
 # this is here because other keys might want to override
 sub data_getref {
-    my $self = shift;
-    return \$self->{data};
+    $_[0]->get_ref()
 }
 
 # get a ref to the data, useful if data is a huge scalar to save memory
 sub get_ref {
-    return exists $_[0]->{data} ? \$_[0]->{data} : undef;
+    my $self = shift;
+    return exists $self->{data} ? \$self->{data} : \undef;
 }
-
 
 # This allows a key to decide what data to pass out into another keys
 # replace method, it's up to the caller to place the data within
@@ -98,6 +97,7 @@ sub replace {
     if ($self->is_related($data)) {
         $data = $data->replace_helper($self);
     }
+    
     $self->set($data);
 }
 
@@ -210,10 +210,10 @@ sub remove {
         $newdata = [ grep !/$re/, @{ $self->{data} } ];
         $self->set($newdata);
         return $self->{data};
-    }
-
-    foreach ( keys %{ $self->{data} } ) {
-        delete $self->{data}->{$_} if $_ =~ m/$re/;
+    } elsif ( $rtype eq "HASH" ) {
+        foreach ( keys %{ $self->{data} } ) {
+            delete $self->{data}->{$_} if $_ =~ m/$re/;
+        }
     }
     return $self->{data};
 }

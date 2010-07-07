@@ -32,10 +32,9 @@ sub set {
     return;
 }
 
-sub get {
-    # we return an empty string because
-    # undef represents an error in some plugins i.e Descend::Disk
-    return "";
+sub get_ref {
+    my $blank = undef;
+    return \$blank;
 }
 
 sub merge {

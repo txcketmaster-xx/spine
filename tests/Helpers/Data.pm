@@ -44,7 +44,7 @@ my %configs = (
 $configs{core_plugins} = { spine       => { Profile => "std_profile" },
                            std_profile => {
                                  "DISCOVERY/policy-selection" => "DescendOrder",
-                                 "DISCOVERY/populate"         => "DescendOrder",
+                                 "INIT"         => "DescendOrder",
                                  %{ $configs{parselets}->{parselet_profile} } }
                          };
 
@@ -80,7 +80,7 @@ sub add_plugin {
 }
 
 # Load all hooks in a plugin automagically
-# this beeing needed make me think we really need to redo reg
+# this being needed makes me think we really need to redo reg
 sub auto_load_plugin {
     my ($data, $reg, $plugin) = @_;
     # I know this may die, but that ok this is a test!

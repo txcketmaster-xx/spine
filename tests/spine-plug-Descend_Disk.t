@@ -45,8 +45,8 @@ Spine::Plugin::Descend::Disk::reserve_key($data);
 my $ikey = $data->getkey("include");
 isa_ok( $ikey, "Spine::Key::Blank" );
 
-# Attempt to reslove a disk based descend branch
-$data->set("policy_hierarchy", "file:///");
+# Attempt to reslove a disk based descend branch (file: is basically CWD)
+$data->set("policy_hierarchy", "file:");
 
 # kick off descend order
 Helpers::DescendOrder::run($data, $reg);
@@ -59,10 +59,11 @@ my $found = 0;
 my $should_be_removed = 0;
 foreach (@items) {
     $found++
-      if (    $_->{uri} eq "file:///config_group/test/"
-           || $_->{uri} eq "file:///config_group/second_test/" );
-    $should_be_removed++ if ( $_->{uri} eq "file:///config_group/to-remove/" );
+      if (    $_->{uri_path} eq "config_group/test/"
+           || $_->{uri_path} eq "config_group/second_test/" );
+    $should_be_removed++ if ( $_->{uri_path} eq "config_group/to-remove/" );
 }
+
 is($found, 2, "Disk descend resolves as expected");
 is($should_be_removed, 0, "Removal later in the order works");
 

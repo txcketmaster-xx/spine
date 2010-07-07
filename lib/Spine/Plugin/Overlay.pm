@@ -44,15 +44,23 @@ $MODULE = {
     description => $DESCRIPTION,
     version     => $VERSION,
     hooks       => {
-        "DISCOVERY/populate" => [ { name => 'create_overlay_store',
-                                    code => \&init } ],
-
+        "INIT" => [ { name => 'create_overlay_store',
+                      code => \&init } ],
         PREPARE => [ { name => 'build_overlay',
                        code => \&build_overlay } ],
         APPLY => [ { name => 'apply_overlay',
-                     code => \&apply_overlay } ],
+                     code => \&apply_overlay,
+                     provides => [ 'overlay',
+                                   'overlay1' ] },
+                   { name => 'apply_overlay_pass_two',
+                     code => \&apply_overlay_two,
+                     position => HOOK_END,
+                     provides => [ 'overlay', 'overlay2' ] } ],
         CLEAN => [ { name => 'clean_overlay',
-                     code => \&clean_overlay } ] },
+                     code => \&clean_overlay } ],
+        'PARSE/branch' => [ { name => 'load_overlay',
+                            code => \&load_overlay ,
+                            position => HOOK_START } ] },
     cmdline => { options => { 'keep-overlay' => \$DONTDELETE } } };
 
 # FIXME: icky
@@ -65,26 +73,23 @@ sub init {
     return PLUGIN_SUCCESS;
 }
 
-sub load_overlays {
-    my ($c) = @_;
+# We hook into the PAESE/branch so that pluggins that automatically
+# add overlays for each branch have a change to register them before
+# user defined overlays are added.
+sub load_overlay {
+    my ($c, $branch) = @_;
 
     my $registry = new Spine::Registry;
 
-    my $point = $registry->get_hook_point('PREPARE/Overlay/load');
-    foreach my $branch ( @{ $c->getvals("c_hierarchy") } ) {
-        my $rc = $point->run_hooks( $c, $branch );
-        return PLUGIN_ERROR unless ( $rc == 0 );
-    }
-    return PLUGIN_SUCCESS;
+    my $point = $registry->get_hook_point('PARSE/Overlay/load');
+    my $rc = $point->run_hooks( $c, $branch );
+   return PLUGIN_ERROR unless ( $rc == 0 );
+
+   return PLUGIN_SUCCESS;
 }
 
 sub build_overlay {
     $c = shift;
-
-    # Will load the overlays based on descend information
-    # TODO: make this nice, also should use spine_success rather then plugin
-    return PLUGIN_ERROR
-      unless ( load_overlays($c) == PLUGIN_SUCCESS );
 
     my $croot   = $c->getval('c_croot');
     my $tmpdir  = $c->getval('c_tmpdir');
@@ -130,18 +135,18 @@ sub build_overlay {
         # overlays know where they came from
         $c->set( "c_current_overlay", $item_settings );
         $c->print( 4,
-                   "Processing the overlay (" . $item_settings->{uri} . ")" );
+                   "Processing the overlay (" . $item_settings->{name} . ")" );
         my ( undef, $rc, undef ) =
           $point->run_hooks_until( PLUGIN_STOP, $c, $item_settings );
 
-        if (  $rc == PLUGIN_NOHOOKS ) {
-            $c->cprint( "unable to build overlay ($overlay_item->{uri})."
-                         . " No plugins for PREPARE/Overlay/build",
-                       2 );
+        if ( $rc == PLUGIN_NOHOOKS ) {
+            $c->cprint( "unable to build overlay ($overlay_item->{name})."
+                          . " No plugins for PREPARE/Overlay/build",
+                        2 );
             return PLUGIN_NOHOOKS;
         }
-        
-        if ($rc == PLUGIN_FATAL ) {
+
+        if ( $rc == PLUGIN_FATAL ) {
             $c->error( "could not build overlay \""
                          . $overlay_item->{uri}
                          . "\" for ("
@@ -152,6 +157,7 @@ sub build_overlay {
     }
     return PLUGIN_SUCCESS;
 }
+
 
 sub apply_overlay {
     $c = shift;
@@ -285,6 +291,14 @@ sub apply_overlay {
     return PLUGIN_SUCCESS;
 }
 
+sub apply_overlay_two {
+    
+    # no point doing a second pass during a dryrun
+    return PLUGIN_SUCCESS if $_[0]->getval('c_dryrun');
+    
+    return apply_overlay(@_);
+}
+
 #
 # @ENTRIES is a module level global
 #
@@ -394,6 +408,7 @@ sub remove_tmpdir {
     my $tmpdir = shift;
 
     # rm -rf paranoia.
+    # FIXME: tmp should not be assumed to be in '/'
     if ( ( $tmpdir =~ m@^/tmp/.*@ ) and ( $tmpdir =~ m@[^\.~]*@ ) ) {
         my $result = simple_exec( merge_error => 1,
                                   exec        => 'rm',
@@ -443,6 +458,7 @@ sub sync_attribs {
 # The following package is a special implementation of a spine key
 # just for overlays
 package Spine::Plugin::Overlay::Key;
+use Spine::Resource qw(resolve_resource);
 use base qw(Spine::Key);
 
 sub new {
@@ -457,20 +473,17 @@ sub new {
 }
 
 sub add {
-    my ( $self, $uri, $name ) = @_;
-
+    my ( $self, $resource) = @_;
     my $data = $self->get();
-
-    # We use the uri as the name if no name is given
-    $data->{overlays}->{ defined $name ? $name : $uri } = $uri;
+    $data->{overlays}->{ $resource->{name} } = $resource;
 }
 
 sub add_data {
     my ( $self, $name, $data ) = @_;
 
-    $data = $self->get();
+    my $item = $self->get();
 
-    $data->{overlays}->{$name} = $data;
+    $item->{overlay_data}->{$name} = $data;
 
 }
 
@@ -538,14 +551,17 @@ sub get_bound {
           exists $data->{overlay_data}->{ $bound->[0] }
           ? $data->{overlay_data}->{ $bound->[0] }
           : "";
-        my $uri = $data->{overlays}->{ $bound->[0] };
         push @$items,
           { name => $bound->[0],
             path => $bound->[1],
-            uri  => $uri,
+            resource  =>  $data->{overlays}->{ $bound->[0] },
             data => $overlay_data };
     }
     return $items;
+}
+
+sub set {
+    return undef;
 }
 
 # override the standard merge function
@@ -564,40 +580,25 @@ sub merge {
         }
         return undef;
     }
+    
+    my $resource = resolve_resource($obj);
+    return undef unless ( defined $resource );
 
-    if ( ref($obj) eq "HASH" ) {
+    $self->add($resource);
 
-        my $name;
-        if ( exists $obj->{name} ) {
-            $name = $obj->{name};
-        } elsif ( exists $obj->{uri} ) {
-            $name = $obj->{uri};
-        } else {
+    # if it was just a scalar we assume it's bound to '/'
+    unless ( ref($obj) ) {
+        $self->bind( $resource->{name}, "/" );
 
-            #TODO: report error somehow????
-            return undef;
-        }
+    }
 
-        # Add it in if the uri was given
-        if ( exists $obj->{uri} ) {
-            $self->add( $obj->{uri}, $name );
-        }
-
-        # Register any data if there is any
-        if ( exists $obj->{data} ) {
-            $self->add_data( $name, $obj->{data} );
-        }
-
-        # bind it is there are any bind options
-        if ( exists $obj->{bind} ) {
-            $self->bind( $name, $obj->{bind} );
-        }
-
-    } else {
-
-        # If it's not a ref then we assume it's a uri to be bound to '/'
-        $self->add( $obj, $obj );
-        $self->bind( $obj, "/" );
+    # Register any data if there is any
+    if ( exists $resource->{data} ) {
+        $self->add_data( $resource->{name}, delete $resource->{data} );
+    }
+    # bind it if there are any bind options
+    if ( exists $resource->{bind} ) {
+        $self->bind( $resource->{name}, delete $resource->{bind} );
     }
 }
 

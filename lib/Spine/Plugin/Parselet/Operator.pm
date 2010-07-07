@@ -100,6 +100,7 @@ sub parse_line {
 # Then we set reslult to be the final object
 sub process_operators {
     my ( $c, $new_obj, $cur_obj, $result_ref ) = @_;
+    
     # if the result ref is defined then we should do nothing
     return PLUGIN_SUCCESS if ( defined $$result_ref );
 
@@ -193,7 +194,7 @@ sub process_operators {
     if ( defined $merge ) {
         $cur_obj->merge($new_obj, @$merge);
     } else {
-        $cur_obj->replace($new_obj, @$merge);
+        $cur_obj->replace($new_obj);
     }
 
     return PLUGIN_SUCCESS;

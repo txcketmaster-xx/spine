@@ -28,6 +28,7 @@ use Spine::Data;
 use Spine::Key::Blank;
 use Spine::Plugin::DescendOrder;
 use Spine::Plugin::Interpolate;
+use File::Spec::Functions;
 
 our ( $VERSION, $DESCRIPTION, $MODULE, $CURRENT_DEPTH, $MAX_NESTING_DEPTH );
 
@@ -43,58 +44,64 @@ $MODULE = { author      => 'osscode@ticketmaster.com',
                                                 code => \&resolve,
                                                 provides => ["disk_descend"] }
                        ],
-                       "DISCOVERY/populate" => [
-                                               { name => 'reserve_include_key',
-                                                 code => \&reserve_key, }, ], }
-          };
-use File::Spec::Functions;
+                       "INIT" => [ { name => 'reserve_include_key',
+                                     code => \&reserve_key, }, ], } };
 
 sub resolve {
     my ( $c, $key, $item ) = @_;
 
-    # deal with legacy dirs that do not have proper uris
-    # TODO: depreciate this once everyone uses uri's, should probably move to
-    # a separate fixup plugin!
-    unless ( $item->{uri} =~ m%[^:]+://% ) {
-        # if the item has succedes we assume that it's
-        # a config_group since it has a parent branch
-        if ( exists $item->{dependencies}->{succedes} ) {
-            $item->{uri} = "file:///"
-              . catdir( $c->getval_last('include_dir'), $item->{uri} );
-        } else {
-            $item->{uri} = "file:///$item->{uri}";
-        }
-    }
-
     # we only deal with file URIs
-    return PLUGIN_SUCCESS unless substr( $item->{uri}, 0, 5 ) eq "file:";
+    return PLUGIN_SUCCESS unless $item->{uri_scheme} eq "file";
 
-    my ( undef, $descend_item ) = ( $item->{uri} =~ m%file://([^/]*)/(.*)% );
-    my $croot = $c->getval('c_croot');
+    my $descend_item = $item->{uri_path};
 
-    unless ( $descend_item =~ m#^/# ) {
-        $descend_item = catfile( $croot, $descend_item );
+    # FIXME: this implements the old config_groups stuff. Config groups should
+    # pass in their whole path. Since this is a bit hack there are lots of
+    # checks to make sure we really want to do this.
+    #    Is the item a child of something?
+    #    Did it have a pather without a uri_schema originally?
+    #    Does it already have the include path int it?
+    #    If it an absoule path?
+    my $inc_path = $c->getval('include_dir');
+    if (    exists $item->{dependencies}
+         && $item->{name} !~ m/^file/
+         && $descend_item !~ m/^$inc_path/
+         && not file_name_is_absolute($descend_item) )
+    {
+
+        # we fixup both the path and uri because either could be
+        # used later.
+        $item->{uri_path} = catfile( $inc_path, $descend_item );
+        $item->{uri} =~ s/$descend_item/$item->{uri_path}/;
+        $descend_item = $item->{uri_path};
     }
 
     # TODO: this isn't very nice. Taken from the old code. Should be based on a
     #       key. Also the first include is better then the second.
     foreach my $path (qw(include config/include)) {
-        my $inc_file = catfile( $descend_item, $path );
 
-        # An empty set is perfectly acceptable
-        unless ( -f $inc_file ) {
+        # XXX: it is valid for descend_item to be blank if it's the CWD
+        # cafile will add a slash to the start if we don't work around this.
+        my $inc_file =
+          ( length($descend_item) > 0 )
+          ? catfile( $descend_item, $path )
+          : $path;
+
+        unless ( -f $inc_file || -f catfile( $c->{c_croot}, $inc_file ) ) {
             next;
         }
 
-        # add in the item to $key, noteing that it succedes it's parent
-        # by passing a merge parameter
-        # XXX: might be worth moving this to a function within the DescendOrder
-        #       plugin to hide the implementation...
-        $c->read_key( {  uri         => "file:///$inc_file",
-                         description => "file:///$inc_file descend key",
-                         operators   => [ [ 'merge', $item->{name} ] ], },
-                      $c->getkey(SPINE_HIERARCHY_KEY) );
+        # Read the key using the SPINE_HIERARCHY_KEY as the keyname so that
+        # the results ket merged into the right place. The merge operator has
+        # been given a parameter of the parent items so that dependancies get
+        # stored.
+        $c->read_key( { "operators" => [ [ "merge", $item ] ],
+                        "uri"          => "file:$inc_file",
+                        "keyname"      => SPINE_HIERARCHY_KEY,
+                        "desctription" => "file:$inc_file descend key" } );
     }
+
+    return PLUGIN_SUCCESS;
 }
 
 # Since the include keys get processed from the same location as config keys
@@ -104,7 +111,7 @@ sub resolve {
 sub reserve_key {
     my $c = shift;
     $c->set( "include", new Spine::Key::Blank );
+
     return PLUGIN_SUCCESS;
 }
-
 1;

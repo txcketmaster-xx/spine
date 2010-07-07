@@ -34,7 +34,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { CLEAN => [ { name => 'system_harden',
-                                    code => \&system_harden } ]
+                                    code => \&system_harden,
+                                    succedes => [ 'overlay' ] } ]
                      }
           };
 

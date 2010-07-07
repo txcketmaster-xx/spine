@@ -34,7 +34,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => {'PARSE/complete' => [ { name => 'interpolate',
-                                              code => \&interpolate } ]
+                                              code => \&interpolate,
+                                              position => HOOK_START } ]
                      }
           };
 

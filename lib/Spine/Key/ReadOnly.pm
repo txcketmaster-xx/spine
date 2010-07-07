@@ -20,25 +20,28 @@
 #
 
 use strict;
-# this key will always replace whats in it even if merge is called
 
-package Spine::Key::AlwaysReplace;
+package Spine::Key::ReadOnly;
 use base qw(Spine::Key);
 
-# merge becomes set
 sub merge {
-    my ($self, $item) = @_;
-    
-    if ( $self->is_related($item) ) {
-        $item = $item->merge_helper($item);
-    }
-    $self->set($item);
+   return undef;
 }
 
+sub replace {
+   return undef;
+}
 
-# set default to replace. might as well...
-sub default_merge {
-    return 0;
+sub set {
+   return undef;
+}
+
+sub keep {
+   return undef;
+}
+
+sub remove {
+   return undef;
 }
 
 1;

@@ -614,6 +614,10 @@ sub run_hooks_until {
     if (defined $last_err) {
         $c->error("Issue with hook ordering/requirements, $last_err",
                   'err');
+        # Loop issues can be hard to debug, allow someone who
+        # knows what they are doing to get more information
+        require Data::Dumper;
+        $self->debug(1, "Order Debug: ".Dumper($self));
         return SPINE_FAILURE;
     }
                  

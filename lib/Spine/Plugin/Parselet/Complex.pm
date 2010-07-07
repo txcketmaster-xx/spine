@@ -25,37 +25,36 @@ package Spine::Plugin::Parselet::Complex;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
-
-our ($VERSION, $DESCRIPTION, $MODULE);
+our ( $VERSION, $DESCRIPTION, $MODULE );
 my $CPATH;
 
-
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION     = sprintf( "%d", q$Revision$ =~ /(\d+)/ );
 $DESCRIPTION = "Parselet::Complex, detects if the buffer is a complex key";
 
-$MODULE = { author => 'osscode@ticketmaster.com',
+$MODULE = { author      => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
-            version => $VERSION,
-            hooks => { 'PARSE/key' => [ { name => "Complex", 
-                                          code => \&check_complex,
-                                          provides => ['complex', 'PARSE/key/complex'] } ],
-                     },
-          };
+            version     => $VERSION,
+            hooks       => {
+                       'PARSE/key' => [
+                               { name     => "Complex",
+                                 code     => \&check_complex,
+                                 provides => [ 'complex', 'PARSE/key/complex' ]
+                               } ], }, };
 
 # This means we only have to check if the key is complex once
 # and cut's down the number of plugins we have to cascade through
 sub check_complex {
-    my ($c, $obj) = @_;
+    my ( $c, $obj, $cur_key, $result_ref ) = @_;
 
     # only scalars
-    if (ref($obj->get())) {
+    if ( ref( $obj->get() ) ) {
         return PLUGIN_SUCCESS;
     }
 
     # If the object contains something that looks
     # like an indication of a complex type we parse it
     # it's not a problem if we make a mistake however.
-    unless ($obj->get() =~ m/^#?%/) {
+    unless ( $obj->get() =~ m/^#?%/ ) {
         return PLUGIN_SUCCESS;
     }
 
@@ -63,10 +62,12 @@ sub check_complex {
 
     # HOOKME: Complex keys
     my $point = $registry->get_hook_point("PARSE/key/complex");
+
     # HOOKME, go through ALL complex plugins
-    my $rc = $point->run_hooks_until(PLUGIN_FATAL, $c, $obj);
-    if ($rc & PLUGIN_FATAL) {
-        $c->error("There was a problem processing key data", 'crit');
+    my $rc =
+      $point->run_hooks_until( PLUGIN_FATAL, $c, $obj, $cur_key, $result_ref );
+    if ( $rc & PLUGIN_FATAL ) {
+        $c->error( "There was a problem processing key data", 'crit' );
         return PLUGIN_ERROR;
     }
     return PLUGIN_SUCCESS;

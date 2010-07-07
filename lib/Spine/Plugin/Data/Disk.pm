@@ -51,11 +51,9 @@ sub parse_branch {
       ? exists $branch->{fatal_if_missing}
       : 0;
 
-    return PLUGIN_SUCCESS unless substr( $branch->{uri}, 0, 5 ) eq "file:";
-
-    my ( undef, $descend_item ) = ( $branch->{uri} =~ m%file://([^/]*)/(.*)% );
-
-    ($branch) = ( $branch->{uri} =~ m%file://[^/]*/(.*)% );
+    return PLUGIN_SUCCESS unless $branch->{uri_scheme} eq "file";
+    
+    $branch = $branch->{uri_path};
 
     unless ( -d $branch ) {
         # is it ok if it's missing?
@@ -128,13 +126,13 @@ sub _get_values {
             next;
         }
 
-        $keyfile = "file:///" . catfile( $directory, $keyfile );
+        $keyfile = "file:" . catfile( $directory, $keyfile );
 
         # Read the contents of a file.  Filename is stored
         # as the key, where value(s) are the contents.
-        my $value = $c->read_keyuri( uri     => $keyfile,
-                                     keyname => $keyname,
-                                     description => "$keyfile key" );
+        my $value = $c->read_key({ uri     => $keyfile,
+                                   keyname => $keyname,
+                                   description => "$keyfile key" });
 
         if ( not defined($value) ) {
             $c->error( "read_keyuri: \"$keyfile\" parse error", 'crit' );

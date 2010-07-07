@@ -25,6 +25,7 @@ use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 use File::Spec::Functions;
 use Spine::Registry;
+use Spine::Resource qw(resolve_resource);
 
 our ( $VERSION, $DESCRIPTION, $MODULE );
 my $CPATH;
@@ -54,15 +55,20 @@ $MODULE = {
 sub _init_key {
     my ( $c, $obj ) = @_;
 
-    # Do we need to read a file?
-    my $source = $obj->metadata("uri");
-    if (    $source
-         && $source =~ m%^file://[^/]*/(.*)$%
+    my $resource;
+    unless ( defined( $resource = $obj->metadata("resource") ) ) {
+        $resource = Spine::Resource::resolve_resource( $obj->metadata("uri") );
+        $obj->metadata_set( "resource", $resource );
+    }
+
+    #TODO: this should be moved to a Pareselet::DiskBased plugin
+    if (    defined $resource
+         && $resource->{uri_scheme} eq "file"
          && !$obj->does_exist() )
     {
-        my $file = $1;
+        my $file = $resource->{uri_path};
         my $fh   = undef;
-
+        # FIXME: can we get away with using absolute?
         unless ( -f $file ) {
             $file = catfile( $c->{c_croot}, $file );
         }
@@ -82,13 +88,12 @@ sub _init_key {
         # Trun the file into an array
         $obj->set( join( '', $fh->getlines() ) );
         close($fh);
-    }
 
-    # make sure there is always a description
-    unless ( defined $obj->metadata("description") ) {
-        $obj->metadata_set( "description", $source );
+        # make sure there is always a description
+        unless ( defined $obj->metadata("description") ) {
+            $obj->metadata_set( "description", $resource->{uri} );
+        }
     }
-
     return PLUGIN_SUCCESS;
 }
 

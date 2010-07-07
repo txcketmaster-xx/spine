@@ -49,12 +49,13 @@ sub dns_key {
 
     $resolver = Net::DNS::Resolver->new unless $resolver;
 
+    my $data = $obj->get();
+
     # Is it for us?
-    unless ($obj->get->()->{dynamic_type} =~ m/^\s*dns\s+lookup\s*$/i) {
+    unless ($data->{advanced_type} =~ m/^\s*dns\s+lookup\s*$/i) {
         return PLUGIN_SUCCESS;
     }
-    my $data = $obj->get();
-    
+       
     unless (exists $data->{query}) {
         $c->error("Missing 'query' from dns lookup", 'crit');
         return PLUGIN_ERROR;
