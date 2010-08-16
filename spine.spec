@@ -19,6 +19,7 @@ BuildArch: noarch
 Requires:  rsync
 Requires:  dialog >= 0.9
 Requires:  lshw
+Requires:  pciutils
 %if "%{dist}" == ".el3" || "%{dist}" == ".el4"
 Requires:  kernel-utils
 %else
@@ -26,14 +27,11 @@ Requires:  dmidecode
 %endif
 Requires:  perl(Digest::MD5) >= 2.20
 Requires:  perl(Net::DNS) >= 0.49
-Requires:  perl(Template) >= 2.14
+Requires:  perl(Template) >= 2.19
 Requires:  perl(Text::Diff) >= 0.35
 Requires:  perl(NetAddr::IP) >= 3.24
-Requires:  perl(YAML::Syck)
-Requires:  perl(JSON::Syck)
 Requires:  perl(XML::Simple) >= 2.12
 Requires:  perl(File::Temp) >= 0.16
-Requires:  perl(Sys::Syslog)
 
 %description
 Ticketmaster Configuration System
@@ -59,9 +57,10 @@ Ticketmaster configuration system's publishing system
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
 
-cd %{name}-%{version}
+pushd spine
 # Hooray for Makefiles!
 make DESTDIR=$RPM_BUILD_ROOT install
+popd
 
 %clean
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
