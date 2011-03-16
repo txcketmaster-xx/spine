@@ -94,7 +94,7 @@ sub get_sysinfo
         } else {
             $c->error('the "c_netcard" key will be "unknown" as '.
                         'no "network_device_map" key has been defined',
-                      'warn');
+                      'warning');
         }
         
 
