@@ -197,12 +197,6 @@ sub apply_overlay
         chomp $srcfile; # most likely redundant
         my $destfile = $srcfile;
 
-        if ($srcfile =~ /\.svn/)
-        {
-            $c->error("Skipping $srcfile due to lame filename", "warning");
-            next;
-        }
-
         if ($srcfile !~ m!^$tmpdir!)
         {
             $srcfile = $tmpdir . $srcfile;
