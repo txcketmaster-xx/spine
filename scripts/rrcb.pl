@@ -36,9 +36,7 @@ use Storable qw(nfreeze);
 
 #my $REPOURL = 'http://repository/spine/';
 my $REPOURL = "http://$ENV{HTTP_HOST}/spine-configballs/";
-#my $SRCDIR  = '/fls1/vol1/websys-config-repo';
 my $SRCDIR  = '/ops/shared/htdocs/spine-configballs';
-#my $DEFAULT = 'websys';
 my $DEFAULT = '';
 my $FILENAME_RE = 'spine-config-?(.*)?-(\d+).(iso\.gz|cramfs)$';
 
