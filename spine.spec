@@ -43,6 +43,7 @@ Group:     Ticketmaster
 BuildArch: noarch
 Requires:  perl(SVN::Client) 
 Requires:  perl(Config::Simple) 
+Requires:  mkisofs
 Obsoletes: spine-fsball-publisher
 
 %description publisher
