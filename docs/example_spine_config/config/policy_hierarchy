@@ -2,7 +2,15 @@
     # We start with network-level configs. These are not
     # in the rest of the hierarchy, they live in a top-level
     # network directory
-    SET network = "network/" _ c.getval('c_subnet');
+
+    # Network is a bit tricky though. Spine's core will give us
+    # an array of networks we are on: c_network_hierarchy
+    FOREACH range IN c.getvals('c_network_hierarchy');
+      SET network = "network/" _ range;
+%]
+[% network %]
+]%
+    END;
 
     # Now we start building our hierarcy.
     #
@@ -42,7 +50,6 @@
     SET host = "host/" _ c.getval('c_hostname_f')
     
     # Now we've defined all the variables, just shove them into the file: -%]
-[% network %]
 [% env %]
 [% class %]
 [% host %]
