@@ -1,1 +1,2 @@
-rr_moved
+# ignore things that look like this when building overlays
+.svn

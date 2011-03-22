@@ -1,8 +1,8 @@
+# stuff to NEVER copy
 #
-# So we don't copy over the package stuff.  This shouldn't be an issue but
-# suspenders and a belt.
-#
-# rtilder    Fri Oct 27 11:36:47 PDT 2006
-#
+# These shouldn't be in our tree anyway...
 /var/state/apt
 /var/cache/apt
+/var/rpm
+# and this helps ease testing
+.svn

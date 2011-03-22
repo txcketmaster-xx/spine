@@ -5,6 +5,10 @@
                         (?:\.([-a-z_]{2,}))      # business unit($5)
                         (?:\.([-a-z_]+))?        # TLD($6)
                         ';
+
+    # see /config/policy_hierarchy for an explination of this
+    c.c_company = "examplecorp";
+
     hostname = c.getval('hostname');
     #
     # Populate our important data members

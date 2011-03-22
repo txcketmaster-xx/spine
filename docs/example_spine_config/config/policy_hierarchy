@@ -1,14 +1,48 @@
-[%- SET network = "network/" _ c.getval('c_subnet');
-    SET bu = c.getval('c_bu');
-    SET ctype = bu _ "/" _ c.getval('c_ctype');
-    SET product = ctype _ "/" _ c.getval('c_product');
-    SET class = product _ "/" _ c.getval('c_class');
-    SET instance = class _ "/" _ c.getval('c_instance');
-    SET host = "host/" _ c.getval('c_hostname_f') -%]
+[%- 
+    # We start with network-level configs. These are not
+    # in the rest of the hierarchy, they live in a top-level
+    # network directory
+    SET network = "network/" _ c.getval('c_subnet');
+
+    # Now we start building our hierarcy.
+    #
+    # The top-level of the config is special and site-specific stuff should
+    # not go there, so the top-level should, for the simple case,
+    # represent your company.
+    #
+    # (In more complex setups, it works well to have a top-level directory
+    #  per sysadmin-group-devision.)
+    #
+    # In our example, we'll call it examplecorp...
+    # This is defined in /spine-internals/config/hostname_re
+    #
+    # Below that, we have a simple two-level hierarcy:
+    # We'll start with "environment", i.e. prod or dev
+    # then classes of machines below that.
+    # So for example:
+    #   examplecorp/prod/web
+    #   examplecorp/prod/db
+    #   examplecorp/prod/shell
+    #   examplecorp/prod/proxy
+    #   examplecorp/dev/web
+    #   examplecorp/dev/db
+
+    # top-level
+    SET company = c.getval('c_company');
+
+    # Define the start, environment:
+    SET env = company _ "/" _ c.getval('c_environment');
+
+    # Now the class below that
+    SET class = env _ "/" _ c.getval('c_class');
+
+    # now, we could have host below that, but since host-specific configs
+    # are generally frowned upon, we'll pull this out to its own directory
+    # so they're easy to find and nuke.
+    SET host = "host/" _ c.getval('c_hostname_f')
+    
+    # Now we've defined all the variables, just shove them into the file: -%]
 [% network %]
-[% bu %]
-[% ctype %]
-[% product %]
+[% env %]
 [% class %]
-[% instance %]
 [% host %]

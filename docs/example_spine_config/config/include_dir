@@ -1,1 +1,1 @@
-[% c.c_bu _ "/config_groups" %]
+[% c.getval('c_company') _ "/config_groups" %]
