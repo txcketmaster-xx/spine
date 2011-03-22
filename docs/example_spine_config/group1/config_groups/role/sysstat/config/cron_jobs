@@ -1,0 +1,4 @@
+# run system activity accounting tool every 10 minutes
+*/10 * * * * root <$sysstat_path>/sa1 <$sysstat_interval> <$sysstat_count>
+# generate a daily summary of process accounting at 23:53
+53 23 * * * root <$sysstat_path>/sa2 -A

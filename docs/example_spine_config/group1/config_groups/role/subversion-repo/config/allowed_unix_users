@@ -1,0 +1,16 @@
+subversion:@websys
+subversion:@clisys
+subversion:@coresys
+subversion:@eu_websys
+subversion:@ticketweb
+brokerblocker:@websys
+brokerblocker:@websys_appsupport
+brokerblocker:bblocker
+devsvn:@sunset_devleads
+devsvn:@sunset_devteam
+devsvn:@mx_static
+corpis:@corpis
+svnreportpro:@itstrategists
+svncas:@clisys_appsupport
+svnct:@svnct
+svnticketwebdqs:@ticketwebdqs

@@ -1,0 +1,2 @@
+# This is so that nagios can have a shell on DB boxes for DBA check_tm stuff
+websys_nag_db

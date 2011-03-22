@@ -1,0 +1,1 @@
+<$sysadmin_name>|check_procs_crond|/usr/lib/nagios/plugins/check_procs -w 1: -C crond

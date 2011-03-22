@@ -1,0 +1,31 @@
+# .bashrc
+CLASS=[% c.getval('c_class') %]
+PATH="$PATH:/$CLASS/shared/bin"
+
+# User specific aliases and functions
+
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+	. /etc/bashrc
+fi
+
+alias err="tail -n20 /$CLASS/local/logs/error_log"
+
+function sr {
+      MACHINE=$1;
+      REMUSER=root;
+      FLAGS="";
+      if [[ $MACHINE == fls* ]]
+        then FLAGS="-a $FLAGS"
+      fi;
+      if [[ $MACHINE == nsr* ]]
+        then REMUSER=nsroot;
+      fi;
+      echo -ne "\033]0;${MACHINE}\007";
+      ssh $FLAGS ${REMUSER}@${MACHINE} ;
+      echo -ne "\033]0;${HOSTNAME}\007";
+      }

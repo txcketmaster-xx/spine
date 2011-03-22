@@ -1,0 +1,6 @@
+gecos:daemon
+homedir:/sbin
+shell:/sbin/nologin
+primary_group:daemon
+shadow:*
+type: system

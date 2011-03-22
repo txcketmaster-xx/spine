@@ -1,0 +1,3 @@
+# Always show the architecture on multi-arch 64bit boxes
+rpm     exec -q                 rpmq -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n'
+rpm     exec --query            rpmq --query --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n'

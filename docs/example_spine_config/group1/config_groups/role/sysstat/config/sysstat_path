@@ -1,0 +1,4 @@
+[% MATCH c_arch=^x86[-_]64$; %]
+/usr/lib64/sa
+[% END %]
+/usr/lib/sa

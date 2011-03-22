@@ -1,0 +1,3 @@
+# Flags as would be passed to date(1)
+# The template will enclose this such that it is run as: date +'%Y%M%d'
+%Y%m%d

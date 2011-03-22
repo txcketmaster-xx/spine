@@ -1,0 +1,6 @@
+gecos:SCPonly
+homedir:/var/scponly
+shell:/usr/bin/scponly
+primary_group:scponly
+shadow:*
+type: system

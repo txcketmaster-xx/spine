@@ -1,0 +1,6 @@
+gecos:Privilege-separated SSH
+homedir:/var/empty/sshd
+shell:/sbin/nologin
+primary_group:sshd
+shadow:!!
+type: system

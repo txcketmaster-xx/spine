@@ -1,0 +1,36 @@
+[% USE String;
+   SET repository_host = c.getval('repository_host');
+   SET distro_ver = c.getval('c_distro_version').match('^AS(\d+)U(\d+)$');
+   SET distro_ver = distro_ver.0 _ '.' _ distro_ver.1;
+   SET arch = c.getval('c_arch').replace('-', '_');
+   SET distro_name = String.new(c.getval('c_distro_name'));
+   SET distro_name = distro_name.lower();
+   SET repo_list = [];
+   DEFAULT distro_name = 'redhat';
+   FOREACH repository = c.getvals('apt_repositories');
+       # We presume that any repository with a / in it is the full path to
+       # the repo that sources.list requires
+       IF repository.search('/');
+           repo_line = 'rpm http://' _ repository_host _ '/apt ' _ repository;
+           repo_list.push(repo_line);
+       ELSE;
+           base = 'rpm http://' _ repository_host _ '/apt ';
+           base = base _ distro_name _ '/' _ distro_ver _ '/';
+           IF arch == 'x86_64';
+               x86_64_repo = base _ arch _ ' ' _ repository;
+               repo_list.push(x86_64_repo);
+               UNLESS c.getval('no_32bit_repos');
+                   i386_repo = base _ 'i386 ' _ repository;
+                   repo_list.push(i386_repo);
+               END;
+           ELSE;
+               i386_repo = base _ 'i386 ' _ repository;
+               repo_list.push(i386_repo);
+           END;
+       END;
+   END;
+   # The unique() method eliminates any duplicates.  Note that the original
+   # list doesn't need to be sorted first
+   FOREACH line IN repo_list.unique() -%]
+[%+ line +%]
+[%+ END -%]

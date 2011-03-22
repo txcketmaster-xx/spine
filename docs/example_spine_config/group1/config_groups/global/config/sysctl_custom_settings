@@ -1,0 +1,2 @@
+net.ipv4.icmp_echo_ignore_broadcasts=1
+kernel.core_setuid_ok=1

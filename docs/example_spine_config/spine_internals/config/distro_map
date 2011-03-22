@@ -1,0 +1,42 @@
+# Done in pairs:
+# line1: redhat-release RPM release tag
+# line2: symbolic name
+# line3: redhat-release RPM release tag #3
+# line4: symbolie name
+# and so on... 
+redhat-release-3AS-7.4
+RHEL,AS3U4,AS3
+redhat-release-3AS-13.5.1
+RHEL,AS3U5,AS3
+redhat-release-3AS-13.6.2
+RHEL,AS3U6,AS3
+redhat-release-3AS-13.7.3
+RHEL,AS3U7,AS3
+redhat-release-3AS-13.8.3
+RHEL,AS3U8,AS3
+redhat-release-3AS-13.9.5
+RHEL,AS3U9,AS3
+redhat-release-4AS-2.4
+RHEL,AS4U2,AS4
+redhat-release-4AS-4.1
+RHEL,AS4U3,AS4
+centos-release-4-2.1
+CentOS,AS4U2,AS4
+centos-release-4-3.1
+CentOS,AS4U3,AS4
+centos-release-4-3.2
+CentOS,AS4U3,AS4
+centos-release-4-4.2
+CentOS,AS4U4,AS4
+centos-release-4-4.3
+CentOS,AS4U5,AS4
+centos-release-4.92-4
+CentOS,AS5B2,AS5
+centos-release-4.92-5
+CentOS,AS5B2,AS5
+centos-release-4.92-6
+CentOS,AS5B2,AS5
+centos-release-5-0.0.el5.centos.2
+CentOS,AS5U0,AS5
+fedora-release-5-5
+Fedora,FC5,FC5

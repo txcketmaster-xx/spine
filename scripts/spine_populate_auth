@@ -1,0 +1,190 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my $authdir = '/tmp/spine-config/auth';
+
+sub parse_passwd_shadow
+{
+  my $data = {};
+  open(PASSWD, '</etc/passwd') || die('Failed to open passwd');
+  foreach my $line (<PASSWD>) {
+    chomp($line);
+    next if ($line =~ /^#/);
+    my ($user, undef, $uid, $gid, $gecos, $homedir, $shell) = split(':', $line);
+    # fix a few common errors
+    $gecos = $user if ($gecos eq '');
+    $shell = '/bin/false' if ($shell eq '');
+    $data->{$user} = {
+      'user' => $user,
+      'uid' => $uid,
+      'primary_group' => $gid,
+      'gecos' => $gecos,
+      'homedir' => $homedir,
+      'shell' => $shell,
+      'passwd' => undef,
+    };
+  }
+  close(PASSWD);
+
+  open(SHADOW, '</etc/shadow') || die('Failed to open shadow');
+  foreach my $line (<SHADOW>) {
+    chomp($line);
+    next if ($line =~ /^#/);
+    my ($user, $passwd, undef) = split(':', $line);
+    if ($passwd ne '!!' || $passwd ne '*') {
+      $data->{$user}->{'shadow'} = $passwd;
+    }
+  }
+  close(SHADOW);
+
+  return $data;
+}
+
+sub parse_groups
+{
+  my $data = {'byname' => {}, 'byid' => {}};
+  open(GROUP, '</etc/group') || die('Failed to open group');
+  foreach my $line (<GROUP>) {
+    chomp($line);
+    next if ($line =~ /^#/);
+    my ($group, undef, $gid, undef) = split(':', $line);
+    $data->{'byname'}->{$group} = $gid;
+    $data->{'byid'}->{$gid} = $group;
+  }
+  close(GROUP);
+  return $data;
+} 
+
+# Replace gids with groups for all primary_group entries
+sub shove_group_names_in_data
+{
+  my $users = shift;
+  my $groups = shift;
+
+  foreach my $user (keys(%{$users})) {
+    my $id = $users->{$user}->{'primary_group'};
+    my $name = $groups->{'byid'}->{$id};
+    
+    $users->{$user}->{'primary_group'} = $name;
+  }
+}
+
+sub create_users
+{
+  my $authdir = shift;
+  my $users = shift;
+  my $uid_map = shift;
+
+  foreach my $user (keys(%{$users})) {
+    if (-e "$authdir/people/$user" ||
+        -e "$authdir/roles/$user") {
+      print "Skipping $user, already exists\n";
+      next;
+    }
+    if (exists($uid_map->{$users->{$user}->{'uid'}})) {
+      print "Skipping $user, already in UID map\n";
+      next;
+    }
+    my $filename = "$authdir/people/$user";
+    print "Creating $filename\n";
+    open(PERSON, ">$filename") || die("Failed to open $filename\n");
+    foreach my $field qw(gecos homedir primary_group shell) {
+      my $value = $users->{$user}->{$field};
+      print PERSON "$field:$value\n";
+    }
+    close(PERSON);
+
+    my $uid = $users->{$user}->{'uid'};
+    print "Adding uid $uid name $user to uid_map\n";
+    $uid_map->{$uid} = $user;
+  }
+}
+
+sub write_new_uid_map
+{
+  my $uid_map = shift;
+ 
+  my $filename = "$authdir/uid_map";
+  open(MAP, ">$filename") || die("Couldn't open $filename");
+  for my $uid (sort {$a <=> $b} keys(%{$uid_map})) {
+    print MAP $uid . ':' . $uid_map->{$uid} . "\n";
+  }
+  close(MAP);
+}
+
+sub parse_map
+{
+  my $filename = shift;
+
+  my $map = {};
+  unless (-e $filename) {
+    return $map;
+  }
+
+  open(MAP, "<$filename") || die("Failed to open $filename");
+  foreach my $line (<MAP>) {
+    chomp($line);
+    next if ($line =~ /^#/);
+    my ($id, $name) = split(':', $line);
+    $map->{$id} = $name;
+  }
+  close(MAP);
+  return $map;
+}
+
+sub parse_uid_map
+{
+  my $authdir = shift;
+
+  my $filename = "$authdir/uid_map";
+  return parse_map($filename);
+}
+
+sub parse_gid_map
+{
+  my $authdir = shift;
+
+  my $filename = "$authdir/gid_map";
+  return parse_map($filename);
+}
+
+sub create_groups
+{
+  my $authdir = shift;
+  my $groups = shift;
+  my $gid_map = shift;
+
+  foreach my $group (keys(%{$groups->{'byname'}})) {
+    print "Testing for $group in gidmap\n";
+    my $id = $groups->{'byname'}->{$group};
+    if (exists($gid_map->{$id})) {
+      next;
+    }
+    $gid_map->{$id} = $group;
+  }
+  my $filename = "$authdir/gid_map";
+  open(MAP, ">$filename") || die("Failed to open $filename");
+  foreach my $id (sort {$a <=> $b} keys(%{$gid_map})) {
+    print MAP $id . ':' . $gid_map->{$id} . "\n";
+  }
+  close(MAP);
+}
+
+use Data::Dumper;
+print "Parsing passwd and shadow...\n";
+my $users = parse_passwd_shadow();
+print "Parsing groups...\n";
+my $groups = parse_groups();
+print "Parsing UID map...\n";
+my $uid_map = parse_uid_map($authdir);
+print "Parsing GID map...\n";
+my $gid_map = parse_gid_map($authdir);
+print "Merging data...\n";
+shove_group_names_in_data($users, $groups);
+print "Creating users...\n";
+create_users($authdir, $users, $uid_map);
+write_new_uid_map($uid_map);
+print "Creating groups...\n";
+create_groups($authdir, $groups, $gid_map);

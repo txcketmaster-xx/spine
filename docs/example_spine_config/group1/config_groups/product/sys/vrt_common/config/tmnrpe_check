@@ -1,0 +1,1 @@
+<$sysadmin_name>|check_virtual|/usr/lib/nagios/plugins/check_virtual -m 13

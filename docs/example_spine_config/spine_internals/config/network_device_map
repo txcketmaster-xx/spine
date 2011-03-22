@@ -1,0 +1,18 @@
+#
+# The contents of this file are eventually treated as a hash.
+#
+# The keys are strings that are treated as regular expressions and the values
+# are what the c_netcard key will be populated with if they match.
+#
+# rtilder    Fri Jul 13 09:24:32 PDT 2007
+#
+Broadcom Corporation NetXtreme BCM5704 Gigabit
+bcm5704
+Broadcom Corporation NetXtreme BCM5703 Gigabit
+bcm5703
+Broadcom Corporation NetXtreme BCM5721 Gigabit
+bcm5721
+Intel Corp(?:oration)? 82557\/8\/9 \[Ethernet Pro 100\]
+e100
+Intel Corp(?:oration)? 82546EB Gigabit Ethernet Controller
+e1000

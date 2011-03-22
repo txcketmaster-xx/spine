@@ -1,0 +1,5 @@
+homedir:/<$c_class>/shared/home/web
+shell:/bin/bash
+gecos:Application User
+shadow:
+primary_group:web

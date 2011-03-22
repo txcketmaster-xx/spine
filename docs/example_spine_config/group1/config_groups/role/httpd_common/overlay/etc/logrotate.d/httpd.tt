@@ -1,0 +1,48 @@
+/[% c.getval('c_class') %]/local/logs/*_log {
+ daily
+[% IF (c.getval('c_ctype') == 'prod') %]
+ compress
+[% END %]
+[% IF (c.getval('logrotate_missingok') != '') %]
+ missingok
+[% END %]
+[% IF c.getval('httpd_log_compress') %]
+ compress
+[% END %]
+ rotate [%+ c.getval('httpd_logs_num_days') +%]
+[% IF c.getval('httpd_user') %]
+ create 0660 [% c.getval('httpd_user')%] [%+ c.getval('httpd_user')%]
+[% ELSE %]
+ create 0660 tmweb tmweb
+[% END %]
+ ifempty
+ sharedscripts
+ postrotate
+# vim:syn=sh:et:ts=4
+CLASS=$(/usr/local/bin/class)
+
+
+[% PERL %]
+        #
+        # We wanted to use TT, but we could not get the
+        # substr function in TT working.
+        #
+        my $c = $stash->get('c');
+        my $instance = $c->getval('c_instance');
+        my $restart_interval = $c->getval('restart_interval');
+        my $factor = substr($instance, length($instance)-1, 1);
+
+	# 
+	# Sleep duration is now based upon a single global
+	# value called restart_interval. We now sleep for
+	# restart_interval * least significant bit of the instance
+	# 
+        my $sleep_duration = $restart_interval * $factor;
+
+        print "/bin/sleep $sleep_duration";
+[% END %]
+
+/${CLASS}/shared/init/httpd restart > /dev/null 2>&1
+
+endscript
+}

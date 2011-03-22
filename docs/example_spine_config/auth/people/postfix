@@ -1,0 +1,6 @@
+gecos:Postfix User
+homedir:/var/spool/postfix
+shell:/sbin/nologin
+primary_group:postfix
+shadow:!!
+type: system

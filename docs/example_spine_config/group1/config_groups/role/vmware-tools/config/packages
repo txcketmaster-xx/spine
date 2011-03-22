@@ -1,0 +1,11 @@
+VMwareTools
+gcc
+make
+
+[% MATCH c_distro=^AS3; %]
+kernel-source#<$kernel_version>
+[% END %]
+
+[% MATCH c_distro=^AS5; %]
+kernel-PAE-devel#<$kernel_version>
+[% END %]

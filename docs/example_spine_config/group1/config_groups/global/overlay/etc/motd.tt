@@ -1,0 +1,30 @@
+[% PERL %]
+
+	use File::Spec::Functions;
+
+	my $c = $stash->get('c');
+	my $release = $c->getval('c_release');
+	my $version = $c->getval('c_version');
+	my $hostDir = catfile($c->getval('c_croot'), 'host',
+		$c->getval('c_hostname_f')); 
+	my $findBin = $c->getval('find_bin');
+
+	print "Last rubix: " . scalar(localtime)
+		. " release: $release version: $version\n";
+
+
+	if (-d $hostDir) {
+		print "\nNOTICE: This system has host specific configuration\n\n";
+		my $output = `cd $hostDir ; $findBin`;
+
+		$output =~ s#\.\s+##;
+		$output =~ s#\./config\s+##;
+		$output =~ s#\./overlay\s+##;
+		$output =~ s#\./class_overlay\s+##;
+
+		print $output;
+	}
+[% END %]
+[% FOREACH line = c.getvals('local_motd') %]
+[%+ line %]
+[% END %]

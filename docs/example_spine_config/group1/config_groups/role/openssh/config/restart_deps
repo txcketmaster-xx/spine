@@ -1,0 +1,1 @@
+sshd:restart:/etc/ssh/sshd_config

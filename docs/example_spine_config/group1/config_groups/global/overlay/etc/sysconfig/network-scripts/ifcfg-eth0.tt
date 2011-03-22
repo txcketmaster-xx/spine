@@ -1,0 +1,10 @@
+DEVICE=eth0
+BOOTPROTO=static
+ONBOOT=yes
+IPADDR=[% c.getval('c_ip_address') %]
+NETMASK=[% c.getval('c_netmask') %]
+[% IF c.getval('fastaccess_network') AND c.getval('fastaccess_node') %]
+ETHTOOL_OPTS="[% c.getval('eth0_ethtool_fastaccess_opts') %]"
+[% ELSE %]
+ETHTOOL_OPTS="[% c.getval('eth0_ethtool_opts') %]"
+[% END %]

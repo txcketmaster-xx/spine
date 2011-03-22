@@ -1,0 +1,6 @@
+# Needed for the OpticalBarrier stuff.  This is being moved here from the
+# global config group.
+#
+# rtilder
+ImageMagick
+ghostscript=7.05-32.1.9TM

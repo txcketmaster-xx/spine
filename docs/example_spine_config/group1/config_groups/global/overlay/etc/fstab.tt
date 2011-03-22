@@ -1,0 +1,90 @@
+[%-
+        SET include_header = c.getval('c_croot') _ "/includes/header/topper";
+        INCLUDE $include_header
+-%]
+[%
+
+   # this is all necessary variables used throughout, set 'em now
+%]
+[% SET state_dir = c.getval('state_dir') %]
+[% SET overlay_root = c.getval('overlay_root') %]
+[% SET qtree = c.getval('c_bu') _ "-" _
+	       c.getval('c_cluster') _ "-" _
+	       c.getval('c_product') _ "-" _
+	       c.getval('c_class')
+%]
+[% 
+
+   # First we include the save fstab in /var/rubix
+%]
+[% INSERT "$state_dir/fstab" %]
+[%
+
+   # Figure out which software type, what filer, etc.
+%]
+[% SET software = c.getval('c_bu') _ "-software" %]
+[% IF c.getval('software_type') %]
+[%   SET software = software _ "-" _ c.getval('software_type') %]
+[% END %]
+[% SET mntsrc = c.getval('filer_class_host') _ ":/vol/" _ 
+		c.getval('filer_class_vol') _ "/"
+%]
+[%
+
+   # Mount /software if needed
+%]
+[% IF c.getval('fstab_mount_software') %]
+[%   IF c.getval('filer_software_vol') %]
+[%      c.getval('filer_software_host') _ ":/vol/" _
+	   c.getval('filer_software_vol') _ "/"
+%]
+[%    software +%]  [%+ c.getval('software_root') +%]       [%+ nfsopt %]
+[%   ELSE %]
+[%    mntsrc %][% software +%]	[%+ c.getval('software_root') +%]	[%+ nfsopt %]
+[%   END %]
+[% END %]
+[%
+
+   # Do class mounts
+%]
+[% SET exports = c.getval('c_filer_exports') %]
+[% UNLESS exports %]
+[%   SET exports = c.getval('filer_mounts') %]
+[% END %]
+[% UNLESS c.getval('no_class_mounts') %]
+[%   FOREACH export = exports.class %]
+[%     SET mntsrc = export.filer _ ":/vol/" _
+                    export.volume _ "/"
+%]
+[%     SET qtree = export.bu _ "-" _
+                    export.cluster _ "-" _
+                    export.product _ "-" _
+                    export.class
+%]
+[%     IF c.getval('fstab_mount_class') %]
+[%+       mntsrc %][% qtree %]/shared /[% c.getval('c_class') %]/shared	[%+ nfsopt +%]
+[%+       mntsrc %][% qtree %]/[% c.getval('c_instance') +%] /[% c.getval('c_class') %]/local	[%+ nfsopt +%]
+[%     END %]
+[%   END %]
+[% END %]
+[%
+
+   # Special boxes get /flsX/volY mounts...
+%]
+[% IF c.getval('vol_mounts') %]
+[%   FOREACH export = exports.volume %]
+[%     SET mntsrc = export.filer _ ":/vol/" _
+                    export.volume 
+%]
+[%+    mntsrc %]	/[% export.filer_short %]/[% export.volume +%]	[%+ nfsopt +%]
+[%   END %]
+[% END %]
+[%
+
+   # Impliment a mechanism for arbitrary one-offmounts, by FM 5/10/2006
+   # originally for adding 1 GB swap file to tdb1.tmol.dev4 - RT# 46545
+   # Used for mounting some specific microflex mounts as well	
+%]
+[% FOREACH line = c.getvals('special_mount') %]
+[%+  line %]
+[% END %]

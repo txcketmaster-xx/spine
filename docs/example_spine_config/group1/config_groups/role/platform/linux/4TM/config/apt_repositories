@@ -1,0 +1,12 @@
+=
+os
+updates
+extras
+[% MATCH c_arch=x86_64; %]
+redhat/4TM/x86_64 websys-prod
+[% END %]
+#
+# We need 32bit libraries for the /software stuff
+#
+redhat/4TM/i386 websys-prod
+redhat/3TM/i386 websys-prod

@@ -1,0 +1,8 @@
+# Files allowed to have SUID or SGID bits set
+/bin/ping
+/bin/su
+/usr/bin/at
+/bin/traceroute
+/usr/bin/sudo
+/usr/sbin/scponlyc
+/usr/bin/fping

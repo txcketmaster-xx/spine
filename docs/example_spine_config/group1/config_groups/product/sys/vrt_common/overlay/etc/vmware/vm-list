@@ -1,0 +1,4 @@
+config "/vrt/vm/phil19.sys.dev109.websys.tmcs/linux.vmx"
+config "/vrt/vm/phil99.sys.dev99.websys.tmcs/linux.vmx"
+config "/vrt/vm/phil94.sys.dev99.websys.tmcs/linux.vmx"
+config "/vrt/vm/phil1.sys.dev99.websys.tmcs/linux.vmx"

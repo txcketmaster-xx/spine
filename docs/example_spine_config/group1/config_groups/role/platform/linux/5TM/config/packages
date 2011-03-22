@@ -1,0 +1,89 @@
+#
+# There is no longer a differentiation between SMP and non-SMP kernels
+#
+-kernel-smp.*
+#
+# schedutils is provided by util-linux
+#
+-schedutils
+#
+# doesn't seem to exist in AS5
+#
+-^laus-libs
+#
+# lvm2 replaces lvm
+#
+-^lvm$
+lvm2
+#
+# mdadm replaces raidtools
+#
+-^raidtools
+mdadm
+#
+# Wtf is perl-Filter needed fore?
+#
+-^perl-Filter
+#
+# Who needs ksh?
+#
+-^pdksh
+ksh
+#
+# seems to be dead
+#
+-^devlabel
+#
+# kexec replaces netdump
+#
+-^netdump
+kexec-tools
+#
+# Not really that important
+#
+-^ash$
+#
+# libghttp is long gone
+#
+-^libghttp
+#
+# slocate is now a virtual package provided by mlocate
+#
+-^slocate
+mlocate
+#
+# Newer packages
+#
+anacron
+checkpolicy
+irqbalance
+libaio
+libsysfs
+libutempter
+microcode_ctl
+oddjob
+readahead
+selinux-policy
+selinux-policy-targeted
+setools
+yum
+
+#
+# We need kernel-PAE on 32-bit boxes with 4GB
+# or more of memory
+# -cfb 8/24/07
+[% MATCH c_arch=^(?!x86[-_]64); %]
+kernel-PAE#<$kernel_version>
+[% END %]
+
+#
+# Some 32-bit packages that we need for stuff in /software
+#
+[% MATCH c_arch=x86[-_]64; %]
+zlib.32bit
+openssl097a.32bit
+gdbm.32bit
+compat-db.32bit
+expat.32bit
+libgcc.32bit
+[% END %]
