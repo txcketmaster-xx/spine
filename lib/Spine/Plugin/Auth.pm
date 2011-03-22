@@ -831,7 +831,10 @@ sub emit_auth_data
 {
     my $c = shift;
 
-    my $min_root_keys = $c->getval_last('min_root_keys') || 3;
+    my $min_root_keys = $c->getval_last('min_root_keys');
+    unless (defined($min_root_keys) && $min_root_keys =~ /\d+/) {
+        $min_root_keys = 3;
+    }
 
     #
     # Coresys can't keep their users straight and don't want to be
@@ -1163,41 +1166,41 @@ sub _generate_passwd_shadow_home
 
         my $dir = catfile($tmpdir, $acct->{homedir});
 
-        # 
-        # If the account has specific permissions use those
-        # otherwise use the value of the default_homedir_perms key
-        # if set, finally use the code default of 0700 if no other
-        # perms exists.
-        #
-        if (defined $acct->{permissions})
-        {
-            my $perm = $acct->{permissions};
-            mkdir_p($dir, oct($perm));
-        }
-        else
-        {
-            my $perm = $c->getval('auth_default_homedir_perms') || qq(0700);
-            mkdir_p($dir, oct($perm));
-        }
-		
-        #
-        # As a default, we chown it to root - we'll chown
-        # it to the right user later if need be
-        #
-        chown(0,0,$dir);
-
-        #
-        # Here we chown it to the user *unless*..
-        #
-        # lets not chown any special dirs to anyone other than root
-        # they're system dirs, let overlays handle them
-        #
-        # while we're at it, we'll populate skel stuff
-        #
-
-        # We only do this for non-root users with non-system homedirs
         if (!exists($system_homedirs{$acct->{homedir}})
                 && $acct->{uid} != 0) {
+            # 
+            # If the account has specific permissions use those
+            # otherwise use the value of the default_homedir_perms key
+            # if set, finally use the code default of 0700 if no other
+            # perms exists.
+            #
+            if (defined $acct->{permissions})
+            {
+                my $perm = $acct->{permissions};
+                mkdir_p($dir, oct($perm));
+            }
+            else
+            {
+                my $perm = $c->getval('auth_default_homedir_perms') || qq(0700);
+                mkdir_p($dir, oct($perm));
+            }
+                    
+            #
+            # As a default, we chown it to root - we'll chown
+            # it to the right user later if need be
+            #
+            chown(0,0,$dir);
+
+            #
+            # Here we chown it to the user *unless*..
+            #
+            # lets not chown any special dirs to anyone other than root
+            # they're system dirs, let overlays handle them
+            #
+            # while we're at it, we'll populate skel stuff
+            #
+
+            # We only do this for non-root users with non-system homedirs
 
             chown($acct->{uid}, $acct->{gid}, $dir);
 
