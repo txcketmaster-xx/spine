@@ -1,9 +1,7 @@
 [%- hostname_re = '(?xi)
-                        ([-a-z\d_]+[a-z])(\d+)\. # class($1) and instance($2)
-                        ([-a-z_]{2,})\.          # product($3)
-                        ([-a-z_]{2,}\d+)         # cluster name($4)
-                        (?:\.([-a-z_]{2,}))      # business unit($5)
-                        (?:\.([-a-z_]+))?        # TLD($6)
+                        ([a-z]+)(\d+)\. # class($1) and instance($2)
+                        ([a-z]+\d+)\.   # cluster name($3)
+                        examplecorp\.com   # company
                         ';
 
     # see /config/policy_hierarchy for an explination of this
@@ -14,54 +12,24 @@
     # Populate our important data members
     #
     IF (components = hostname.match(hostname_re));
-        #
-        # Make sure we get our TLD in.  It's not like we ever use it.
-        #
-        c.c_tld = components.5;
-        IF NOT c.c_tld.defined() OR NOT c.c_tld;
-            c.c_tld = c.getval('default_tld');
-        END;
-        #
-        # Ditto for our business unit
-        #
-        c.c_bu = components.4;
-        IF NOT c.c_bu.defined() OR NOT c.c_bu;
-            c.c_bu = c.getval('default_bu');
-        END;
-        #
-        c.c_cluster = components.3;
-        c.c_product = components.2;
+        c.c_cluster = components.2;
         c.c_instance = components.1;
         c.c_class = components.0;
-        #
-        # Silly subclass crap for the CoreSys monkey boys
-        #
-        IF c.c_bu == 'coresys' AND c.c_class.defined() AND c.c_class.search('-');
-            IF (matches = c.c_class.split('-'));
-                c.c_subclass = matches.0;
-                c.c_class = matches.1;
-            END;
-        END;
-        #
-        # Now determine cluster type
-        #
-        FOREACH pattern_and_type = c.getvals('cluster_types');
-            matches = pattern_and_type.split('::');
-            pattern = matches.0;
-            type = matches.1;
-            IF c.c_cluster.search(pattern);
-                c.c_ctype = type;
-                LAST;
-            END;
-        END;
+
+	IF (c.c_cluster.match('dev.*'));
+	  c.c_environment = 'dev';
+	ELSE;
+	  c.c_environment = 'prod';
+	END
+	  
         #
         # Set our c_hostname_* variables
         #
         tiny = c.c_class _ c.c_instance;
         c.c_hostname_t = tiny;
-        short = [ tiny, c.c_product, c.c_cluster ];
+        short = [ tiny, c.c_cluster ];
         c.c_hostname_s = short.join('.');
-        full = [ short.join('.'), c.c_bu, c.c_tld ];
+        full = [ short.join('.'), 'examplecorp.com' ];
         c.c_hostname_f = full.join('.');
         #
         # And lastly, resolve our hostname for our network info
