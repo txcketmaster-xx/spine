@@ -1,28 +1,18 @@
 global
 role/ntp
 role/openssh
-role/postfix
-role/syslog-ng
-role/vixie-cron
-role/nagios_client
-role/ganglia_client3
-role/sysstat
-user/tmnet
 #
 # Any 64bit OS generic stuff we want included, regardless of distro
 #
 [% IF c_arch=^x86[-_]64$; %]
-role/platform/linux/64bit
+platform/linux/64bit
 [% END %]
 #
 # AS4 specific stuff
 #
 [% IF c_distro=^AS4; %]
 [%     MATCH c_distro_name=CentOS; %]
-platform/linux/Cent4
-[%     END %]
-[%     MATCH c_distro_name=RHEL; %]
-platform/linux/RHEL4
+platform/linux/CentOS4
 [%     END %]
 [% END %]
 #
