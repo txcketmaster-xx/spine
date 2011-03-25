@@ -2,7 +2,7 @@
 # vim:ts=8:noet
 
 %define spine_ver		2.1.0
-%define spine_rel		1
+%define spine_rel		2
 %define spine_prefix		/usr
 %define spine_lib_prefix	%{spine_prefix}/lib/spine-mgmt
 
@@ -32,6 +32,9 @@ Requires:  perl(Text::Diff) >= 0.35
 Requires:  perl(NetAddr::IP) >= 3.24
 Requires:  perl(XML::Simple) >= 2.12
 Requires:  perl(File::Temp) >= 0.16
+Requires:  perl(YAML::Syck)
+Requires:  perl(JSON::Syck)
+Requires:  perl(Sys::Syslog)
 
 %description
 Ticketmaster Configuration System
@@ -58,10 +61,9 @@ Ticketmaster configuration system's publishing system
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
 
-pushd spine
+cd %{name}-%{version}
 # Hooray for Makefiles!
 make DESTDIR=$RPM_BUILD_ROOT install
-popd
 
 %clean
 [ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] && rm -rf $RPM_BUILD_ROOT
@@ -89,6 +91,9 @@ popd
 %endif
 
 %changelog
+* Fri Mar 25 2011 Chet Burgess <cfb@liquidreality.org> 2.1.0-2
+- Sync spec files between spine versions to be consistent.
+
 * Wed Nov 02 2009 Jeff Schroeder <jeffschroeder@computer.org> 2.1.0-1
 - Change to the faster pure perl configball publisher.
 - Update the spec file to not barf on Fedora.
