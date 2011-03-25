@@ -523,9 +523,9 @@ sub run_hooks_until {
     # first argument passed to hooks
     my $c = $_[0];
     unless ($c->isa('Spine::Data')) {
-        $self->error("Spine::Data must be passed when running hooks");
+        $self->error('Spine::Data must be passed when running hooks');
         # attempt to make sure that the caller will bail out if this happens
-        return ([ "CORE", PLUGIN_FATAL, undef ], PLUGIN_FATAL, 1);
+        return ([ 'CORE', PLUGIN_FATAL, undef ], PLUGIN_FATAL, 1);
     }
 
     my $errors = 0;
@@ -545,20 +545,20 @@ sub run_hooks_until {
         push @results, [ $hook->{name}, $rc , $hook];
 
         if (($rc & PLUGIN_FATAL) == PLUGIN_FATAL) {
-            $c->error("FATAL error while running hook ".
+            $c->error('FATAL error while running hook '.
                       "\"$hook->{module}::$hook->{name}\" ".
-		      "for \"$self->{name}\"", "crit");
+		      "for \"$self->{name}\"", 'crit');
             $fatal++;
         }
         elsif ($rc & PLUGIN_ERROR) {
-            $c->error("ERROR while running hook ".
+            $c->error('ERROR while running hook '.
                       "\"$hook->{module}::$hook->{name}\" for ".
-		      "\"$self->{name}\"", "warn");
+		      "\"$self->{name}\"", 'warning');
             $errors++;
         }
 
         if ($until & $rc) {
-            $self->debug(3, "UNTIL condition met while ".
+            $self->debug(3, 'UNTIL condition met while '.
                             "running hook for \"$self->{name}\"");
             last;
         }
