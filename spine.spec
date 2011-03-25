@@ -2,7 +2,7 @@
 # vim:ts=8:noet
 
 %define spine_ver		2.1.0
-%define spine_rel		1
+%define spine_rel		2
 %define spine_prefix		/usr
 %define spine_lib_prefix	%{spine_prefix}/lib/spine-mgmt
 
@@ -19,6 +19,7 @@ BuildArch: noarch
 Requires:  rsync
 Requires:  dialog >= 0.9
 Requires:  lshw
+Requires:  pciutils
 %if "%{dist}" == ".el3" || "%{dist}" == ".el4"
 Requires:  kernel-utils
 %else
@@ -26,13 +27,13 @@ Requires:  dmidecode
 %endif
 Requires:  perl(Digest::MD5) >= 2.20
 Requires:  perl(Net::DNS) >= 0.49
-Requires:  perl(Template) >= 2.14
+Requires:  perl(Template) >= 2.19
 Requires:  perl(Text::Diff) >= 0.35
 Requires:  perl(NetAddr::IP) >= 3.24
-Requires:  perl(YAML::Syck)
-Requires:  perl(JSON::Syck)
 Requires:  perl(XML::Simple) >= 2.12
 Requires:  perl(File::Temp) >= 0.16
+Requires:  perl(YAML::Syck)
+Requires:  perl(JSON::Syck)
 Requires:  perl(Sys::Syslog)
 
 %description
@@ -45,6 +46,7 @@ Group:     Ticketmaster
 BuildArch: noarch
 Requires:  perl(SVN::Client) 
 Requires:  perl(Config::Simple) 
+Requires:  mkisofs
 Obsoletes: spine-fsball-publisher
 
 %description publisher
@@ -89,6 +91,9 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %endif
 
 %changelog
+* Fri Mar 25 2011 Chet Burgess <cfb@liquidreality.org> 2.1.0-2
+- Sync spec files between spine versions to be consistent.
+
 * Wed Nov 02 2009 Jeff Schroeder <jeffschroeder@computer.org> 2.1.0-1
 - Change to the faster pure perl configball publisher.
 - Update the spec file to not barf on Fedora.
