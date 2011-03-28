@@ -9,7 +9,7 @@
       SET network = "network/" _ range;
 %]
 [% network %]
-]%
+[%
     END;
 
     # Now we start building our hierarcy.
@@ -47,9 +47,10 @@
     # now, we could have host below that, but since host-specific configs
     # are generally frowned upon, we'll pull this out to its own directory
     # so they're easy to find and nuke.
-    SET host = "host/" _ c.getval('c_hostname_f')
+    SET host = "host/" _ c.getval('c_hostname_f');
     
-    # Now we've defined all the variables, just shove them into the file: -%]
+    # Now we've defined all the variables, just shove them into the file:
+-%]
 [% env %]
 [% class %]
 [% host %]

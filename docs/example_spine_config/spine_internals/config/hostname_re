@@ -20,7 +20,7 @@
 	  c.c_environment = 'dev';
 	ELSE;
 	  c.c_environment = 'prod';
-	END
+	END;
 	  
         #
         # Set our c_hostname_* variables

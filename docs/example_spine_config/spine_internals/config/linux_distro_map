@@ -38,5 +38,7 @@ centos-release-4.92-6
 CentOS,AS5B2,AS5
 centos-release-5-0.0.el5.centos.2
 CentOS,AS5U0,AS5
+centos-release-5-2.el5.centos
+CentOS,AS5U2,AS5
 fedora-release-5-5
 Fedora,FC5,FC5
