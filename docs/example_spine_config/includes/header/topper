@@ -10,7 +10,7 @@
 [%+ header_comment +%]  S       SS       TTT          OOO   OOO    PPP
 [%+ header_comment +%]   SSSSSSSS       TTTTT           OOOOO     PPPPP 
 [%+ header_comment +%]                               
-[%+ header_comment +%] managed by rubix, changes WILL be overwritten on the next run.
+[%+ header_comment +%] managed by spine, changes WILL be overwritten on the next run.
 [%+ header_comment +%]
 [%+ header_comment +%] consult your friendly neighborhood admin team for updates or additions.
 [%+ header_comment +%]

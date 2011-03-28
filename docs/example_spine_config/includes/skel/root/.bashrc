@@ -8,6 +8,3 @@ alias mv='mv -i'
 if [ -f /etc/bashrc ]; then
 	. /etc/bashrc
 fi
-
-alias err="tail -n20 /$CLASS/local/logs/error_log"
-
