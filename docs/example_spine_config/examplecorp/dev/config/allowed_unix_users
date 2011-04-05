@@ -1,7 +1,8 @@
-root:@devleads
-root:@devteam
-dev:@devleads
-dev:@devteam
-dev:@qateam
-dev:user1
-dev:user2
+# Here you might add dev leads as root. Assuming you've setup AUTH, and you
+# have an authgroup called devleads, you could do this:
+#root:@devleads
+#
+# You migh talso want to give all devs access to the dev user, and if you
+# have a role defined called dev, and a authgroup called devteam, that would look
+# like this
+#dev:@devteam
