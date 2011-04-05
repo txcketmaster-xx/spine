@@ -1,35 +1,31 @@
 This document attempts to explain the layout of the example config distributed
 with spine.
 
+While the example config is a good place to start, much customization must be
+done to realize the power of spine in your environment.
+
 ASSUMED HOST SETUP
-The example uses a slightly more complex host naming scheme than many shops
-probably have in order to demonstarte the flexibility of spine. While the naming
-scheme fairly closely matches Ticketmaster's setup, it was not chosen for that
-reason.
+This example uses a fairly basic setup. It assumes you have a few different
+types of systems: web, dns, etc. and that those are separated into clusters.
 
-The naming schema chosen is:
+Further, it assumes you have two types of clusters: prod and dev. It determines
+this based on whether 'dev' is anywhere in the cluster name.
 
-   <class><num>.<product>.<cluster>.<group>.<tld>
+This example determines all this data from the hostname, but spine can use
+any thing. In our case, hosts are assumed to be named:
 
-The tld in this case, doesn't matter at all, it's ignored by this setup.
+   <class><num>.<cluster>.examplecorp.com
 
-There is only one group setup, and it's called "group1."
-
-The clusters are generally referred to as "cu1", "cu2", etc. for production
-clusters and "dev1" ... "devN" for dev clusters and "qa1" ... "qaN" for qa
-clusters.
-
-The product is simply some grouping of classes. These may be different
-sub-sets of systems that a group supports.
+The tld in this case, doesn't matter at all, it's ignored here. examplecorp
+is hardcoded in this example, but it need not be.
 
 Classes are the basic devision of your systems, such as web servers, proxy
 servers, dns servers, etc. The number next to class is just a way to number
 the instances of a given class.
 
-Most shops will likely use a scheme that just includes <class><num>, <group>,
-and <tld> or alternatively, <class><num>, <cluster>, <group>, and <tld>. This
-is fine, but we wanted to demonstrate that further levels of group nesting
-are possible and easy.
+This could be arbitrarily simple or complex, we just picked this as simple
+enough to have a workable example and complex enough to show the hierarchical
+nature of spine.
 
 
 THE BASIC LAYOUT
@@ -38,20 +34,17 @@ As one can see from the /local/config/policy_hierarchy file, the descend-order
 spine will use is:
 
 network/<network>
-<group>/
-<group>/<cluster_type>
-<group>/<cluster_type>/<product>
-<group>/<cluster_type>/<product>/<class>
-<group>/<cluster_type>/<product>/<class>/<num>
+examplecorp/
+examplecorp/<environment>
+examplecorp/<environment>/<class>
 host/<host>
 
 The network/ directory is obviously where network-specific configs live.
 
-The group hierarchy is descended, in this case, from the least-specific part
+The examplecorp hierarchy is descended, in this case, from the least-specific part
 of the hostname to the most specific part, but that's just the way we chose to
 do it in our policy_hierarchy. The cluster_type is defined by reg-ex's in
-spine_internals/config/cluster_types - prod cluster match to the "prod"
-cluster_type, dev to dev, and qa to qa.
+spine_internals/config/hostname_re
 
 The host/ directory is not populated, but directories named after
 fully-qualified host names could go here for host-specific overrides
@@ -59,29 +52,27 @@ fully-qualified host names could go here for host-specific overrides
 
 THE INCLUDE LAYOUT
 
-Includes are rooted at /<group>/config_groups based on the key
-/local/config/include_dir
+Includes are rooted at /examplecorp/config_groups based on the key
+/spine-internals/config/include_dir
 
 Looking in this directory we see it has it's own hierarchy. This hierarchy
 isn't defined anywhere. Since include keys allow you to include any directory
-under here you want, you can tier them as you see fit.
+under here you want, you can tier them as you see fit. It's not desceneded, only
+the exact directy specified in 'include' keys are processed.
 
-In this case we've chosen to have two tiers internal to our config groups:
+In this case we've chosen to have two directories internal to our config groups:
 
-  The "product" tier
-  This tier mirrors the basic cluster_type hierarchy and allows configs for
-  a given product-class pair that need to be across all cluster_types to be
-  put in one obvious place and then included at each of the cluster-type
-  levels.
+  The "class_common" tier
+  We have prod/web and dev/web, but we don't want to have to duplicate configs
+  that should be consistent in both of these, so both can include
+  class_common/web. Hence the name - stuff common to an entire class.
 
   The "role" tier
-  This is where all other include-able directories go. Anything that requires
-  a group of configs go into role directories and those roles are included
-  as needed.
+  This is where most configs go, such as bind configs or ntp configs.
 
-There is also a "global" config-group that we include at the top level as a
+There is also a "global" config-examplecorp that we include at the top level as a
 generic place to put all of the global stuff so that it doesn't make the
-group1/config directory a mess.
+examplecorp/config directory a mess.
 
 
 USING THE CONFIG
