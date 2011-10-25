@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: SystemInfo.pm 271 2009-11-04 20:14:58Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@ use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf('%d', q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf('%d', q$Revision: 271 $ =~ /(\d+)/);
 $DESCRIPTION = 'Spine::Plugin system information harvester';
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -58,7 +58,6 @@ use File::Basename;
 use File::Spec::Functions;
 use IO::File;
 use NetAddr::IP;
-use RPM2;
 use Spine::Util qw(resolve_address);
 
 #
@@ -94,7 +93,7 @@ sub get_sysinfo
         } else {
             $c->error('the "c_netcard" key will be "unknown" as '.
                         'no "network_device_map" key has been defined',
-                      'warning');
+                      'warn');
         }
         
 
@@ -298,117 +297,6 @@ sub is_virtual
 sub get_distro
 {
     my $c = shift;
-
-    my $release_pkgs = $c->getvals('linux_release_packages');
-    my $distro_map = $c->getvals('linux_distro_map');
-
-    unless ($release_pkgs and $distro_map)
-    {
-        # Try the old names
-        if (not $release_pkgs)
-        {
-            $release_pkgs = $c->getvals('release_packages');
-        }
-
-        unless ($distro_map)
-        {
-             $distro_map = $c->getvals('distro_map');
-        }
-
-       unless ($release_pkgs and $distro_map) {
-           unless ($release_pkgs) {
-               $c->error("linux_release_packages key is not defined or empty");
-           }
-           unless ($distro_map) {
-                $c->error("linux_distro_map key is not defined or empty");
-           }
-           return PLUGIN_FATAL;
-       }
-
-    }
-
-    # We need to be certain that we unique-ify the release_pkgs list.
-    my %uniques = map { $_ => undef } @{$release_pkgs};
-    my @uniques = keys(%uniques);
-    undef %uniques;
-    $release_pkgs = \@uniques;
-
-    # We *don't* need to unique-ify the distro_map because it's a hash so
-    # perl automagically does this for us with the following assignment.
-    #
-    # Perl: Furthering the Cause of Pathetically Lazy Programmers Everywhere
-
-    my %release_map = @{ $distro_map };
-    my $release_pkg;
-    my @matches;
-
-    my $db = RPM2->open_rpm_db();
-
-    # Used to track if any packages are found
-    # regardless of if thye match the release map
-    my $valid_rel_pkg = 0;
-    # Find out what our distro release package is
-    foreach my $relpkg (@{$release_pkgs}) {
-        my $i = $db->find_by_name_iter($relpkg);
-
-        while (my $pkg = $i->next) {
-            $valid_rel_pkg = 1;
-            $c->print(3, 'Release package: ', $pkg->as_nvre);
-            while (my ($k, $v) = each(%release_map)) {
-                if (_pkg_vr($pkg) eq $k) {
-                    push @matches, $k;
-                    # We assign here instead of keeping a separate list because
-                    # we error if @matches has more than one element
-                    $release_pkg = $relpkg;
-                    $c->print(0, "found a distro release package: $k");
-                }
-            }
-        }
-    }
-
-    if (scalar(@matches) > 1) {
-        $c->error('Multiple release packages installed.'
-                    . join(' ', @matches), 'crit');
-        return PLUGIN_FATAL;        
-    }
-
-    # Were any valid release packages found?
-    unless ($valid_rel_pkg) {
-        $c->error('No release packages found. You need to add a '.
-                  'package name to "linux_release_packages" key.', "crit");
-        return PLUGIN_FATAL;
-    }
-
-    # Did ver match the release versions?
-    unless ($release_pkg) {
-        $c->error('No matching release found. You need to edit '.
-                  'the "linux_distro_map" key.', "crit");
-        return PLUGIN_FATAL;
-    }
-
-    my $distro_pkg = pop @matches;
-    ($c->{c_distro_name}, $c->{c_distro_version}, $c->{c_distro}) =
-        split(/,\s*/, $release_map{$distro_pkg}, 3);
-
-    $c->{c_distro_pkg} = $release_pkg;
-
-    #
-    # Backward compatible cruft
-    #
-    $c->{c_distro_release} = $c->{c_distro};
-    $c->{c_distro_dir} = catfile($c->{c_platform_dir}, $c->{c_distro_release});
-
-    $c->print(0, 'configuring as an ', $c->{c_distro}, ' system');
-
-    # The RPM DB is "automagically" closed by the RPM2 XS code when it passes
-    # from scope(actually via the DESTROY method).  Therefore there it isn't
-    # necessary to explicitly close it or undef it, though that's good for
-    # the sake of explicitness.
-    #
-    # rtilder    Fri Apr  8 12:41:49 PDT 2005
-
-    undef $db;
-
     return PLUGIN_SUCCESS;
 }
 
