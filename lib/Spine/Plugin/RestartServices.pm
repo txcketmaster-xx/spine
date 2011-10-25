@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: RestartServices.pm 286 2009-11-11 22:25:21Z rkhardalian $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 286 $ =~ /(\d+)/);
 $DESCRIPTION = "Restart services listed in the \"startup\" key";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -39,7 +39,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 
 
 use File::stat;
-use Spine::Util qw(exec_initscript simple_exec);
+use Spine::Util qw(exec_initscript exec_command);
 
 my $DRYRUN;
 
@@ -94,7 +94,7 @@ sub restart_services
             @file_dependancies = map { glob($_) } @fields;
         }
 
-        my $key = join(':', $service, $command);
+        $key = join(':', $service, $command);
         push(@{$rshash{$key}}, @file_dependancies);
     }
 
@@ -128,17 +128,11 @@ sub restart_services
 	    else
 	    {
 		$c->cprint("executing command $command", 2);
-
-                # Work out what th command is vs arguments
-                $command =~ m/^([\S]+)(?:\s+(.*))?$/;
-                my ($cmd, $args) = ($1, $2);
-
-                simple_exec(exec        => $cmd,
-                            args        => $args,
-                            inert       => 0,
-                            quiet       => 1,
-                            c           => $c,
-                            merge_error => 1) or $rval++;
+                unless ($DRYRUN)
+                {
+                    exec_command($c, $command, 1)
+		        or $rval++;
+                }
 	    }
             utime(time, time, @{$rshash{$key}});
         }

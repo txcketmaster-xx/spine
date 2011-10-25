@@ -405,7 +405,7 @@ else
 print 'spine-mgmt: starting Spine v' . $VERSION . ' -- configuration release ',
       $source->release(), "\n";
 print "spine-mgmt: initializing data for $hostname\n";
-if ( ${%{$registry->get_options()}->{dryrun}} ) {
+if ( ${${$registry->get_options()}->{dryrun}} ) {
     print "spine-mgmt: running in dryrun mode\n";
     syslog("info", "running in dryrun mode");
 }
@@ -462,7 +462,7 @@ unless ($lock_fh)
 # Now that we have a lock and are potentially going to
 # make changes, check to be sure we aren't in dryrun mode
 # and unfreeze the system.
-if ( ! ${%{$registry->get_options()}->{dryrun}} ) {
+if ( ! ${${$registry->get_options()}->{dryrun}} ) {
     unlink catfile($CONFIG->{spine}->{StateDir}, 'FrozenAtRelease');
 }
 

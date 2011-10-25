@@ -214,7 +214,7 @@ sub get_netinfo
                    $b->within($a) and return -1;
                    return 0; } @nets;
 
-    my $nobj = @nets[-1];
+    $nobj = $nets[-1];
     unless (ref($nobj) eq 'NetAddr::IP') {
         $c->error("unable to find a matching network within \"${c_root}/${network_path}/\"",
                      " for \"$c->{c_ip_address}\"",
