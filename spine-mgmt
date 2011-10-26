@@ -49,8 +49,6 @@ use sigtrap 'handler' => \&ignore_signal, 'normal-signals';
 use constant NODEFILE => '/etc/nodename';
 use constant LOCKFILE => '/var/run/spine-mgmt.lock';
 use constant DEFAULT_CONFIGFILE => '/etc/spine-mgmt/spine-mgmt.conf';
-use constant DEFAULT_CONFIGFILE_FALLBACK => ('/etc/spine-config.conf',\
-                                             '/etc/spine.conf');
 use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
 
 use constant DEFAULT_CONFIG => {
@@ -137,26 +135,27 @@ GetOptions('config-file=s' => \$conf_file,
 
 Getopt::Long::Configure('no_pass_through');
 
-my @cfiles = (DEFAULT_CONFIGFILE, DEFAULT_CONFIGFILE_FALLBACK);
+my $cfile = DEFAULT_CONFIGFILE;
 
 if (defined($conf_file))
 {
-    @cfiles = ($conf_file);
+    $cfile = ($conf_file);
 }
 
-foreach my $file (@cfiles)
+if (-f $cfile)
 {
-    if (-f $file)
+    print "spine-mgmt: Using config file at $cfile\n";
+    $CONFIG = new Spine::ConfigFile(Filename => $cfile, Type => 'Ini');
+    if (not defined($CONFIG))
     {
-        print "spine-mgmt: Using config file at $file\n";
-        $CONFIG = new Spine::ConfigFile(Filename => $file, Type => 'Ini');
-        if (not defined($CONFIG))
-        {
-            print STDERR $Spine::ConfigFile::ERROR;
-            goto failure;
-        }
-        last;
+        print STDERR $Spine::ConfigFile::ERROR;
+        goto failure;
     }
+}
+elsif (defined($conf_file))
+{
+    print STDERR "spine-mgmt: Config file $cfile not found.\n";
+    goto failure;
 }
 
 if (not defined($CONFIG))

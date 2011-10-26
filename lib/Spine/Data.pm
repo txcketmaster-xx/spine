@@ -1,7 +1,7 @@
 # -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Data.pm 289 2009-11-12 01:53:39Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -59,11 +59,9 @@ sub new {
         die "No configuration root passed to Spine::Data!  Badness!";
     }
 
-    my $data_object = bless( { hostname => $args{hostname},
-                               c_hostname => $args{hostname}, 
+    my $data_object = bless( { c_hostname => $args{hostname},
                                c_release => $args{release},
                                c_verbosity => $args{verbosity} || 0,
-                               c_quiet => $args{quiet},
                                c_version => $args{version} || $::VERSION,
                                c_config => $args{config},
                                c_croot => $croot,
@@ -1041,9 +1039,7 @@ sub cprint
 
     if ($level <= $self->{c_verbosity})
     {
-	print $self->{c_label}, ": $msg\n"
-            unless $self->{c_quiet};
-
+	print $self->{c_label}, ": $msg\n";
 	syslog("info", "$msg")
             if ( not $self->{c_dryrun} or $log_to_syslog );
     }
@@ -1058,8 +1054,7 @@ sub print
     if ($lvl <= $self->{c_verbosity})
     {
 #	print $self->{c_label}, '[', join('::', caller()), ']: ', @_, "\n";
-	print $self->{c_label}, ': ', @_, "\n"
-            unless $self->{c_quiet};
+	print $self->{c_label}, ': ', @_, "\n";
     }
 }
 
