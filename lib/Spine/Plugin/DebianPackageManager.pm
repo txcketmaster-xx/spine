@@ -53,7 +53,7 @@ sub install_packages
     my $packages = $c->getvals("packages");
     
     unless ($packages) {
-	$c->print(2, 'no "packages" key defined');
+	$c->print(2, 'skipping, no "packages" key defined');
         return PLUGIN_SUCCESS;
     }
     
