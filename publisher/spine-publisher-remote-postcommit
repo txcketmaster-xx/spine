@@ -1,0 +1,34 @@
+#!/bin/bash
+
+SVN_USERNAME=user
+SVN_PASSWORD=password
+SVN_REPO_PATH="https://repo.com/svn/spine-config"
+SVN_ARGS="--non-interactive --username=$SVN_USERNAME --password=$SVN_PASSWORD"
+
+LASTREV_FILE="/var/run/spine-publisher-lastrev"
+FIFO_FILE="/var/run/spine-publisher.fifo"
+
+if [ ! -s $LASTREV_FILE ] ; then
+    echo 0 > $LASTREV_FILE
+fi
+
+RUNNING_COUNT=`pgrep -c -f spine-publisher-remote-postcommit 2>/dev/null`
+if [ $RUNNING_COUNT -gt 1 ] ; then
+    exit 0
+fi
+
+LASTREV=`cat $LASTREV_FILE`
+CURREV=`svn $SVN_ARGS info $SVN_REPO_PATH | grep ^Revision | cut -d' ' -f2`
+
+if [ $LASTREV -eq $CURREV ] ; then
+    exit 0
+fi
+
+for REV in `seq $LASTREV $CURREV` ; do
+    REV_MINUS=$(($REV - 1))
+    NUM_DIFF=`svn $SVN_ARGS diff --summarize -r $REV_MINUS:$REV $SVN_REPO_PATH 2>/dev/null | wc -l`
+    if [ $NUM_DIFF -gt 0 ] ; then
+        echo $REV > $FIFO_FILE
+    fi
+    echo $REV > $LASTREV_FILE
+done
