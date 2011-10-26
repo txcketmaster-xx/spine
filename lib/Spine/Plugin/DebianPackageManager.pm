@@ -53,8 +53,8 @@ sub install_packages
     my $packages = $c->getvals("packages");
     
     unless ($packages) {
-        $c->error('no "packages" key defined', 'crit');
-        return PLUGIN_FATAL;
+	$c->print(2, 'no "packages" key defined');
+        return PLUGIN_SUCCESS;
     }
     
     $DRYRUN = $c->getval('c_dryrun');
