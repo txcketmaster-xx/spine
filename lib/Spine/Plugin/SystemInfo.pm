@@ -38,14 +38,14 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                                    code => \&get_sysinfo },
                                                  { name => 'netinfo',
                                                    code => \&get_netinfo },
-                                                 { name => 'distro',
-                                                   code => \&get_distro },
-                                                 { name => 'architecture',
-                                                   code => \&get_hw_arch },
+                                                 { name => 'cpu_architecture',
+                                                   code => \&get_cpu_arch },
+                                                 { name => 'os_architecture',
+                                                   code => \&get_os_arch },
                                                  { name => 'is_virtual',
                                                    code => \&is_virtual },
-                                                 { name => 'num_procs',
-                                                   code => \&get_num_procs } ,
+                                                 { name => 'num_cores',
+                                                   code => \&get_num_cores } ,
                                                  { name => 'hardware_platform',
                                                    code => \&get_hardware_platform } , 
                                                  { name => 'current_kernel_version',
@@ -64,7 +64,6 @@ sub get_sysinfo
 {
     my $c = shift;
     my ($ip_address, $bcast, $netmask, $netcard);
-    my $iface = $c->getval('primary_iface');
 
     $c->cprint('retrieving system information', 3);
 
@@ -255,26 +254,6 @@ sub is_virtual
     return PLUGIN_SUCCESS;
 }
 
-sub get_distro
-{
-    my $c = shift;
-    return PLUGIN_SUCCESS;
-}
-
-
-# We don't care much about epoch at the moment.
-sub _pkg_vr
-{
-    my $pkg = shift;
-
-    my $pname = $pkg->tag('name');
-    my $pver  = $pkg->tag('version');
-    my $prel  = $pkg->tag('release');
-
-    return "$pname-$pver-$prel";
-}
-
-
 #
 # Cute trick:
 #
@@ -284,10 +263,15 @@ sub _pkg_vr
 #
 # rtilder    Fri May  5 13:39:31 PDT 2006
 #
-sub get_hw_arch
+# This may not be true, there are reports of people with 32-bit CPUs
+# and a cflush size value of 64.
+#
+# cfb        Tue Oct 25 21:56:00 PDT 2011A
+#
+sub get_cpu_arch
 {
     my $c = shift;
-    $c->{c_arch} = 'x86';
+    $c->{c_cpu_arch} = '32-bit';
 
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
 
@@ -298,26 +282,35 @@ sub get_hw_arch
 
     while (<$cpuinfo>) {
         if (m/^clflush size.*/) {
-            $c->{c_arch} = 'x86_64';
+            $c->{c_cpu_arch} = '64-bit';
             last;
         }
     }
 
     $cpuinfo->close();
 
-    $c->print(0, 'running on a ', $c->{c_arch}, ' kernel.');
-
     return PLUGIN_SUCCESS;
 }
 
-
-sub get_num_procs
+sub get_os_arch
 {
     my $c = shift;
-    my $getconf = qq(/usr/bin/getconf);
+    my ($uname_res) = simple_exec(c     => $c,
+                                  exec  => 'uname',
+                                  args  => '-i',
+                                  inert => 1);
+    return PLUGIN_FATAL unless ($? == 0);
 
-    $c->{c_num_procs} = 1;
+    chomp $uname_res;
+    $c->{c_os_arch} = $uname_res;
 
+    $c->print(0, 'running on a ', $c->{c_os_arch}, ' kernel.');
+    return PLUGIN_SUCCESS;
+}
+
+sub get_num_cores
+{
+    my $c = shift;
 
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
     my $nprocs = 0;
@@ -334,7 +327,7 @@ sub get_num_procs
 
     $cpuinfo->close();
 
-    $c->{c_num_procs} = $nprocs;
+    $c->{c_num_cores} = $nprocs;
 
     return PLUGIN_SUCCESS;
 }
