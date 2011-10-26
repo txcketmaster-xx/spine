@@ -355,7 +355,7 @@ sub _get_values
         }
 
         if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
-            $self->error("ignoring $directory/$keyname because of lame"
+            $self->print(3, "ignoring $directory/$keyname because of lame"
                          . ' file name');
             next;
        }
