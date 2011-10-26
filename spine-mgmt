@@ -20,6 +20,7 @@
 # (C) Copyright Ticketmaster, Inc. 2007
 #
 
+require 5.10.0;
 our $VERSION = qq(2.1.0);
 
 use strict;

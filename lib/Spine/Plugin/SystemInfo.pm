@@ -60,13 +60,6 @@ use IO::File;
 use NetAddr::IP;
 use Spine::Util qw(resolve_address);
 
-#
-# This should really be a much more generic in terms of populating data about
-# the devices on the PCI bus and use linux/drivers/pci/pci.ids.  Should really
-# just gather various stuff from /proc really.
-#
-# rtilder    Fri Sep 10 16:17:11 PDT 2004
-#
 sub get_sysinfo
 {
     my $c = shift;
@@ -78,77 +71,45 @@ sub get_sysinfo
     my ($platform) = simple_exec(c     => $c,
                                  exec  => 'uname',
                                  inert => 1);
-                               
+    return PLUGIN_FATAL unless ($? == 0);                               
+   
     chomp $platform;
     $platform = lc($platform);
+    $c->{c_platform} = $platform;
 
     if ($platform =~ m/linux/i)
     {
-        # Grab the network_device_map key contents as a hash so we can walk it
-        # more quickly
-        my $devmap = $c->getvals('network_device_map');
-        my %devs;
-        if ($devmap) {
-            %devs = @{$devmap};
-        } else {
-            $c->error('the "c_netcard" key will be "unknown" as '.
-                        'no "network_device_map" key has been defined',
-                      'warn');
-        }
-        
-
-        # We walk the PCI bus to determine which network card we have
-        my @lspci_res = simple_exec(c     => $c,
-                                    exec  => 'lspci',
-                                    inert => 1);
-        return PLUGIN_FATAL unless ($? == 0);
-        
-        foreach my $line (@lspci_res)
+        # Use lsb_release to figure out some basic info about our distro
+        $c->{c_os_vendor} = 'UNKNOWN';
+        $c->{c_os_description} = 'UNKNOWN';
+        $c->{c_os_release} = 'UNKNOWN';
+        $c->{c_os_codename} = 'UNKNOWN';
+        my @lsb_res = simple_exec(c        => $c,
+                                   exec     => 'lsb_release',
+                                   args     => '-a',
+                                   inert    => 1);
+        if ($? == 0)
         {
-            next unless ($line =~ m/Ethernet/);
-            # FIXME  This is kind of dumb.  We don't provide any kind of
-            #        interface to driver mapping and we really should
-            while (my ($re, $card) = each(%devs)) {
-                $netcard = $card if ($line =~ m/$re/);
-            }
-        }
-        $netcard = 'unknown' unless $netcard;
-
-        unless (defined $iface) {
-            $c->error('no "primary_iface" key defined', 'crit');
-            return PLUGIN_FATAL;
-        }
-
-        my @ifconfig_res = simple_exec(c     => $c,
-                                       exec  => 'ifconfig',
-                                       args  => 'eth' . $iface,
-                                       inert => 1);
-        return PLUGIN_FATAL unless (@ifconfig_res);
-
-        foreach my $line (@ifconfig_res)
-        {
-            if ($line =~
-                m/
-                \s*inet\s+addr:(\d+\.\d+\.\d+\.\d+)
-                \s*Bcast:(\d+\.\d+\.\d+\.\d+)
-                \s*Mask:(\d+\.\d+\.\d+\.\d+)
-                /xi )
+            foreach my $line (@lsb_res)
             {
-                $ip_address = $1;
-                $bcast = $2;        
-                $netmask = $3;
+                use feature "switch";
+                given ($line) {
+                    when (/^Distributor ID:\s*(.*)$/) {
+                        $c->{c_os_vendor} = lc($1);
+                    }
+                    when (/^Description:\s*(.*)$/) {
+                        $c->{c_os_description} = lc($1);
+                    }
+                    when (/^Release:\s*(.*)$/) {
+                        $c->{c_os_release} = lc($1);
+                    }
+                    when (/^Codename:\s*(.*)$/) {
+                        $c->{c_os_codename} = lc($1);
+                    }
+                }
             }
         }
     }
-
-    $c->{c_platform} = $platform;
-    $c->{c_local_ip_address} = $ip_address;
-    $c->{c_local_bcast} = $bcast;
-    $c->{c_local_netmask} = $netmask;
-    $c->{c_netcard} = $netcard;
-
-    $c->get_values("platform/$platform");
-
     return PLUGIN_SUCCESS;
 }
 
