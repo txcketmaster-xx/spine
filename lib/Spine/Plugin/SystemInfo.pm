@@ -395,38 +395,20 @@ sub get_hardware_platform
     }
     else
     {
-        my @dmidecode_res = simple_exec(c     => $c,
+        my ($product_name) = simple_exec(c     => $c,
                                         exec  => 'dmidecode',
+                                        args  => '--string system-product-name',
                                         inert => 1);
         return PLUGIN_FATAL unless ($? == 0);
 
-        my $sys_section = 0;
-        my $hardware_platform = 'UNKNOWN';
-
-        foreach my $line (@dmidecode_res)
+        if ($product_name eq '') 
         {
-            # We need to find the "Product Name:" key under 'DMI type 1'
-            # (which is the "System Information" section).
-            if ($line =~ m/DMI type 1/i)
-            {
-                $sys_section = 1;
-                next;
-            }
-
-            # If we are in the sys_section, look for "Product Name:"
-            if ($sys_section and $line =~ m/Product Name:/i)
-            {
-                (undef, $hardware_platform) = split(': ', $line, 2);
-                $hardware_platform =~ s/^\s+|\s+$//g;
-                $hardware_platform = 'UNKNOWN' if $hardware_platform eq '';
-                last;
-            } 
-
-            # If we enter another DMI section we are done.
-            last if ($sys_section and $line =~ m/DMI type/i);
+            $c->{c_hardware_platform} = 'UNKNOWN';
         }
-
-        $c->{c_hardware_platform} = $hardware_platform;
+        else
+        {
+            $c->{c_hardware_platform} = $product_name;
+        }
     }
     return PLUGIN_SUCCESS;
 }
