@@ -169,6 +169,9 @@ sub _exec_apt
     my @cmdline = @_;
     my $pid = -1;
 
+    # Eliminate interactive prompts from dpkg.
+    $ENV{'DEBIAN_FRONTEND'} = 'noninteractive';
+
     if (ref($_[0]) eq 'ARRAY')
     {
         # The plus sign is so that we actually call the shift function
