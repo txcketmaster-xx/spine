@@ -503,7 +503,7 @@ $source->clean();
 if ($SAVE_STATE)
 {
     # Store our config object to disk.
-    print STDERR "Saving state...\n";
+    print "spine-mgmt: Saving state.\n";
     unless ($state->store())
     {
         $c->error('failed to write session object [' . $state->error . ']',
