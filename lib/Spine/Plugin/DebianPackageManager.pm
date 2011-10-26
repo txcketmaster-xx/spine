@@ -89,7 +89,6 @@ sub apt_exec
         my $overlay = $c->getval('c_tmpdir');
 
         foreach my $dir (qw(/var/cache/apt/archives/partial
-                            /var/state/apt/lists/partial
                             /var/lib/apt/lists/partial))
         {
             unless (Spine::Util::mkdir_p(catfile($overlay, $dir)))
@@ -98,6 +97,12 @@ sub apt_exec
                 return PLUGIN_ERROR;
             }
         }
+
+        #
+        # Prevent the apt stuff from getting copied.
+        #
+        $c->set('apply_overlay_excludes', '/var/cache/apt');
+        $c->set('apply_overlay_excludes', '/var/lib/apt');
 
         my $apt_conf_ovrl = catfile($overlay, qw(etc apt));
 

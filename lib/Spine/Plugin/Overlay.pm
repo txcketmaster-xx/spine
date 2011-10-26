@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Overlay.pm 267 2009-11-04 00:53:28Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -25,9 +25,10 @@ package Spine::Plugin::Overlay;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
-our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, $TMPDIR, @ENTRIES);
+our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, 
+        $TMPDIR, @ENTRIES, @EXCLUDES);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 267 $ =~ /(\d+)/);
 $DESCRIPTION = "Plugin for creating and processing overlays.";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -122,7 +123,6 @@ sub build_overlay
             {
                 $c->print(4, "performing overlay from $dir");
                 unless (do_rsync(Config => $c,
-                                 Inert => 1,
                                  Source => $overlay,
                                  Target => catfile($tmpdir, $target),
                                  Excludes => \@excludes)) {
@@ -161,11 +161,12 @@ sub apply_overlay
     my $tmpdir = $c->getval('c_tmpdir');
     my $tmplink = $c->getval('c_tmplink');
     my $overlay_root = $c->getval('overlay_root');
-    my $excludes = $c->getvals('apply_overlay_excludes');
     my $max_diff_lines = $c->getval('max_diff_lines_to_print');
+    @EXCLUDES = @{$c->getvals('apply_overlay_excludes')}
+        if ($c->getval('apply_overlay_excludes'));
     my %rsync_args = (Config => $c, Source => $tmpdir, Output => undef,
                       Target => $overlay_root, Options => [qw(-c)],
-                      Excludes => $excludes);
+                      Excludes => \@EXCLUDES);
 
     $TMPDIR = $tmpdir;
     $DRYRUN = $c->getval('c_dryrun');
@@ -189,7 +190,7 @@ sub apply_overlay
     }
 
     # Populates @ENTRIES via the find_changed() callback
-    find( { follow => 0, no_chdir => 1, wanted => \&find_changed },
+    find( { follow => 0, no_chdir => 1, wanted => \&_find_changed },
           $tmpdir);
 
     foreach my $srcfile (@ENTRIES)
@@ -372,7 +373,7 @@ sub remove_tmpdir
 #
 # @ENTRIES is a module level global
 #
-sub find_changed
+sub _find_changed
 {
     my $fname = $File::Find::name;
     # The target filename
@@ -382,6 +383,16 @@ sub find_changed
         or $fname eq "$TMPDIR/")
     {
         return;
+    }
+
+    # Parse our excludes
+    foreach my $exclude (@EXCLUDES)
+    {
+        if ($dest eq $exclude)
+        {
+            $File::Find::prune = 1;
+            return;
+        }
     }
 
     my $lstat = lstat($fname);
