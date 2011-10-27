@@ -26,7 +26,7 @@ use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, 
-        $TMPDIR, @ENTRIES, @EXCLUDES);
+        $TMPDIR, @ENTRIES, $EXCLUDES);
 
 $VERSION = sprintf("%d", q$Revision: 267 $ =~ /(\d+)/);
 $DESCRIPTION = "Plugin for creating and processing overlays.";
@@ -162,11 +162,11 @@ sub apply_overlay
     my $tmplink = $c->getval('c_tmplink');
     my $overlay_root = $c->getval('overlay_root');
     my $max_diff_lines = $c->getval('max_diff_lines_to_print');
-    @EXCLUDES = @{$c->getvals('apply_overlay_excludes')}
+    $EXCLUDES = $c->getvals('apply_overlay_excludes')
         if ($c->getval('apply_overlay_excludes'));
     my %rsync_args = (Config => $c, Source => $tmpdir, Output => undef,
                       Target => $overlay_root, Options => [qw(-c)],
-                      Excludes => \@EXCLUDES);
+                      Excludes => $EXCLUDES);
 
     $TMPDIR = $tmpdir;
     $DRYRUN = $c->getval('c_dryrun');
@@ -386,14 +386,21 @@ sub _find_changed
     }
 
     # Parse our excludes
-    foreach my $exclude (@EXCLUDES)
+#    foreach my $exclude (@EXCLUDES)
+#    {
+#        if ($dest eq $exclude)
+#        {
+#            $File::Find::prune = 1;
+#            return;
+#        }
+#    }
+
+    if (grep(/^${dest}$/i, @{$EXCLUDES}))
     {
-        if ($dest eq $exclude)
-        {
-            $File::Find::prune = 1;
-            return;
-        }
+        $File::Find::prune = 1;
+        return;
     }
+
 
     my $lstat = lstat($fname);
     my $dstat = lstat($dest);
