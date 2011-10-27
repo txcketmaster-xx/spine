@@ -1,0 +1,13 @@
+Source: spine
+Section: unknown
+Priority: extra
+Maintainer: unknown <rafi@metacloud.com>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.2
+Homepage: http://code.ticketmaster.com
+
+Package: spine
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libnet-dns-perl, libtemplate-perl, libyaml-syck-perl, libtext-diff-perl, libnetaddr-ip-perl, libwww-perl, libdigest-md5-file-perl, libfile-temp-perl, libfile-finder-perl, libxml-simple-perl
+Description: Configuration management system
+It is awesome.
