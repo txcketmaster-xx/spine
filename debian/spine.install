@@ -1,0 +1,5 @@
+usr/bin/quick_template
+usr/bin/spine-mgmt
+usr/lib
+var/spine-mgmt
+etc/spine-mgmt/spine-mgmt.conf

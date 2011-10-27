@@ -1,0 +1,17 @@
+# spine-publisher - Spine Configball Publisher
+#
+
+description	"Spine Configball Publisher"
+
+start on filesystem
+stop on runlevel [06]
+
+expect fork
+respawn
+
+script
+    SPINE_PUB_BIN="/opt/spine-publisher/spine-publisher"
+    SPINE_PUB_OPTIONS="-c /opt/spine-publisher/spine-publisher.conf"
+
+    exec $SPINE_PUB_BIN $SPINE_BIN_OPTIONS
+end script
