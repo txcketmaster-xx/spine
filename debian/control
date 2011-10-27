@@ -1,10 +1,10 @@
 Source: spine
-Section: unknown
+Section: admin
 Priority: extra
-Maintainer: unknown <rafi@metacloud.com>
+Maintainer: Rafi Khardalian <rafi@metacloud.com>
 Build-Depends: debhelper (>= 8.0.0)
 Standards-Version: 3.9.2
-Homepage: http://code.ticketmaster.com
+Homepage: http://www.metacloud.com
 
 
 Package: spine
@@ -26,7 +26,7 @@ Description: Configuration management system.
 
 Package: spine-publisher
 Architecture: all
-Section: unknown
+Section: admin
 Depends: libsvn-perl,
  libconfig-simple-perl,
  liblchown-perl
