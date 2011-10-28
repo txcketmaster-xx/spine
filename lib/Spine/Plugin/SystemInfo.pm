@@ -276,7 +276,7 @@ sub get_cpu_arch
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
 
     if (not defined($cpuinfo)) {
-        $c->error("Coundn't open /proc/cpuinfo: $!", 'crit');
+        $c->error("Couldn't open /proc/cpuinfo: $!", 'crit');
         return PLUGIN_FATAL;
     }
 
