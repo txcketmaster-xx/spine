@@ -1129,8 +1129,12 @@ sub _generate_passwd_shadow_home
         $c->error("couldn't open $filename: $!",'crit');
         return PLUGIN_FATAL;
     }
-    chown(0, 0, $filename);
-    chmod(0444, $filename);
+    my $file_uid = $c->getval('auth_passwd_uid') || q(0);
+    my $file_gid = $c->getval('auth_passwd_gid') || q(0);
+    my $file_mode = oct($c->getval('auth_passwd_mode') || q(0444));
+
+    chown($file_uid, $file_gid, $filename);
+    chmod($file_mode, $filename);
 
     $filename = catfile($tmpdir, qw(etc shadow));
     unless (open(SHADOW, "> $filename"))
@@ -1138,8 +1142,12 @@ sub _generate_passwd_shadow_home
         $c->error("couldn't open $filename: $!",'crit');
         return PLUGIN_FATAL;
     }
-    chown(0, 0, $filename);
-    chmod(0400, $filename);
+
+    my $file_uid = $c->getval('auth_shadow_uid') || q(0);
+    my $file_gid = $c->getval('auth_shadow_gid') || q(0);
+    my $file_mode = oct($c->getval('auth_shadow_mode') || q(0444));
+    chown($file_uid, $file_gid, $filename);
+    chmod($file_mode, $filename);
 
     #
     # Emit!
@@ -1148,6 +1156,10 @@ sub _generate_passwd_shadow_home
 
     foreach my $user (@uid_ordered_users) {
         my $acct = $accounts->{$user};
+
+        # Ignore its a system_homedir and the user isn't root skip them.
+        next if (exists($system_homedirs{$acct->{homedir}})
+                                && $acct->{uid} != 0);
 
         unless (print PASSWD join(':', $user, 'x', $acct->{uid},
                                   $acct->{gid}, $acct->{gecos},
@@ -1183,37 +1195,21 @@ sub _generate_passwd_shadow_home
             mkdir_p($dir, oct($perm));
         }
 		
-        #
-        # As a default, we chown it to root - we'll chown
-        # it to the right user later if need be
-        #
-        chown(0,0,$dir);
 
         #
-        # Here we chown it to the user *unless*..
-        #
-        # lets not chown any special dirs to anyone other than root
-        # they're system dirs, let overlays handle them
-        #
-        # while we're at it, we'll populate skel stuff
+        # Here we chown it to the user
         #
 
-        # We only do this for non-root users with non-system homedirs
-        if (!exists($system_homedirs{$acct->{homedir}})
-                && $acct->{uid} != 0) {
+        chown($acct->{uid}, $acct->{gid}, $dir);
 
-            chown($acct->{uid}, $acct->{gid}, $dir);
+        my $skel = $c->getval('auth_skel_dir') || qq(/etc/skel);
 
-            my $skel = catfile($c->getval('c_croot'),
-                               qw(includes skel default));
-
-            if ($acct->{skeldir}) {
-                $skel = catfile($c->getval('c_croot'), $acct->{skeldir});
-            }
-			
-            _copy_skel_dir($c,$skel,catfile($tmpdir, $acct->{homedir}),
-                           $acct->{uid},$acct->{gid});
+        if ($acct->{skeldir}) {
+            $skel = catfile($c->getval('c_croot'), $acct->{skeldir});
         }
+			
+        _copy_skel_dir($c,$skel,catfile($tmpdir, $acct->{homedir}),
+            $acct->{uid},$acct->{gid});
     }
 
     unless (close(PASSWD))
@@ -1274,8 +1270,11 @@ sub _generate_group
         $c->error("couldn't open $tmpdir/etc/group",'crit');
         return PLUGIN_FATAL;
     }
-    chown(0, 0, $filename);
-    chmod(0444, $filename);
+    my $file_uid = $c->getval('auth_group_uid') || q(0);
+    my $file_gid = $c->getval('auth_group_gid') || q(0);
+    my $file_mode = oct($c->getval('auth_group_mode') || q(0444));
+    chown($file_uid, $file_gid, $filename);
+    chmod($file_mode, $filename);
 
     #
     # Emit
@@ -1412,7 +1411,7 @@ sub _generate_authorized_keys
         if ($local_authkeys == 1) {
             $keydir = catfile($tmpdir, $accounts->$user->{homedir}, '.ssh');
             mkdir_p($keydir);
-            chown($user->{uid}, $user->{gid}, $keydir);
+            chown($accounts->{$user}->{uid}, $accounts->{$user}->{gid}, $keydir);
             $keyfile = catfile($keydir, 'authorized_keys');
         } else {
             $keydir = catfile($tmpdir, qw(etc ssh authorized_keys));
@@ -1445,6 +1444,18 @@ sub _generate_authorized_keys
             $errors++;
         }
 
+        #
+        # Root owns the keys by default, unless auth_user_keys is set,
+        # in which case the user will own them.
+        #
+        my $file_uid = 0;
+        my $file_gid = 0;
+        if ($c->getval('auth_user_keys')) {
+            $file_uid = $accounts->{$user}->{uid};
+            $file_gid = $accounts->{$user}->{gid};
+        }
+
+        chown($file_uid, $file_gid, $keyfile);
         chmod(0444, $keyfile);
     }
 
