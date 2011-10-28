@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: ISO9660.pm 239 2009-08-24 17:29:05Z richard $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -34,7 +34,7 @@ use Storable qw(thaw);
 use JSON::Syck;
 
 @ISA = qw(Spine::ConfigSource);
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 239 $ =~ /(\d+)/);
 
 # See END block at the end of this file.
 my @__MOUNTS;
@@ -209,7 +209,7 @@ sub _mount_isofs
         goto mount_error;
     }
 
-    my $cmd = "/bin/mount -o loop -t iso9660 $filename $mount";
+    my $cmd = "/bin/mount -o loop,ro -t iso9660 $filename $mount";
 
     my $rc = system($cmd);
 
