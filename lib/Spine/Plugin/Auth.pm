@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Auth.pm 289 2009-11-12 01:53:39Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 289 $ =~ /(\d+)/);
 $DESCRIPTION = "Identity Management and Auththentication/Authorization module";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -831,10 +831,7 @@ sub emit_auth_data
 {
     my $c = shift;
 
-    my $min_root_keys = $c->getval_last('min_root_keys');
-    unless (defined($min_root_keys) && $min_root_keys =~ /\d+/) {
-        $min_root_keys = 3;
-    }
+    my $min_root_keys = $c->getval_last('min_root_keys') || 3;
 
     #
     # Coresys can't keep their users straight and don't want to be
@@ -914,14 +911,17 @@ sub emit_auth_data
     # and a list of users owning crontabs
     #
     my %cron_users;
-    foreach my $cronuser (</var/spool/cron/*>) {
-        my $user = basename($cronuser);
-        if ($user =~ /^tmp\.\d+/) {
-            # Skip temporary files from cron
-            next;
+    if ($c->getval('auth_cron_scan')) {
+        my $cron_dir = $c->getval('auth_cron_dir') || qq(/var/spool/cron);
+        foreach my $cronuser (<$cron_dir/*>) {
+            my $user = basename($cronuser);
+            if ($user =~ /^tmp\.\d+/) {
+                # Skip temporary files from cron
+                next;
+            }
+            $cron_users{$user} = 1;
         }
-        $cron_users{$user} = 1;
-    }
+    }    
 
     #
     # and compare them to what we're installing
@@ -1166,41 +1166,41 @@ sub _generate_passwd_shadow_home
 
         my $dir = catfile($tmpdir, $acct->{homedir});
 
+        # 
+        # If the account has specific permissions use those
+        # otherwise use the value of the default_homedir_perms key
+        # if set, finally use the code default of 0700 if no other
+        # perms exists.
+        #
+        if (defined $acct->{permissions})
+        {
+            my $perm = $acct->{permissions};
+            mkdir_p($dir, oct($perm));
+        }
+        else
+        {
+            my $perm = $c->getval('auth_default_homedir_perms') || qq(0700);
+            mkdir_p($dir, oct($perm));
+        }
+		
+        #
+        # As a default, we chown it to root - we'll chown
+        # it to the right user later if need be
+        #
+        chown(0,0,$dir);
+
+        #
+        # Here we chown it to the user *unless*..
+        #
+        # lets not chown any special dirs to anyone other than root
+        # they're system dirs, let overlays handle them
+        #
+        # while we're at it, we'll populate skel stuff
+        #
+
+        # We only do this for non-root users with non-system homedirs
         if (!exists($system_homedirs{$acct->{homedir}})
                 && $acct->{uid} != 0) {
-            # 
-            # If the account has specific permissions use those
-            # otherwise use the value of the default_homedir_perms key
-            # if set, finally use the code default of 0700 if no other
-            # perms exists.
-            #
-            if (defined $acct->{permissions})
-            {
-                my $perm = $acct->{permissions};
-                mkdir_p($dir, oct($perm));
-            }
-            else
-            {
-                my $perm = $c->getval('auth_default_homedir_perms') || qq(0700);
-                mkdir_p($dir, oct($perm));
-            }
-                    
-            #
-            # As a default, we chown it to root - we'll chown
-            # it to the right user later if need be
-            #
-            chown(0,0,$dir);
-
-            #
-            # Here we chown it to the user *unless*..
-            #
-            # lets not chown any special dirs to anyone other than root
-            # they're system dirs, let overlays handle them
-            #
-            # while we're at it, we'll populate skel stuff
-            #
-
-            # We only do this for non-root users with non-system homedirs
 
             chown($acct->{uid}, $acct->{gid}, $dir);
 
