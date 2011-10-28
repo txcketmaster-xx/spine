@@ -1157,10 +1157,6 @@ sub _generate_passwd_shadow_home
     foreach my $user (@uid_ordered_users) {
         my $acct = $accounts->{$user};
 
-        # Ignore its a system_homedir and the user isn't root skip them.
-        next if (exists($system_homedirs{$acct->{homedir}})
-                                && $acct->{uid} != 0);
-
         unless (print PASSWD join(':', $user, 'x', $acct->{uid},
                                   $acct->{gid}, $acct->{gecos},
                                   $acct->{homedir}, $acct->{shell}), "\n")
@@ -1175,6 +1171,10 @@ sub _generate_passwd_shadow_home
             $s_errors++;
         }
         $s_count++;
+
+        # If its a system_homedir and the user isn't root skip them.
+        next if (exists($system_homedirs{$acct->{homedir}})
+                    && $acct->{uid} != 0);
 
         my $dir = catfile($tmpdir, $acct->{homedir});
 
