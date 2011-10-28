@@ -57,7 +57,6 @@ sub tweak_startup
 
     my $init_dir = $c->getval('tweakstartup_init_dir') || qq(/etc/init.d);
     my $upstart_dir = $c->getval('tweakstartup_upstart_dir') || qq(/etc/init);
-    my $initctl_bin = $c->getval('tweakstartup_initctl_bin') || qq(/sbin/initctl);
 
     # Action specific values
     my $stop = $c->getval('tweakstartup_execstop');
