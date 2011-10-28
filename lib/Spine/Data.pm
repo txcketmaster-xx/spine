@@ -1081,7 +1081,7 @@ sub error
     $msg =~ tr/\n/ -- /;
 
     # needed for syslog
-    $msg = "warning" if ($msg eq 'warn');
+    $level = "warning" if ($level eq 'warn');
 
     unless ($self->{c_verbosity} == -1)
     {

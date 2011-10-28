@@ -245,6 +245,7 @@ sub twiddle_service_upstart
             my @FILE;
             while (<$override>)
             {
+                chomp;
                 push(@FILE, $_);
             }
             $override->close();
