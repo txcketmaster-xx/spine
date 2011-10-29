@@ -82,6 +82,7 @@ sub apt_exec
     my ($c, $apt_func, $apt_func_args, $run_test) = @_;
     
     my @aptget_args = ();
+    push @aptget_args, '--option Dpkg::Options::=--force-confold';
 
     if ($DRYRUN)
     {
@@ -111,7 +112,6 @@ sub apt_exec
         my $apt_conf_ovrl = catfile($overlay, qw(etc apt));
 
         push @aptget_args, '--option', 'Dir=' . $c->getval('c_tmpdir');
-        push @aptget_args, '--option', 'Dpkg::Options::="--force-confold"';
 
         foreach my $file ( ( [ '--option Dir::Etc::parts',
                                'apt.conf.d' ],
