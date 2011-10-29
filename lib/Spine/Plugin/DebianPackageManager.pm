@@ -60,7 +60,11 @@ sub install_packages
     $DRYRUN = $c->getval('c_dryrun');
 
     apt_exec($c, 'autoclean', '', 0) or $rval++;
-    apt_exec($c, 'update', '', 0) or $rval++;
+
+    unless (exists $ENV{'SPINE_NO_APT_UPDATE'}) {
+        apt_exec($c, 'update', '', 0) or $rval++;
+    }
+
     apt_exec($c, 'dist-upgrade', '', 1) or $rval++;
 
     unless (scalar(@{$packages}) <= 0)
@@ -107,6 +111,7 @@ sub apt_exec
         my $apt_conf_ovrl = catfile($overlay, qw(etc apt));
 
         push @aptget_args, '--option', 'Dir=' . $c->getval('c_tmpdir');
+        push @aptget_args, '--option', 'Dpkg::Options::="--force-confold"';
 
         foreach my $file ( ( [ '--option Dir::Etc::parts',
                                'apt.conf.d' ],
