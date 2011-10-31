@@ -155,7 +155,15 @@ sub tweak_startup
                 (grep(/^${service}$/, @{$services_on})))
             {
                 $c->cprint("starting $service", 2);
-                exec_initscript($c, $service, 'start', 1) or $rval++;
+                # See if we should treat service start failures as an error
+                if ($c->getval('tweakstartup_start_no_error'))
+                {
+                    exec_initscript($c, $service, 'start', 1);
+                }
+                else
+                {
+                    exec_initscript($c, $service, 'start', 1) or $rval++;
+                }
             }
         }
     }
