@@ -50,7 +50,7 @@ sub restart_services
     my %rshash;
 
     my $start_time = $c->getval('c_start_time');
-    my $startup = $c->getvals('startup');
+    my $startup = $c->getvals('tweakstartup_startup');
     my $restart_deps = $c->getvals('restart_deps');
     my $tmpdir = $c->getval('c_tmpdir');
 

@@ -60,6 +60,7 @@ sub tweak_startup
 
     # Action specific values
     my $stop = $c->getval('tweakstartup_execstop');
+    my $no_start = $c->getval('tweakstartup_no_exec_start');
     my $services_ignore = $c->getvals('tweakstartup_ignore');
     my $services_on = $c->getvals('tweakstartup_startup');
 
@@ -149,7 +150,8 @@ sub tweak_startup
         }
 
         # Start services that have been turned on since the last time we ran
-        if (($conf_status eq 'on') and (scalar @{$last_services_on} >= 1 ))
+        if (($conf_status eq 'on') and !($no_start) and
+                (scalar @{$last_services_on} >= 1 ))
         {
             if ((not grep(/^${service}$/, @{$last_services_on})) and
                 (grep(/^${service}$/, @{$services_on})))
