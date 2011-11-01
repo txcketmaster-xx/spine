@@ -51,6 +51,7 @@ sub restart_services
 
     my $start_time = $c->getval('c_start_time');
     my $startup = $c->getvals('tweakstartup_startup');
+    my $startup_ignore = $c->getvals('tweakstartup_ignore');
     my $restart_deps = $c->getvals('restart_deps');
     my $tmpdir = $c->getval('c_tmpdir');
 
@@ -82,7 +83,8 @@ sub restart_services
 	{
 	    $service = shift @fields;
 	    $command = shift @fields;	
-	    next unless grep(/^${service}$/i, @{$startup});
+	    next unless (grep(/^${service}$/i, @{$startup}) or
+                         grep(/^${service}$/i, @{$startup_ignore}));
 	}
 
         if ($DRYRUN)

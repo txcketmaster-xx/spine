@@ -23,4 +23,4 @@ if [ "$1" = "--markers" ]; then
     MARKERS='--template-markers'
 fi
 
-/bin/env spine-mgmt --quiet --template-quick ${MARKERS} $@
+/usr/bin/env spine-mgmt --template-quick ${MARKERS} $@
