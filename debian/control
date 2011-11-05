@@ -20,7 +20,8 @@ Depends: ${shlibs:Depends},
  libdigest-md5-file-perl,
  libfile-temp-perl,
  libfile-finder-perl,
- libxml-simple-perl
+ libxml-simple-perl,
+ chkconfig
 Description: Configuration management system.
 
 
