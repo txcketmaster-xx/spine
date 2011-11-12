@@ -21,7 +21,8 @@ Depends: ${shlibs:Depends},
  libfile-temp-perl,
  libfile-finder-perl,
  libxml-simple-perl,
- chkconfig
+ chkconfig,
+ dialog
 Description: Configuration management system.
 
 

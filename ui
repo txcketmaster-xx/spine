@@ -3,7 +3,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: ui 283 2009-11-11 01:42:35Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -37,7 +37,6 @@ GetOptions(
 my $cmdline_hostname = $options{hostname};
 
 my $DIALOG = qq(/usr/bin/dialog);
-my $VMCMD = qq(/usr/local/vmware-tools/sbin/vmware-guestd);
 
 while (1)
 {
@@ -74,18 +73,11 @@ sub get_hostname
     # in which case we ask the host server, or prompt the
     # user via dialog box.
 
-    open(LSPCI, "/sbin/lspci |");
     if ($cmdline_hostname)
     {
         $hostname = $cmdline_hostname;
         $cmdline_hostname = undef;
     }
-    elsif ( grep(/VMware Inc/i, <LSPCI>) && (-x "$VMCMD") )
-    {
-        $hostname = `$VMCMD --cmd machine.id.get 2>/dev/null`;
-        if ($? > 0 ) { $hostname = `$dialogcmd`; }
-    }
-
     else
     {
         $hostname = `$dialogcmd`;
@@ -93,7 +85,6 @@ sub get_hostname
 
     $hostname = lc($hostname);
 
-    close(LSPCI);
     return $hostname;
 }
 
