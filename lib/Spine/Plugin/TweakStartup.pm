@@ -176,7 +176,6 @@ sub tweak_startup
 sub twiddle_service
 {
     my ($c, $service, $status, $type) = @_;
-    return 1 if $DRYRUN;
 
     use feature "switch";
     given ($type) {
@@ -193,50 +192,23 @@ sub twiddle_service_init
 {
     my ($c, $service, $status) = @_;
 
-    my $os = $c->getval('c_os_vendor');
-
-    if (($os eq 'redhatenterpriseserver') or ($os eq 'centos'))
+    my @result = simple_exec(merge_error => 1,
+                             inert       => 0,
+                             exec        => 'chkconfig',
+                             args        => [ $service, $status ],
+                             c           => $c);
+    if ($?)
     {
-        my @result = simple_exec(merge_error => 1,
-                                 inert       => 1,
-                                 exec        => 'chkconfig',
-                                 args        => [ $service, $status ],
-                                 c           => $c);
-        if ($?)
-        {
-            $c->error("failed for $service [".join("", @result)."]", 'err');
-            return 0;
-        }
-        return 1;
+        $c->error("failed for $service [".join("", @result)."]", 'err');
+        return 0;
     }
-    elsif ($os eq 'ubuntu')
-    {
-        use feature "switch";
-        given ($status) {
-            when (/^on$/) {
-                $status = 'enable';
-            }
-            when (/^off$/) {
-                $status = 'disable';
-            }
-        }
-        my @result = simple_exec(merge_error => 1,
-                                 inert       => 1,
-                                 exec        => 'update-rc.d',
-                                 args        => [ $service, $status ],
-                                 c           => $c);
-        if ($?)
-        {
-            $c->error("failed for $service [".join("", @result)."]", 'err');
-            return 0;
-        }
-        return 1;
-    }
+    return 1;
 }
 
 sub twiddle_service_upstart
 {
     my ($c, $service, $status) = @_;
+    return 1 if $DRYRUN;
     my $upstart_dir = $c->getval('tweakstartup_upstart_dir') || qq(/etc/init);
 
     use feature "switch";
