@@ -144,7 +144,13 @@ sub simple {
  
     # Run command
     $self->start();
-    
+   
+    # See if we are in dryrun.
+    if (exists $self->{dryrun} && $self->{dryrun})
+    {
+        return wantarray ? () : SPINE_SUCCESS;
+    }
+
     # Get results (will hang untill EOF on STDOUT)
     my @result = $self->readlines();
     
