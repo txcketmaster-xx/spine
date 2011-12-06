@@ -161,7 +161,9 @@ sub apt_exec
         my @apt_cmd = (@aptget_args, '-qq', $apt_func,
                        $apt_func_args);
 
-        unless (defined(_exec_apt($c, $apt_func, 0, \@apt_cmd)))
+        my $inert = 0;
+        if ($DRYRUN && $apt_func =~ /update/) { $inert = 1; }
+        unless (defined(_exec_apt($c, $apt_func, $inert, \@apt_cmd)))
         {
             # Error reporting handled by _exec_apt()
 	    return PLUGIN_ERROR;
