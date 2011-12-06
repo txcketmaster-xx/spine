@@ -123,7 +123,7 @@ sub restart_services
             	$c->cprint("restarting service $service", 2);
                 unless ($DRYRUN)
                 {
-                    exec_initscript($c, $service, $command, 1)
+                    exec_initscript($c, $service, $command, 1, 0)
 		        or $rval++;
                 }
  	    }

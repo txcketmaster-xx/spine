@@ -42,7 +42,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 use File::Spec::Functions;
 use IO::Handle;
 use IPC::Open3;
-use Spine::Util qw(mkdir_p create_exec simple_exec);
+use Spine::Util qw(mkdir_p create_exec);
 
 my $DRYRUN = 0;
 
@@ -138,7 +138,7 @@ sub apt_exec
         my @apt_cmd = (@aptget_args, '--dry-run',
                        $apt_func, $apt_func_args);
 
-        my $out = _exec_apt($c, $apt_func, \@apt_cmd);
+        my $out = _exec_apt($c, $apt_func, 1, \@apt_cmd);
 
         unless (defined($out))
         {
@@ -159,8 +159,9 @@ sub apt_exec
 
         my @apt_cmd = (@aptget_args, '-qq', $apt_func,
                        $apt_func_args);
-
-        unless (defined(_exec_apt($c, $apt_func, \@apt_cmd)))
+	my $inert = 0;
+	if ($DRYRUN && $apt_func =~ /update/) { $inert = 1; }
+        unless (defined(_exec_apt($c, $apt_func, $inert, \@apt_cmd)))
         {
             # Error reporting handled by _exec_apt()
 	    return PLUGIN_ERROR;
@@ -176,6 +177,7 @@ sub _exec_apt
 {
     my $c = shift;
     my $apt_func = shift;
+    my $inert = shift;
     my @cmdline = @_;
     my $pid = -1;
 
@@ -203,7 +205,7 @@ sub _exec_apt
         push (@fixed_cmdline, split(' ', $cmdpart)) unless ($cmdpart eq '');
     }
 
-    my $exec_c = create_exec(inert => 1,
+    my $exec_c = create_exec(inert => $inert,
                              c     => $c,
                              exec  => 'apt-get',
                              args  => \@fixed_cmdline);
@@ -212,6 +214,12 @@ sub _exec_apt
     {
         $c->error('apt-get failed to run it seems', 'err');
         return undef;
+    }
+
+    # See if we are in dryrun.
+    if (exists $exec_c->{dryrun} && $exec_c->{dryrun})
+    {
+        return "";
     }
     
     $exec_c->closeinput();

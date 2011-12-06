@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: FirstRun.pm 240 2009-08-25 17:48:58Z richard $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@ use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 240 $ =~ /(\d+)/);
 $DESCRIPTION = "Spine::Plugin skeleton";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -67,6 +67,7 @@ sub first_run
     {	
         $c->print(2, "stopping $service");
         my $rc = simple_exec(merge_error => 1,
+				 inert	     => 0,
                                  exec        => 'service',
                                  args        => "$service stop",
                                  c           => $c);

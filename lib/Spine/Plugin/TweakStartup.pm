@@ -146,7 +146,7 @@ sub tweak_startup
         if (($conf_status eq 'off') and ($stop) and ($current_status eq 'on'))
         {
             $c->cprint("stopping $service", 2);
-            exec_initscript($c, $service, 'stop', 0);
+            exec_initscript($c, $service, 'stop', 0, 0);
         }
 
         # Start services that have been turned on since the last time we ran
@@ -160,11 +160,11 @@ sub tweak_startup
                 # See if we should treat service start failures as an error
                 if ($c->getval('tweakstartup_start_no_error'))
                 {
-                    exec_initscript($c, $service, 'start', 1);
+                    exec_initscript($c, $service, 'start', 1, 0);
                 }
                 else
                 {
-                    exec_initscript($c, $service, 'start', 1) or $rval++;
+                    exec_initscript($c, $service, 'start', 1, 0) or $rval++;
                 }
             }
         }

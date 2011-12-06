@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-set-style: BSD; index-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Util.pm 240 2009-08-25 17:48:58Z richard $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -201,11 +201,11 @@ sub do_rsync
 	push @rsync_opts, "--exclude-from=$tmpfn"
     }
   
-    my $inert = exists $args{Inert} ? $args{Inert} : 0;
+    my $inert = exists $args{Inert} ? $args{Inert} : 0; 
     my @result = simple_exec(c           => $c,
-                             inert       => $inert,
                              exec        => 'rsync',
                              merge_error => 1,
+			     inert	 => $inert,
                              args        => [@rsync_opts,
                                              $args{Source},
                                              $args{Target}]);
@@ -232,30 +232,52 @@ sub do_rsync
 
 sub exec_initscript
 {
-    my ($c, $service, $function, $report_error) = @_;
+    my ($c, $service, $function, $report_error, $inert) = @_;
 
     return 0 unless simple_exec(c      => $c,
                                 exec   => 'service',
                                 args   => [ $service,  $function ],
-                                inert  => 0,
+                                inert  => $inert,
                                 quiet  => $report_error ? 0 : 1);
     return 1;
 }
 
-# wrapper to Spine::Util::Exec::simple
+# wraper to Spine::Util::Exec::simple
 sub simple_exec {
     return  Spine::Util::Exec->simple(@_);
 }
 
-# wrapper to Spine::Util::Exec::new
+# wraper to Spine::Util::Exec::new
 sub create_exec {
     return  Spine::Util::Exec->new(@_);
 }
 
-# wrapper to Spine::Util::Exec::find_exec
+# wraper to Spine::Util::Exec::find_exec
 sub find_exec {
     return  Spine::Util::Exec->find_exec(@_);
 }
+
+# DEPRECIATE: for support of old implementation (used in templates)
+sub exec_command {
+    my ($c, $command, $report_error, $inert, $merror) = @_;
+    
+    # Work out what the command is vs arguments
+    $command =~ m/^([\S]+)(?:\s+(.*))?$/;
+    my ($cmd, $args) = ($1, $2);
+    
+    #TODO This should be uncommented in a few releases time
+    #$c->error('use of depreciated "exec_command" please use "simple_exec"',
+    #          'warning');
+
+    return simple_exec(exec        => $cmd,
+                       args        => $args,
+                       inert       => $inert,
+                       quiet       => $report_error ? 0 : 1,
+                       c           => $c,
+                       merge_error => defined $merror ? $merror : 1);
+    
+}
+
 
 
 sub octal_conv

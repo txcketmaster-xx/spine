@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: RPMPackageManager.pm 266 2009-11-04 00:25:50Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 266 $ =~ /(\d+)/);
 $DESCRIPTION = "RPM package management using the apt-get for RPM utility";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -139,7 +139,7 @@ sub apt_exec
         my @apt_cmd = (@aptget_args, '--dry-run',
                        $apt_func, $apt_func_args);
 
-        my $out = _exec_apt($c, $apt_func, \@apt_cmd);
+        my $out = _exec_apt($c, $apt_func, 1, \@apt_cmd);
 
         unless (defined($out))
         {
@@ -161,7 +161,7 @@ sub apt_exec
         my @apt_cmd = (@aptget_args, '-qq', $apt_func,
                        $apt_func_args);
 
-        unless (defined(_exec_apt($c, $apt_func, \@apt_cmd)))
+        unless (defined(_exec_apt($c, $apt_func, 0, \@apt_cmd)))
         {
             # Error reporting handled by _exec_apt()
 	    return PLUGIN_ERROR;
@@ -177,6 +177,7 @@ sub _exec_apt
 {
     my $c = shift;
     my $apt_func = shift;
+    my $inert = shift;
     my @cmdline = @_;
     my $pid = -1;
 
@@ -201,7 +202,7 @@ sub _exec_apt
         push (@fixed_cmdline, split(' ', $cmdpart)) unless ($cmdpart eq '');
     }
 
-    my $exec_c = create_exec(inert => 1,
+    my $exec_c = create_exec(inert => $inert,
                              c     => $c,
                              exec  => 'apt-get',
                              args  => \@fixed_cmdline);
@@ -211,7 +212,13 @@ sub _exec_apt
         $c->error('apt-get failed to run it seems', 'err');
         return undef;
     }
-    
+   
+    # See if we are in dryrun.
+    if (exists $exec_c->{dryrun} && $exec_c->{dryrun})
+    {
+        return "";
+    } 
+
     $exec_c->closeinput();
     
     my @foo = $exec_c->readlines();

@@ -124,6 +124,7 @@ sub build_overlay
                 $c->print(4, "performing overlay from $dir");
                 unless (do_rsync(Config => $c,
                                  Source => $overlay,
+				 Inert	=> 1,
                                  Target => catfile($tmpdir, $target),
                                  Excludes => \@excludes)) {
                     $rval++;
@@ -166,7 +167,7 @@ sub apply_overlay
         if ($c->getval('apply_overlay_excludes'));
     my %rsync_args = (Config => $c, Source => $tmpdir, Output => undef,
                       Target => $overlay_root, Options => [qw(-c)],
-                      Excludes => $EXCLUDES);
+                      Excludes => $EXCLUDES, Inert => 0);
 
     $TMPDIR = $tmpdir;
     $DRYRUN = $c->getval('c_dryrun');
