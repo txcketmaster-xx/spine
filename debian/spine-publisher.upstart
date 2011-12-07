@@ -10,8 +10,13 @@ expect fork
 respawn
 
 script
-    SPINE_PUB_BIN="/opt/spine-publisher/spine-publisher"
-    SPINE_PUB_OPTIONS="-c /opt/spine-publisher/spine-publisher.conf"
+
+    SPINE_PUB_BIN="/usr/bin/spine-publisher"
+    SPINE_PUB_OPTIONS="-c /etc/spine-mgmt/spine-publisher.conf"
+
+    if [ -f /etc/default/spine-publisher ]; then
+        . /etc/default/spine-publisher
+    fi
 
     exec $SPINE_PUB_BIN $SPINE_BIN_OPTIONS
 end script
