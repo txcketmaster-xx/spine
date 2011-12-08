@@ -44,8 +44,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                                    code => \&get_os_arch },
                                                  { name => 'is_virtual',
                                                    code => \&is_virtual },
-                                                 { name => 'num_cores',
-                                                   code => \&get_num_cores } ,
+                                                 { name => 'cpu_info',
+                                                   code => \&get_cpu_info } ,
                                                  { name => 'hardware_platform',
                                                    code => \&get_hardware_platform } , 
                                                  { name => 'current_kernel_version',
@@ -308,26 +308,72 @@ sub get_os_arch
     return PLUGIN_SUCCESS;
 }
 
-sub get_num_cores
+sub get_cpu_info
 {
     my $c = shift;
 
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
-    my $nprocs = 0;
 
     unless (defined($cpuinfo)) {
         $c->error('Failed to open /proc/cpuinfo', 'err');
         return PLUGIN_FATAL;
     }
 
-    # Try to determine the number of processors
+    my %cores;
+    my $fake_id = 1;
+    my $xthreads = 0;
+    my $physical_id = -1;
+    my $cpu_cores = -1;
+
+    # Parse the data
     while(<$cpuinfo>) {
-        $nprocs++ if m/^processor\s+:\s+\d+/i;
+        if (m/^processor\s+:\s+(\d+)/i) {
+            $xthreads++;
+            next;
+        }
+        if (m/^physical id\s+:\s+(\d+)/i) {
+            $physical_id = $1;
+            next;
+        }
+        if (m/^cpu_cores\s+:\s+(\d+)/i) {
+            my $cpu_cores = $1;
+            next;
+        }
+        if (m/^$/i) {
+            # End of the entry, do the data keeping.
+            if ($physical_id != -1) {
+                if (! exists $cores{$physical_id}) {
+                    $cores{$physical_id} = 1;
+                }
+                if ($cpu_cores > 0) {
+                    $cores{$physical_id} = $cpu_cores;
+                }
+            }
+            else {
+                # If we don't have a physical ID we just assume
+                # its a unique proc with 1 core.
+
+                # We need to generate a unique ID.
+                $physical_id = "UNKNOWN_" . $fake_id;
+                $fake_id++;
+                $cores{$physical_id} = 1;
+            }
+            # Done with record keeping, reset;
+            $physical_id = -1;
+            $cpu_cores = -1;
+        }
     }
 
     $cpuinfo->close();
-
-    $c->{c_num_cores} = $nprocs;
+    
+    $c->{c_num_cpus} = scalar(keys %cores);
+    $c->{c_num_x_threads} = $xthreads;
+   
+    $cpu_cores = 0;
+    foreach my $key (keys %cores) {
+        $cpu_cores = $cpu_cores + $cores{$key};
+    }
+    $c->{c_num_cores} = $cpu_cores;
 
     return PLUGIN_SUCCESS;
 }
