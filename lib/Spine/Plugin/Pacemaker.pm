@@ -38,13 +38,23 @@ my $CRM_SHADOW = '/usr/sbin/crm_shadow';
 my $CAT = '/bin/cat';
 my $PTEST = '/usr/sbin/ptest';
 my $CRM_VERIFY = '/usr/sbin/crm_verify';
+my $PACEMAKERD = '/usr/sbin/pacemakerd';
+
 my @REQUIRED_ATTRIBUTES = ( 'cluster-infrastructure',
                             'dc-version',
                             'last-lrm-refresh' );
-
 sub configure_pacemaker {
     my $c = shift;
     my $hostname = $c->getval('c_hostname');
+
+    # Get our commands.
+    get_cmdlines($c);
+
+    # Lets see if pacemaker is even installed.
+    if ( ! -x $PACEMAKERD ) {
+        $c->print(1, "$PACEMAKERD not found, skipping");
+        return PLUGIN_SUCCESS;
+    }
 
     # Figure out if we have config files to load.
     my $conf_dir = '/etc/pacemaker/conf.d';
@@ -58,7 +68,7 @@ sub configure_pacemaker {
         }
     }
     if (scalar (@config_files) == 0) {
-        $c->error('no config files found, skipping', 'warn');
+        $c->print(1, 'no config files found, skipping');
         return PLUGIN_SUCCESS;
     }
 
@@ -263,6 +273,9 @@ sub get_cmdlines {
     }
     if ($c->getval('pacemaker_crm_verify_bin')) {
         $CRM_VERIFY = $c->getval('pacemaker_crm_verify_bin');
+    }
+    if ($c->getval('pacemaker_pacemakerd')) {
+        $PACEMAKERD = $c->getval('pacemaker_pacemakerd');
     }
 }
 
