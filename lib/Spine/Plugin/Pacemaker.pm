@@ -40,8 +40,8 @@ my $PTEST = '/usr/sbin/ptest';
 my $CRM_VERIFY = '/usr/sbin/crm_verify';
 my $PACEMAKERD = '/usr/sbin/pacemakerd';
 my @REQUIRED_ATTRIBUTES = ( 'cluster-infrastructure',
-                            'dc-version',
-                            'last-lrm-refresh' );
+                            'dc-version' );
+my @OPTIONAL_ATTRIBUTES = ( 'last-lrm-refresh' );                           
 
 sub configure_pacemaker {
     my $c = shift;
@@ -58,10 +58,13 @@ sub configure_pacemaker {
 
     # Figure out if we have config files to load.
     my $conf_dir = '/etc/pacemaker/conf.d';
-    my @config_files = ();
     if ($c->getval('pacemaker_config_dir')) {
         $conf_dir = $c->getval('pacemaker_config_dir');
-    }    
+    }
+    if ($c->getval('c_dryrun')) {
+        $conf_dir = $c->getval('c_tmpdir') . $conf_dir;
+    }
+    my @config_files = ();
     foreach my $file (<$conf_dir/*.conf>) {
         if ( -f $file ) {
             push(@config_files, $file);
@@ -101,17 +104,31 @@ sub configure_pacemaker {
     # We need to get a few config attributes from the existing config.
     my %saved_attributes;
     foreach my $attr (@REQUIRED_ATTRIBUTES) {
-        my ($status, $value) = get_attr($c, $attr);
+        my ($status, $value) = get_attr($c, $attr, 1);
         return PLUGIN_FATAL unless ($status == 0);
         $saved_attributes{$attr} = $value;
     }
-    if ($c->getval('pacemaker_saved_attributes')) {
-        foreach my $attr ($c->getvals('pacemaker_saved_attributes')) {
-            my ($status, $value) = get_attr($c, $attr);
+    foreach my $attr (@OPTIONAL_ATTRIBUTES) {
+        my ($status, $value) = get_attr($c, $attr, 0);
+        if ($status == 0) {
+            $saved_attributes{$attr} = $value;
+        }
+    }
+    if ($c->getval('pacemaker_required_attributes')) {
+        foreach my $attr ($c->getvals('pacemaker_required_attributes')) {
+            my ($status, $value) = get_attr($c, $attr, 1);
             return PLUGIN_FATAL unless ($status == 0);
             $saved_attributes{$attr} = $value;
         }
-    }    
+    }
+    if ($c->getval('pacemaker_optional_attributes')) {
+        foreach my $attr ($c->getvals('pacemaker_optional_attributes')) {
+            my ($status, $value) = get_attr($c, $attr, 0);
+            if ($status == 0) {
+                $saved_attributes{$attr} = $value;
+            }    
+        }
+    }
 
     # Test to see if already have a shadow config
     my $shadow_name = 'spine';
@@ -301,17 +318,19 @@ sub get_status {
 sub get_attr {
     my $c = shift;
     my $attr = shift;
+    my $report_error = shift;
 
-    my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 1, $CRM_ATTR,
+    my ($status, @stdout, @stderr) = _exec_cmd($c, 1, $report_error, $CRM_ATTR,
                                      "--attr-name $attr");
     my $value = '';
-    my $escaped = quotemeta($attr);
-    foreach my $line (@stdout) {
-        next unless ($line =~ m/^scope=.+\s+name=($escaped)\svalue=(.*)$/);
-        $value = $2;
-        last;
+    if ($status == 0) {
+        my $escaped = quotemeta($attr);
+        foreach my $line (@stdout) {
+            next unless ($line =~ m/^scope=.+\s+name=($escaped)\svalue=(.*)$/);
+            $value = $2;
+            last;
+        }
     }
-
     return ($status, $value);
 }
 
