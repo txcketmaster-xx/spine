@@ -132,7 +132,7 @@ sub tweak_startup
         # Get what the status of the service should be.
         my $conf_status = 'off';
         $conf_status = 'on' if (grep(/^${service}$/, @{$services_on}));
-        #Get the current status of the service.
+        # Get the current status of the service.
         my $current_status = is_service_enabled($c, $service, $type);
 
         # Change the startup status if necessary.

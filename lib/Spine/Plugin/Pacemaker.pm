@@ -39,10 +39,10 @@ my $CAT = '/bin/cat';
 my $PTEST = '/usr/sbin/ptest';
 my $CRM_VERIFY = '/usr/sbin/crm_verify';
 my $PACEMAKERD = '/usr/sbin/pacemakerd';
-
 my @REQUIRED_ATTRIBUTES = ( 'cluster-infrastructure',
                             'dc-version',
                             'last-lrm-refresh' );
+
 sub configure_pacemaker {
     my $c = shift;
     my $hostname = $c->getval('c_hostname');
@@ -62,7 +62,7 @@ sub configure_pacemaker {
     if ($c->getval('pacemaker_config_dir')) {
         $conf_dir = $c->getval('pacemaker_config_dir');
     }    
-    foreach my $file (<$conf_dir/*>) {
+    foreach my $file (<$conf_dir/*.conf>) {
         if ( -f $file ) {
             push(@config_files, $file);
         }
