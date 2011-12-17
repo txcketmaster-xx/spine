@@ -174,9 +174,24 @@ sub configure_pacemaker {
 
     # Now we need to load each file into the configuration.
     foreach my $file (@config_files) {
-        my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 1, $CRM,
+        my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 0, $CRM,
                                          "configure load update $file");
-        if ($status != 0) {
+        # Some errors are only reported in stdout/stderr no return status.
+        if (($status != 0) 
+                or (scalar(@stdout) != 0) or (scalar(@stderr) != 0)) {
+
+            if ($status != 0) {
+                $c->error("\"$CRM configure load update $file\""
+                            . "returned $status", 'err');
+            } else {
+                $c->error("\"$CRM configure load update $file\""
+                            . "returned an error", 'err');
+            }
+            foreach my $line (@stdout, @stderr) {
+                next if ($line =~ m/^\s*$/);
+                $c->error($line, 'err');
+            }
+
             delete_shadow($c, $shadow_name);
             return PLUGIN_FATAL;
         }
@@ -208,8 +223,7 @@ sub configure_pacemaker {
 
         $c->print(2, "Changes to config are too large to print("
                      . "$size >= $max_diff_lines lines)");
-    }
-    else {
+    } else {
         foreach my $line (@diff) {
             $c->cprint("    $line", 2, 0) if ($line =~ /^[+-]/);
         }
