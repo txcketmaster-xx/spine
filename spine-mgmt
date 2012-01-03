@@ -554,6 +554,9 @@ exit(1);
 
 
 END {
+    # Preserve the exist status, yes the temp assignment is required.
+    my $foo = $?;
+    local $? = $foo;
     release_lock();
 }
 

@@ -443,10 +443,12 @@ sub source_info
 #      without setting up module level var just for cleaning.
 #
 END {
+    # Preserve the exist status, yes the temp assignment is required.
+    my $foo = $?;
+    local $? = $foo;
     foreach my $self (@__MOUNTS) {
         $self->clean();
     }
 }
-
 
 1;
