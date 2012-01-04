@@ -62,15 +62,15 @@ sub install_packages
     
     $DRYRUN = $c->getval('c_dryrun');
 
-    apt_exec($c, 'autoclean', '', 0) or $rval++;
-    apt_exec($c, 'update', '', 0) or $rval++;
-    apt_exec($c, 'dist-upgrade', '', 1) or $rval++;
-    apt_exec($c, 'update', '', 0) or $rval++;
+    apt_exec($c, 'autoclean', '', 0) == PLUGIN_SUCCESS or $rval++;
+    apt_exec($c, 'update', '', 0) == PLUGIN_SUCCESS or $rval++;
+    apt_exec($c, 'dist-upgrade', '', 1) == PLUGIN_SUCCESS or $rval++;
+    apt_exec($c, 'update', '', 0) == PLUGIN_SUCCESS or $rval++;
 
     unless (scalar(@{$packages}) <= 0)
     {
 	my $packages_flat = join(" ", @{$packages});
-	apt_exec($c, 'install', $packages_flat, 1) or $rval++;
+	apt_exec($c, 'install', $packages_flat, 1) == PLUGIN_SUCCESS or $rval++;
     }
 
     return $rval ? PLUGIN_ERROR : PLUGIN_SUCCESS;
