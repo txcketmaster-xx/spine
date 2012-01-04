@@ -5,9 +5,6 @@
 
 dpkg -l build-essential devscripts debhelper gnupg >/dev/null
 
-export DEBFULLNAME="Metacloud"
-export DEBEMAIL="syseng@metacloud.com"
-export KEY_ID="AEB0C71E"
 export SERIES="oneiric"
 export DEBUILD_TGZ_CHECK="no"
 
