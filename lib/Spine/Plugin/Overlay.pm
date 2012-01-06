@@ -165,9 +165,6 @@ sub apply_overlay
     my $max_diff_lines = $c->getval('max_diff_lines_to_print');
     $EXCLUDES = $c->getvals('apply_overlay_excludes')
         if ($c->getval('apply_overlay_excludes'));
-    my %rsync_args = (Config => $c, Source => $tmpdir, Output => undef,
-                      Target => $overlay_root, Options => [qw(-c)],
-                      Excludes => $EXCLUDES, Inert => 0);
 
     if (exists $ENV{'SPINE_APPLY_OVERLAY_EXCLUDES'})
     {
@@ -176,6 +173,10 @@ sub apply_overlay
             push(@{$EXCLUDES}, $file);
         }
     }
+
+    my %rsync_args = (Config => $c, Source => $tmpdir, Output => undef,
+                      Target => $overlay_root, Options => [qw(-c)],
+                      Excludes => $EXCLUDES, Inert => 0);
 
     $TMPDIR = $tmpdir;
     $DRYRUN = $c->getval('c_dryrun');
