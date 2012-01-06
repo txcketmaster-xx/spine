@@ -169,6 +169,14 @@ sub apply_overlay
                       Target => $overlay_root, Options => [qw(-c)],
                       Excludes => $EXCLUDES, Inert => 0);
 
+    if (exists $ENV{'SPINE_APPLY_OVERLAY_EXCLUDES'})
+    {
+        foreach my $file (split(/ /, $ENV{'SPINE_APPLY_OVERLAY_EXCLUDES'}))
+        {
+            push(@{$EXCLUDES}, $file);
+        }
+    }
+
     $TMPDIR = $tmpdir;
     $DRYRUN = $c->getval('c_dryrun');
     @ENTRIES = ();
@@ -385,16 +393,6 @@ sub _find_changed
     {
         return;
     }
-
-    # Parse our excludes
-#    foreach my $exclude (@EXCLUDES)
-#    {
-#        if ($dest eq $exclude)
-#        {
-#            $File::Find::prune = 1;
-#            return;
-#        }
-#    }
 
     if (grep(/^${dest}$/i, @{$EXCLUDES}))
     {
