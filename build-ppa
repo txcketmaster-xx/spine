@@ -30,4 +30,3 @@ for DIST in $SERIES ; do
 
     svn revert debian/changelog
 done
-
