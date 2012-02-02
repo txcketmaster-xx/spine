@@ -58,7 +58,7 @@ sub new
     {
         my $section = $args{Config}->{ISO9660};
 
-        foreach my $item (qw(Destination URL Timeout))
+        foreach my $item (qw(Destination URL Timeout Username Password))
         {
             if ( ( not exists($self->{$item})
                    or not defined($self->{$item}) )
@@ -130,6 +130,10 @@ sub _http_request
     my $response;
 
     my $request = new HTTP::Request('GET', $url);
+
+    if ((exists $self->{Username}) and (exists $self->{Password})) {
+        $request->authorization_basic($self->{Username}, $self->{Password});
+    }
 
     #
     # We use the request() method instead of the simple_request() method here
