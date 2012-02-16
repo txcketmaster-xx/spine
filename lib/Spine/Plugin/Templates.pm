@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Templates.pm 289 2009-11-12 01:53:39Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $MARKERS, $QUICK);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 289 $ =~ /(\d+)/);
 $DESCRIPTION = "Plugin for interperolating templates.";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -90,10 +90,17 @@ sub process_templates
 
     foreach my $template (@TEMPLATES)
     {
-        if (process_template($c, $template) == PLUGIN_ERROR)
+        my $status = process_template($c, $template);    
+        if ($status != PLUGIN_SUCCESS)
         {
-            $c->error("error processing $template", "err");
-            $rval++;
+            if ($status == PLUGIN_FATAL)
+            {
+                return PLUGIN_FATAL;
+            }
+            else
+            {
+                $rval++;
+            }
         }
     }
 
@@ -209,16 +216,22 @@ sub process_template
             return PLUGIN_SUCCESS;
         }
         
-        # If we encounter an error we want to abort the current template
-        # but keep processing, so log the error, remove the template 
-        # from the overlay, and return PLUGIN_ERROR to move on instead
-        # of PLUGIN_FATAL and blowing up.
+        $c->error("error processing $template", "err");
         $c->error('could not process template: ' . $TT->error(), "err");
         if (! $QUICK) 
         {
+            # Remove the templat from the overlay.
             unlink($template);
         }
-        return PLUGIN_ERROR;
+        # Check the error type to see if we need to abort the run.
+        if ($TT->error()->type() eq 'spine_abort')
+        {
+            return PLUGIN_FATAL;
+        }
+        else
+        {
+            return PLUGIN_ERROR;
+        }
     }
 
     unless (ref($output) eq 'SCALAR')
