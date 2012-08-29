@@ -35,7 +35,7 @@ $Data::Dumper::Indent = 1;
 $Data::Dumper::Sortkeys = 1;
 
 our $CONFIG;
-our $DEFAULT_CONFIGFILE = '/etc/spine.conf';
+our $DEFAULT_CONFIGFILE = '/etc/spine-mgmt/spine-mgmt.conf';
 
 getopts('dh', \%main::opt);
 usage() if $main::opt{'h'};
