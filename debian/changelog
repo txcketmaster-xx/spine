@@ -1,3 +1,9 @@
+spine (2.1.0-1ubuntu1) unstable; urgency=low
+
+  * Add getvals script for perusing the spine config object from external scripts
+
+ -- Nicolas Simonds <nic@metacloud.com>  Wed, 29 Aug 2012 11:42:30 -0700
+
 spine (2.1.0-0ubuntu1) unstable; urgency=low
 
   * Initial Release.

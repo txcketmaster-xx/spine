@@ -1,0 +1,148 @@
+#!/usr/bin/perl -l
+
+# Copyright (C) 2009 MySpace, Inc.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+## usage: getvals [-d] [keyname] [...]
+##        getvals -h
+##
+
+# Load needed modules
+use strict;
+use Data::Dumper;
+use Getopt::Std;
+
+use lib q(/usr/lib/spine-mgmt);
+use Spine::ConfigFile;
+use Spine::State;
+
+# Output formatting options
+$, = "\n";
+$Data::Dumper::Terse = 1;
+$Data::Dumper::Indent = 1;
+$Data::Dumper::Sortkeys = 1;
+
+our $CONFIG;
+our $DEFAULT_CONFIGFILE = '/etc/spine.conf';
+
+getopts('dh', \%main::opt);
+usage() if $main::opt{'h'};
+
+# Should probably add a command-line switch so people can specify their
+# own config files
+$CONFIG = new Spine::ConfigFile(Filename => $DEFAULT_CONFIGFILE,
+		Type => 'Ini');
+
+# The main spine program handles errors in this phase in a much more
+# complicated manner.  This should be sufficient for our needs, though
+die $Spine::ConfigFile::ERROR if (not defined($CONFIG));
+
+# All set.  Load the lastrun stash object.  I'd coerce it into a
+# Spine::Data object, but that's just one more module to load, and it's
+# all right there under the '_data' key
+my $stash = new Spine::State($CONFIG);
+$stash->load();
+
+## with no args, print the list of available keys
+unless (scalar(@ARGV)) {
+	print sort keys %{ $stash->{'_data'} };
+	exit 0;
+}
+
+## otherwise print the value(s) associated with the named keys
+## keys can be sub-indexed with dots in the style of Template Toolkit,
+##
+## e.g., "keyname.3" will print the third value of the list "keyname",
+## "complex_key.subval.0.foo.bar" will print a value from deep inside
+## a complex data structure.  referencing a hash will cause it to list
+## its keys, sorted
+##
+# If it's a complex data structure, use Data::Dumper to print it.
+my $err = 0;
+foreach my $arg (@ARGV) {
+	my ($root, @ent) = (split('\.', $arg));
+
+	my $ret = $stash->{'_data'}->{$root};
+
+	DEREF: foreach my $x (@ent) {
+		if (not ref $ret) {
+			warn "ERR: ran off the end of the data structure, returning last usable value\n";
+			$err++;
+			last DEREF;
+		}
+		if (ref $ret eq 'ARRAY') {
+			if ($x !~ /^-?\d+$/) {
+				warn "ERR: index($x) is not numeric, returning whole list\n";
+				$err++;
+				last DEREF;
+			}
+			$ret = $ret->[$x];
+			next;
+		}
+		elsif (ref $ret eq 'HASH') {
+			unless (defined $ret->{$x}) {
+				warn "ERR: key($x) not found\n";
+				$err++;
+				last DEREF;
+			}
+			$ret = $ret->{$x};
+		}
+		else {
+			warn "ERR: don't know how to dereference($ret)\n";
+			$err++;
+			last DEREF;
+		}
+	}
+
+	unless (defined $ret) {
+		warn "ERR: no such config key($arg)\n";
+		$err++;
+		next;
+	}
+
+## with -d, do a full dump of the data structure
+	if ($main::opt{'d'}) {
+		warn Dumper($ret);
+		next;
+	}
+
+	# Simple scalars just get printed
+	if (not ref $ret) {
+		print $ret;
+		next;
+	}
+	# ...as do lists of simple scalars
+	if (ref $ret eq 'ARRAY') {
+		unless (grep { ref } @{ $ret }) {
+			print @{ $ret };
+			next;
+		}
+	}
+	if (ref $ret eq 'HASH') {
+		print sort keys %{ $ret };
+		next;
+	}
+	# Ran the gauntlet.  Uh oh.  Stringify it, print a warning and
+	# the help message
+	warn "ERR: result is not a simple scalar or list.  I'm going to ",
+		"venture a\nERR: guess that you're lost.  Dumping structure:\n",
+		Dumper($ret);
+	usage();
+}
+exit $err;
+
+#--------------------------------------------------------------------------
+
+sub usage { exec "grep '^##' $0 && false"; }
