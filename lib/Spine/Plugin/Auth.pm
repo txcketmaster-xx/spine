@@ -942,6 +942,9 @@ sub emit_auth_data
             $c->error('Found running processes or crons with UIDs/GIDs not being'
                     . ' installed on this system - but carrying on due to'
                     . ' \'auth_extra_checks_warn_only\' key','warning');
+        } elsif ($c->getval('c_dryrun')) {
+            $c->error('Ignoring processes or crons with UIDs/GIDs not being'
+                    . ' installed on this system due to dryrun mode','warning');
         } else {
             return PLUGIN_FATAL;
         }
