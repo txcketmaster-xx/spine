@@ -351,22 +351,22 @@ sub _parse_maps
     {
         #populate the ignoremap
         my $map_type = 'ignore_map';
-        my $keyfile = "$directory/$map";
+        my $keyfile = "$directory/$map_type";
         my $keyname = basename($keyfile);
-        my $ignore_map = $auth_ref->{$map};
+        my $ignore_map = $auth_ref->{$map_type};
         my $values = $c->read_keyfile($keyfile);
 
-        if defined($values) {
+        if (defined($values)) {
             foreach my $value (@{$values}) {
                 my @list = split(m/:/,$value);
                 if (scalar(@list) != 2) {
-                    $c->error("Invalid line in $map: \"$value\"", 'crit');
+                    $c->error("Invalid line in $map_type: \"$value\"", 'crit');
                     die('Bad data');
                 }
                 my ($k,$id) = @list;
-                $id = int($id)
-                if exists($ignore_map->{$k}) {
-                    $ignore_map->{$k} = $id
+                $id = int($id);
+                if (exists($ignore_map->{$k})) {
+                    $ignore_map->{$k} = $id;
                 }
             }
         }
@@ -1082,7 +1082,7 @@ sub _grep_hash_element
                 my $max_key = "max_" . $ignore_key;
 
                 if (defined($ignore_map->{$min_key}) &&
-                    defined($ignore_map->{$max_key}) {
+                    defined($ignore_map->{$max_key})) {
 
                     my $minimum = $ignore_map->{$min_key};
                     my $maximum = $ignore_map->{$max_key};
