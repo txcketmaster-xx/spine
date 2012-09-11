@@ -183,6 +183,7 @@ sub _exec_apt
 
     # Eliminate interactive prompts from dpkg.
     $ENV{'DEBIAN_FRONTEND'} = 'noninteractive';
+    $ENV{'DEBIAN_HAS_FRONTEND'} = '0';
     $ENV{'APT_LISTBUGS_FRONTEND'} = 'none';
     $ENV{'APT_LISTCHANGES_FRONTEND'} = 'none';
 
