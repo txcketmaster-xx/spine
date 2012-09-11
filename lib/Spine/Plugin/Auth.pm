@@ -84,6 +84,8 @@ sub parse_auth_data
                 gid_map => { by_id => {}, by_name => {} },
                 user_map => {},
                 group_map => {},
+                ignore_map => { min_gid => undef, max_gid => undef,
+                                min_uid => undef, max_uid => undef},
                 auth_type => ''
                );
 
@@ -346,6 +348,30 @@ sub _parse_maps
 
     return 0 unless( -d $directory );
 
+    {
+        #populate the ignoremap
+        my $map_type = 'ignore_map';
+        my $keyfile = "$directory/$map";
+        my $keyname = basename($keyfile);
+        my $ignore_map = $auth_ref->{$map};
+        my $values = $c->read_keyfile($keyfile);
+
+        if defined($values) {
+            foreach my $value (@{$values}) {
+                my @list = split(m/:/,$value);
+                if (scalar(@list) != 2) {
+                    $c->error("Invalid line in $map: \"$value\"", 'crit');
+                    die('Bad data');
+                }
+                my ($k,$id) = @list;
+                $id = int($id)
+                if exists($ignore_map->{$k}) {
+                    $ignore_map->{$k} = $id
+                }
+            }
+        }
+
+    }
     for my $map_type (qw(uid gid)) {
         my $map = $map_type . '_map';
         my $by_id = $auth_ref->{$map}->{by_id};
@@ -928,11 +954,11 @@ sub emit_auth_data
     #
     my $retval = _grep_hash_element($c, \%running_uids, 'uid',
                                     $AUTH->{user_map}, CHECK_TYPE_INT,
-                                    'processes');
+                                    'processes', $AUTH->{ignore_map});
 
     $retval += _grep_hash_element($c, \%running_gids, 'gid',
                                   $AUTH->{group_map}, CHECK_TYPE_INT,
-                                  'processes');
+                                  'processes', $AUTH->{ignore_map});
 
     $retval += _grep_hash_element($c, \%cron_users, 'user', $AUTH->{user_map},
                                   CHECK_TYPE_STR, 'crontabs');
@@ -1031,7 +1057,7 @@ sub emit_auth_data
 #
 sub _grep_hash_element
 {
-    my ($c,$hash_ref,$type,$map_ref,$cmp_type,$what) = @_;
+    my ($c,$hash_ref,$type,$map_ref,$cmp_type,$what,$ignore_map) = @_;
     my $errors = 0;
     my $id_map = $AUTH->{$type . '_map'}->{by_id};
 
@@ -1049,7 +1075,26 @@ sub _grep_hash_element
                       . ' something other than int or string.', 'crit');
             return PLUGIN_FATAL;
         }
+        
+        if (defined($ignore_map)) {
+            foreach my $ignore_key (qw(gid uid')) {
+                my $min_key = "min_" . $ignore_key;
+                my $max_key = "max_" . $ignore_key;
 
+                if (defined($ignore_map->{$min_key}) &&
+                    defined($ignore_map->{$max_key}) {
+
+                    my $minimum = $ignore_map->{$min_key};
+                    my $maximum = $ignore_map->{$max_key};
+                  
+                    if ($id >= $minimum && $id <= $maximum ) {
+                        next;
+                    }
+                }
+            }
+        }
+                
+                
         unless ($installing) {
             $c->error(uc($type) . " $id owns $what, but is not"
                       . ' being installed on the system', 'err');
