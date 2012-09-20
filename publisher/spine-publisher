@@ -262,7 +262,7 @@ sub write_release_file
 sub gen_logmask
 {
     my $loglevel = shift;
-    my $logmask = 1 x ($loglevel + 1);
+    my $logmask = 1 x (($loglevel > 32 ? 32 : $loglevel) + 1);
     return oct("0b$logmask");
 }
 
