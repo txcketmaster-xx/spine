@@ -243,6 +243,31 @@ sub process_template
 	chmod $sb->mode, $output;
 	chown $sb->uid, $sb->gid, $output;
         unlink($template);
+
+        # if the template produced no output, and the user wants to,
+        # prune out "empty" destination files
+
+        # "empty" files are likely less than 0.25KB (although the template
+        # could emit a lot of whitespace)
+        if ((stat($output))[7] < 256)
+        {
+            if ($c->getval('prune_empty_output_files'))
+            {
+                # suck in file contents into a single scalar
+                local $/;
+                open INPUT, "<$output";
+                my $contents = <INPUT>;
+                close INPUT;
+
+                # if it's anything other than whitespace, chuck it
+                unless ($contents =~ m#\S#m)
+                {
+                    $c->cprint("pruning empty file $output", 3);
+                    unlink($output);
+                }
+            }
+        }
+
     }
 
     return PLUGIN_SUCCESS;
