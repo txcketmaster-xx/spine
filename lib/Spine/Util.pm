@@ -116,19 +116,26 @@ sub touch
 }
 
 
+# NOTE: this returns nothing if the entry passed in does not resolve,
+# either forward (if it's a hostname) or reverse (if it's an IP
+# address) It is debatable whether the latter behaviour is a bug or
+# a feature
 sub resolve_address
 {
     my $host = shift;
+    my $type = shift || 'ipv4';
 
     my $res  = Net::DNS::Resolver->new;
-    my $query = $res->search($host);
+    my $query = $res->search($host, (lc($type) eq 'ipv6' ? 'AAAA' : 'A')) ||
+                $res->search($host, 'PTR');
 
     if ($query)
     {
         foreach my $rr ($query->answer)
         {
-            next unless $rr->type eq "A";
-            return $rr->address;
+            return $host if $rr->type eq 'PTR';
+            return $rr->address if $rr->type eq 'A' and lc($type) eq 'ipv4';
+            return $rr->address if $rr->type eq 'AAAA' and lc($type) eq 'ipv6';
         }
     }
 }
