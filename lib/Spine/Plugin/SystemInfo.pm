@@ -335,8 +335,8 @@ sub get_cpu_info
             $physical_id = $1;
             next;
         }
-        if (m/^cpu_cores\s+:\s+(\d+)/i) {
-            my $cpu_cores = $1;
+        if (m/^cpu[ _]cores\s+:\s+(\d+)/i) {
+            $cpu_cores = $1;
             next;
         }
         if (m/^$/i) {
