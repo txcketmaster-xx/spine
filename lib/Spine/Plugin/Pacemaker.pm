@@ -75,7 +75,7 @@ sub configure_pacemaker {
         return PLUGIN_SUCCESS;
     }
 
-    # Get our commands.
+    # Get our commands. Again.
     get_cmdlines($c);
 
     # Get the master server in the cluster and the cluster status.

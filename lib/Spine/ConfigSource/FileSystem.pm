@@ -84,19 +84,9 @@ sub _check_path
 sub check_for_update
 {
     my $self = shift;
-    my $prev = shift;
 
-    my $new = $self->_check_release();
-
-    unless (defined($new)) {
-        return undef;
-    }
-
-    if ($prev < $new) {
-        return $new;
-    }
-
-    return $prev;
+    $self->{'Release'} = '(filetree)';
+    return $self->{'Release'};
 }
 
 
