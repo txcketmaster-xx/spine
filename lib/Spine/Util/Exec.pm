@@ -164,6 +164,9 @@ sub simple {
     
     # Anything other then zero is probably bad
     unless ($self->exitstatus() == 0) {
+        $self->{c}->error(join(' ', $self->{bin}, @{$self->{args}},
+            sprintf('returned %d:', $self->exitstatus()),
+            @result)) unless ($self->{quiet});
         return wantarray ? () : SPINE_FAILURE;
     }
     
