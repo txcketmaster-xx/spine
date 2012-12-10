@@ -49,6 +49,9 @@ sub fixup_overlay
 
     my $property_map = make_property_map($c);
     foreach my $file (keys %{ $property_map }) {
+        # Perl doesn't implement lchown/lchmod, and these attributes
+        # aren't of much use on symlinks anyhow.  Ignore them
+        next if -l "$tmpdir/$file";
         $c->print(3, $file);
         if (exists $property_map->{$file}->{'spine:ugid'}) {
             my ($uid, $gid) = @{ $property_map->{$file}->{'spine:ugid'} };
