@@ -1566,7 +1566,7 @@ sub _copy_skel_dir
     foreach my $entry (@entries) {
 
         if ( -d catfile($src, $entry)) {
-            mkdir_p(catfile($dst,$entry),755);
+            mkdir_p(catfile($dst,$entry), 0755);
             if($entry eq ".ssh") {
                 chown($uid,$gid,catfile($dst,$entry));
                 chmod(0700,catfile($dst,$entry));
