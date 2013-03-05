@@ -36,7 +36,7 @@ use IO::File;
 use Net::Domain qw(hostfqdn);
 use Storable;
 use Spine::ConfigFile;
-use Spine::Constants qw(:basic :plugin);
+use Spine::Constants qw(:basic :plugin DEFAULT_CONFIG);
 use Spine::Data;
 use Spine::Registry;
 use Spine::State;
@@ -51,48 +51,6 @@ use constant NODEFILE => '/etc/nodename';
 use constant LOCKFILE => '/var/run/spine-mgmt.lock';
 use constant DEFAULT_CONFIGFILE => '/etc/spine-mgmt/spine-mgmt.conf';
 use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
-
-use constant DEFAULT_CONFIG => {
-        spine => {
-            StateDir => '/var/spine-mgmt',
-            ConfigSource => 'ISO9660',
-            Profile => 'StandardPlugins',
-            Parser => 'pureTT',
-            SyslogIdent => 'spine-mgmt',
-            SyslogFacility => 'local3',
-            SyslogOptions => 'ndelay,pid',
-        },
-
-        DefaultPlugins => {
-            'DISCOVERY/populate' => 'DryRun SystemInfo',
-            'DISCOVERY/policy-selection' => 'DescendOrder',
-            'PARSE/complete' => 'Interpolate',
-        },
-
-        FileSystem => {
-            Path => '/software/spine/config'
-        },
-
-        ISO9660 => {
-            URL => 'http://repository/cgi-bin/rcrb.pl',
-            Destination => '/var/spine-mgmt/configballs',
-            Timeout => 5
-        },
-
-         StandardPlugins => {
-            PREPARE => 'PrintData Templates Overlay',
-            EMIT => 'Templates',
-            APPLY => 'Overlay RestartServices Finalize',
-            CLEAN => 'Overlay'
-         },
-
-        FirstRun => {
-            PREPARE => 'PrintData Templates Overlay',
-            EMIT => 'FirstRun Templates',
-            APPLY => 'Overlay Finalize',
-            CLEAN => 'Overlay',
-        }
-    };
 
 #
 # These are package level variables so that the various supporting modules and
@@ -173,18 +131,6 @@ if (defined($CONFIG->{spine}->{PluginPath}))
 {
     unshift @INC, split(/:/, $CONFIG->{spine}->{PluginPath});
 }
-
-# Run openlog() once so any plugin can use it with the user-configured 
-# facility, options, and program name (or the defaults). 
-openlog($CONFIG->{spine}->{SyslogIdent} ? 
-            $CONFIG->{spine}->{SyslogIdent} : 
-            DEFAULT_CONFIG->{spine}->{SyslogIdent}, 
-        $CONFIG->{spine}->{SyslogFacility} ? 
-            $CONFIG->{spine}->{SyslogFacility} : 
-            DEFAULT_CONFIG->{spine}->{SyslogFacility}, 
-        $CONFIG->{spine}->{SyslogOptions} ? 
-            $CONFIG->{spine}->{SyslogOptions} : 
-            DEFAULT_CONFIG->{spine}->{SyslogOptions}); 
 
 #
 # If specific actions were requested, we don't use our profile,

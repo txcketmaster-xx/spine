@@ -29,7 +29,7 @@ use File::Basename;
 use File::Spec::Functions;
 use IO::Dir;
 use IO::File;
-use Spine::Constants qw(:basic);
+use Spine::Constants qw(:basic DEFAULT_CONFIG);
 use Spine::Registry;
 use Spine::Util;
 use Sys::Syslog;
@@ -92,6 +92,20 @@ sub new {
     unless ($data_object->_data() == SPINE_SUCCESS) {
         $data_object->{c_failure} = 1;
     }
+
+    # Run openlog() once so any plugin can use it with the user-configured
+    # facility, options, and program name (or the defaults).
+    my $CONFIG = $args{config};
+    openlog($CONFIG->{spine}->{SyslogIdent} ?
+                $CONFIG->{spine}->{SyslogIdent} :
+                DEFAULT_CONFIG->{spine}->{SyslogIdent},
+            $CONFIG->{spine}->{SyslogFacility} ?
+                $CONFIG->{spine}->{SyslogFacility} :
+                DEFAULT_CONFIG->{spine}->{SyslogFacility},
+            $CONFIG->{spine}->{SyslogOptions} ?
+                $CONFIG->{spine}->{SyslogOptions} :
+                DEFAULT_CONFIG->{spine}->{SyslogOptions});
+
     return $data_object;
 }
 
@@ -1041,7 +1055,7 @@ sub cprint
     {
 	print $self->{c_label}, ": $msg\n";
 	syslog("info", "$msg")
-            if ( not $self->{c_dryrun} or $log_to_syslog );
+            if ( $log_to_syslog );
     }
 }
 
@@ -1051,11 +1065,8 @@ sub print
     my $self = shift;
     my $lvl = shift || 0;
 
-    if ($lvl <= $self->{c_verbosity})
-    {
-#	print $self->{c_label}, '[', join('::', caller()), ']: ', @_, "\n";
-	print $self->{c_label}, ': ', @_, "\n";
-    }
+    my $msg = join(' ', @_);
+    $self->cprint($msg, $lvl)
 }
 
 
@@ -1064,9 +1075,7 @@ sub log
     my $self = shift;
     my $msg = shift;
 
-    if (not $self->{c_dryrun}) {
-        syslog('info', "$msg");
-    }
+    syslog('info', "$msg");
 }
 
 
@@ -1088,8 +1097,8 @@ sub error
 	print STDERR $self->{c_label} . ": \[$level\] $msg\n";
     }
 
-    syslog("$level", "$msg")
-        unless $self->{c_dryrun};
+    syslog("$level", "$msg");
+
     push(@{$self->{c_errors}}, $msg);
 }
 
