@@ -11,7 +11,7 @@ KEY_ID=${KEY_ID:-${1:?set \$KEY_ID in your environment or pass PGP id on the com
 
 set -ex
 
-export SERIES="oneiric precise"
+export SERIES="precise"
 export DEBUILD_TGZ_CHECK="no"
 
 MAIN_VERSION=2.1.1
@@ -24,5 +24,5 @@ for dist in $SERIES ; do
 
     debuild -S -k${KEY_ID}
 
-    (cd .. && dput ppa:metacloud/stable spine_${RELEASE}_source.changes)
+    (cd .. && dput ppa:metacloud/devel spine_${RELEASE}_source.changes)
 done
