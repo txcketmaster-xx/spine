@@ -82,7 +82,7 @@ sub apt_exec
     my ($c, $apt_func, $apt_func_args, $run_test) = @_;
     
     my @aptget_args = ();
-    push @aptget_args, '--option Dpkg::Options::=--force-confold';
+    push @aptget_args, '--option Dpkg::Options::=--force-confold --force-yes';
 
     if ($DRYRUN)
     {
