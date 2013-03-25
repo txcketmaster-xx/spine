@@ -115,6 +115,8 @@ sub apt_exec
 
         foreach my $file ( ( [ '--option Dir::Etc::parts',
                                'apt.conf.d' ],
+                             [ '--option Dir::Etc::preferencesparts',
+                               'preferences.d'],
                              [ '--option Dir::Etc::sourceparts',
                                'sources.list.d'],
                              [ '--option Dir::Etc::sourcelist',
