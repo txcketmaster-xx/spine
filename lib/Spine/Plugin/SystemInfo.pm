@@ -106,12 +106,12 @@ sub get_wwn_id
         {
             $c->{c_devices}->{label}->{$label} = [];
         }
-        push @{$c->{c_devices}->{label}->{$label}}, $dev;
+        push @{$c->{c_devices}->{label}->{$label}}, "$dev$part";
         if (! exists $c->{c_devices}->{uuid}->{$uuid})
         {
             $c->{c_devices}->{uuid}->{$uuid} = [];
         }
-        push @{$c->{c_devices}->{uuid}->{$uuid}}, $dev;
+        push @{$c->{c_devices}->{uuid}->{$uuid}}, "$dev$part";
     }
 }
 

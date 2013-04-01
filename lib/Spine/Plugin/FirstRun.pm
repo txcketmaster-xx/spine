@@ -80,15 +80,22 @@ sub apply_multipath
     # Need the partition number of the bootdev.
     my $rootdev = $c->getval('c_rootdev');
     my $part = $rootdev;
-    $part =~ s:^/dev/sd(\w+)(\d+)$:$2:g;
+    my $dev = $rootdev;
+    $dev =~ s:^/dev/(sd\w+)\d+$:$1:g;
+    $part =~ s:^/dev/sd\w+(\d+)$:$1:g;
+    my $uuid = $c->{c_devices}->{dev}->{$dev}->{$part}->{uuid};
 
     $c->print(2, "updating grub.cfg to support multipath");
     open (INFILE , "</boot/grub/grub.cfg");
     open (OUTFILE , ">$tmpdir/boot/grub/grub.cfg");
     foreach my $line (<INFILE>)
     {
-        $line =~ s:(.*)set root=(.+),(msdos\d+)(.+):$1set root='\(/dev/mapper/rootdev,$3\)':g;
-        $line =~ s:(.*)$rootdev(.*):$1/dev/mapper/rootdev-part$part$2:g;
+        $line =~ s:^(.*)set root=(.+),(msdos\d+)(.+)$:$1set root='\(/dev/mapper/rootdev,$3\)':g;
+        foreach my $device (@{$c->{c_devices}->{uuid}->{$uuid}})
+        {
+            $line =~ s:^(.*)/dev/$device(.*)$:$1/dev/mapper/rootdev-part$part$2:g;
+        }
+        $line =~ s:^(.*)root=UUID=[\w-]+(.*)$:$1root=/dev/mapper/rootdev-part$part$2:g;
         print OUTFILE $line;
     }
     close (INFILE);
