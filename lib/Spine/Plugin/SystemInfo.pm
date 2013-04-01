@@ -36,6 +36,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             version => $VERSION,
             hooks => { 'DISCOVERY/populate' => [ { name => 'sysinfo',
                                                    code => \&get_sysinfo },
+                                                 { name => 'wwn_id',
+                                                   code => \&get_wwn_id },
                                                  { name => 'netinfo',
                                                    code => \&get_netinfo },
                                                  { name => 'cpu_architecture',
@@ -59,6 +61,59 @@ use File::Spec::Functions;
 use IO::File;
 use NetAddr::IP;
 use Spine::Util qw(resolve_address);
+
+sub get_wwn_id
+{
+    my $c = shift;
+    $c->cprint('determining disk IDs', 3);
+
+    my @devices = glob("/dev/sd?");
+    foreach my $file (@devices)
+    {
+        my (undef, undef, $dev) = split(/\//, $file);
+        my ($wwn) = simple_exec(c     => $c,
+                                exec  => '/lib/udev/scsi_id',
+                                args  => [ "-g", "-u", $file ],
+                                inert => 1);
+        chomp $wwn;
+        $c->{c_devices}->{dev}->{$dev}->{wwn}=$wwn;
+        if (! exists $c->{c_devices}->{wwn}->{$wwn})
+        {
+            $c->{c_devices}->{wwn}->{$wwn} = [];
+        }
+        push @{$c->{c_devices}->{wwn}->{$wwn}}, $dev;
+    }    
+
+    my @devices = glob("/dev/sd*");
+    my @output = simple_exec(c     => $c,
+                             exec  => 'blkid',
+                             args  => [ @devices ],
+                             inert => 1);
+    foreach my $line (@output)
+    {
+        my ($dev, $label, $uuid, $type) = split(' ', $line);
+        $dev =~ s|^/dev/(sd.+):$|$1|g;
+        $label =~ s/^LABEL="(.*)"$/$1/g;
+        $uuid =~ s/^UUID="(.+)"$/$1/g;
+        $type =~ s/^TYPE="(.+)"$/$1/g;
+        my $part = $dev;
+        $part =~ s/^sd.+(\d+)$/$1/g;
+        $dev =~ s/^(sd.+)\d+$/$1/g;
+        $c->{c_devices}->{dev}->{$dev}->{$part}->{label}=$label;
+        $c->{c_devices}->{dev}->{$dev}->{$part}->{uuid}=$uuid;
+        $c->{c_devices}->{dev}->{$dev}->{$part}->{type}=$type;
+        if (! exists $c->{c_devices}->{label}->{$label})
+        {
+            $c->{c_devices}->{label}->{$label} = [];
+        }
+        push @{$c->{c_devices}->{label}->{$label}}, $dev;
+        if (! exists $c->{c_devices}->{uuid}->{$uuid})
+        {
+            $c->{c_devices}->{uuid}->{$uuid} = [];
+        }
+        push @{$c->{c_devices}->{uuid}->{$uuid}}, $dev;
+    }
+}
 
 sub get_sysinfo
 {
@@ -401,6 +456,7 @@ sub get_hardware_platform
                                         inert => 1);
         return PLUGIN_FATAL unless ($? == 0);
 
+        chomp $product_name;
         if ($product_name eq '') 
         {
             $c->{c_hardware_platform} = 'UNKNOWN';

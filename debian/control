@@ -11,6 +11,7 @@ Package: spine
 Architecture: any
 Depends: ${shlibs:Depends},
  ${misc:Depends},
+ libquota-perl,
  libnet-dns-perl,
  libtemplate-perl,
  libyaml-syck-perl,
@@ -22,7 +23,9 @@ Depends: ${shlibs:Depends},
  libfile-finder-perl,
  libxml-simple-perl,
  chkconfig,
- dialog
+ dialog,
+ udev,
+ util-linux
 Description: Configuration management system.
 
 
