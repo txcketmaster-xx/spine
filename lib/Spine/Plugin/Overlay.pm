@@ -189,7 +189,7 @@ sub apply_overlay
     $DRYRUN = $c->getval('c_dryrun');
     @ENTRIES = ();
     my $profile = $c->{'c_config'}->{'spine'}->{'Profile'};
-    my $NOSAVE = $c->{'c_config'}->{$profile}->{'APPLY'} =~ m/RestartServices/;
+    my $NOSAVE = $c->{'c_config'}->{$profile}->{'APPLY'} !~ m/RestartServices/;
     $NOSAVE = 1 if $DRYRUN;
 
     if ($overlay_root eq '')
