@@ -74,14 +74,18 @@ sub get_wwn_id
         my ($wwn) = simple_exec(c     => $c,
                                 exec  => '/lib/udev/scsi_id',
                                 args  => [ "-g", "-u", $file ],
+                                quiet => 1,
                                 inert => 1);
-        chomp $wwn;
-        $c->{c_devices}->{dev}->{$dev}->{wwn}=$wwn;
-        if (! exists $c->{c_devices}->{wwn}->{$wwn})
+        if ($? == 0)
         {
-            $c->{c_devices}->{wwn}->{$wwn} = [];
+            chomp $wwn;
+            $c->{c_devices}->{dev}->{$dev}->{wwn}=$wwn;
+            if (! exists $c->{c_devices}->{wwn}->{$wwn})
+            {
+                $c->{c_devices}->{wwn}->{$wwn} = [];
+            }
+            push @{$c->{c_devices}->{wwn}->{$wwn}}, $dev;
         }
-        push @{$c->{c_devices}->{wwn}->{$wwn}}, $dev;
     }    
 
     my @devices = glob("/dev/sd*");
