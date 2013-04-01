@@ -26,7 +26,7 @@ use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE,
-        $TMPDIR, @ENTRIES, $EXCLUDES, $NOSAVE);
+        $TMPDIR, @ENTRIES, $EXCLUDES);
 
 $VERSION = sprintf("%d", q$Revision: 267 $ =~ /(\d+)/);
 $DESCRIPTION = "Plugin for creating and processing overlays.";
@@ -41,10 +41,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                        CLEAN =>   [ { name => 'clean_overlay',
                                       code => \&clean_overlay } ]
                      },
-            cmdline => { options => { 'keep-overlay' => \$DONTDELETE,
-                                      'dont-save-restart-deps' => \$NOSAVE } }
+            cmdline => { options => { 'keep-overlay' => \$DONTDELETE } }
           };
-
 
 use Digest::MD5;
 use File::Find;
@@ -96,7 +94,7 @@ sub build_overlay
 
     my $descend_order = $c->getvals("c_descend_order");
     unless ($descend_order)
-	{
+    {
         $c->error("nothing in the descend order so no overlays to process",
             'warn');
         return PLUGIN_SUCCESS;
@@ -190,6 +188,9 @@ sub apply_overlay
     $TMPDIR = $tmpdir;
     $DRYRUN = $c->getval('c_dryrun');
     @ENTRIES = ();
+    my $profile = $c->{'c_config'}->{'spine'}->{'Profile'};
+    my $NOSAVE = $c->{'c_config'}->{$profile}->{'APPLY'} =~ m/RestartServices/;
+    $NOSAVE = 1 if $DRYRUN;
 
     if ($overlay_root eq '')
     {
@@ -214,7 +215,7 @@ sub apply_overlay
           $tmpdir);
 
     my %entries;
-    unless ($DRYRUN || $NOSAVE)
+    unless ($NOSAVE)
     {
         my $dbfile = catfile($c->{c_config}->{spine}->{StateDir},
             'restart_deps.db');
