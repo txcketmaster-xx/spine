@@ -61,6 +61,7 @@ sub tweak_startup
     # Action specific values
     my $stop = $c->getval('tweakstartup_execstop');
     my $no_start = $c->getval('tweakstartup_no_exec_start');
+    my $no_stop = $c->getvals('tweakstartup_no_exec_stop');
     my $services_ignore = $c->getvals('tweakstartup_ignore');
     my $services_on = $c->getvals('tweakstartup_startup');
 
@@ -143,7 +144,8 @@ sub tweak_startup
         }
 
         # Stop any services that are not supposed to be running.
-        if (($conf_status eq 'off') and ($stop) and ($current_status eq 'on'))
+        if (($conf_status eq 'off') and ($stop) and ($current_status eq 'on')
+                and (not grep(/$service/, @{$no_stop})))
         {
             $c->cprint("stopping $service", 2);
             exec_initscript($c, $service, 'stop', 0, 0);
