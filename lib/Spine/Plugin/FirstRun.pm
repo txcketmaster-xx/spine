@@ -30,7 +30,7 @@ use Quota;
 our ($VERSION, $DESCRIPTION, $MODULE);
 
 $VERSION = sprintf("%d", q$Revision: 240 $ =~ /(\d+)/);
-$DESCRIPTION = "Spine::Plugin skeleton";
+$DESCRIPTION = "First Run Plugin";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
