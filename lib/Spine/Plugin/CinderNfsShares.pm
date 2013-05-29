@@ -76,7 +76,7 @@ sub cinder_nfs_shares {
                 my $backend = $default_backend;
                 my $nfs_path = $element;
                 if ($element =~ m/.*\|.*/) {
-                    ($backend, $nfs_path) = split( /|/, $element);
+                    ($backend, $nfs_path) = split( /\|/, $element);
                 }
                 open (OUTFILE, ">>$path/$backend.conf");
                 print OUTFILE "$nfs_path\n";
