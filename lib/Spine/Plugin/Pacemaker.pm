@@ -21,6 +21,7 @@ use strict;
 
 package Spine::Plugin::Pacemaker;
 use base qw(Spine::Plugin);
+use File::Temp qw(:mktemp);
 use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $FORCE);
@@ -47,8 +48,11 @@ use Text::Diff;
 
 # Defaults for the various cmd line programs we need.
 my $CRM = '/usr/sbin/crm';
+my $CRMADMIN = '/usr/sbin/crmadmin';
+my $CRM_NODE = '/usr/sbin/crm_node';
 my $CRM_ATTR = '/usr/sbin/crm_attribute';
 my $CRM_SHADOW = '/usr/sbin/crm_shadow';
+my $CRM_SIMULATE = '/usr/sbin/crm_simulate';
 my $CAT = '/bin/cat';
 my $PTEST = '/usr/sbin/ptest';
 my $CRM_VERIFY = '/usr/sbin/crm_verify';
@@ -75,7 +79,9 @@ sub configure_pacemaker {
     if ($c->getval('pacemaker_config_dir')) {
         $conf_dir = $c->getval('pacemaker_config_dir');
     }
-    if ($c->getval('c_dryrun')) {
+    my $dryrun = 0;
+    $dryrun = $c->getval('c_dryrun');
+    if ($dryrun) {
         $conf_dir = $c->getval('c_tmpdir') . $conf_dir;
     }
     my @config_files = ();
@@ -93,7 +99,9 @@ sub configure_pacemaker {
     get_cmdlines($c);
 
     # Get the master server in the cluster and the cluster status.
-    my ($status, $master, $cluster_status) = get_status($c);
+    my ($status, $master) = get_master($c);
+    return PLUGIN_FATAL unless ($status == 0);
+    my ($status, $cluster_status) = get_cluster_status($c);
     return PLUGIN_FATAL unless ($status == 0);
 
     # Figure out if we are the master node.
@@ -104,10 +112,11 @@ sub configure_pacemaker {
     }
 
     # Parse the cluster status.
-    $c->print(1, "cluster status is $cluster_status");
-    if (! ($cluster_status =~ /^partition with quorum$/) and (! $FORCE)) {
+    if (! ($cluster_status == 1) and (! $FORCE)) {
         $c->print(1, 'cluster status is not OK, skipping');
         return PLUGIN_SUCCESS;
+    } else {
+        $c->print(1, "cluster status is OK");
     }
 
     # Warn us if we are in override mode.
@@ -149,10 +158,14 @@ sub configure_pacemaker {
     if ($c->getval('pacemaker_shadow_name')) {
         $shadow_name = $c->getval('pacemaker_shadow_name');
     }
-    my $shadow_file = "/var/lib/heartbeat/crm/shadow.$shadow_name";
-    if ( -f $shadow_file ) {
-        $c->error("existing shadow config found at $shadow_file", 'error');
-        return PLUGIN_FATAL;
+    my @shadow_files = ();
+    push(@shadow_files, "/var/lib/heartbeat/crm/shadow.$shadow_name");
+    push(@shadow_files, "/var/lib/pacemaker/cib/shadow.$shadow_name");
+    foreach my $shadow_file (@shadow_files) {
+        if ( -f $shadow_file ) {
+            $c->error("existing shadow config found at $shadow_file", 'err');
+            return PLUGIN_FATAL;
+        } 
     }
 
     # Capture the old config so we can diff it.
@@ -186,29 +199,41 @@ sub configure_pacemaker {
         }
     }
 
-    # Now we need to load each file into the configuration.
+    # For performance reasons we create a single config file that we load.
+    my $tmpfile = mktemp('/tmp/pacemaker.XXXXXX');
+    open (OUTFILE , ">$tmpfile");
     foreach my $file (@config_files) {
-        my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 0, $CRM,
-                                         "configure load update $file");
-        # Some errors are only reported in stdout/stderr no return status.
-        if (($status != 0) 
-                or (scalar(@stdout) != 0) or (scalar(@stderr) != 0)) {
-
-            if ($status != 0) {
-                $c->error("\"$CRM configure load update $file\""
-                            . "returned $status", 'err');
-            } else {
-                $c->error("\"$CRM configure load update $file\""
-                            . "returned an error", 'err');
-            }
-            foreach my $line (@stdout, @stderr) {
-                next if ($line =~ m/^\s*$/);
-                $c->error($line, 'err');
-            }
-
-            delete_shadow($c, $shadow_name);
-            return PLUGIN_FATAL;
+        open (INFILE , "<$file");
+        foreach my $line (<INFILE>) {
+            print OUTFILE $line;
         }
+        close (INFILE);
+    }
+    close (OUTFILE);
+
+    $c->print(2, 'Generating new cluster configuration');
+    # Now we need to load each file into the configuration.
+    my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 0, $CRM,
+                                     "configure load update $tmpfile");
+    _exec_cmd($c, 1, 0, '/bin/rm', $tmpfile);
+    # Some errors are only reported in stdout/stderr no return status.
+    if (($status != 0) 
+            or (scalar(@stdout) != 0) or (scalar(@stderr) != 0)) {
+
+        if ($status != 0) {
+            $c->error("\"$CRM configure load update $tmpfile\""
+                        . " returned $status", 'err');
+        } else {
+            $c->error("\"$CRM configure load update $tmpfile\""
+                        . " returned an error", 'err');
+        }
+        foreach my $line (@stdout, @stderr) {
+            next if ($line =~ m/^\s*$/);
+            $c->error($line, 'err');
+        }
+
+        delete_shadow($c, $shadow_name);
+        return PLUGIN_FATAL;
     }
 
     # Now capture the new config so we can diff it with the old one.
@@ -238,48 +263,95 @@ sub configure_pacemaker {
         $c->print(2, "Changes to config are too large to print("
                      . "$size >= $max_diff_lines lines)");
     } else {
+        $c->print(2, 'Configuration diff:');
         foreach my $line (@diff) {
             $c->cprint("    $line", 2, 0) if ($line =~ /^[+-]/);
         }
     }
 
+    # Now that the config is compiled we need to determine what version we are
+    # running and check the config.
+    my $version = '0';
+    ($status, $version) = get_version($c);
+    if ($status != 0) {
+        # get_version already parsed the output and logged
+        delete_shadow($c, $shadow_name);
+        return PLUGIN_FATAL;
+    }
+
     # Lets do a final verification of the new config.
     # Return status of 0 is all good, 1 is warnings (like removing a resource)
     # and 2 means errors.
+    $c->print(2, 'Verifying new cluster configuration');
     my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 0, $CRM_VERIFY,
                                      '-L -V');
     if ($status != 0) {
         if ($status == 2) {
             # Hard error, parse the output and exit with an error.
             $c->error('crm_verify returned an error', 'err');
-            parse_output($c, 'crm_verify', 'err', (@stdout, @stderr));
+            parse_output($c, 'crm_verify', 'err', $version, (@stdout, @stderr));
             delete_shadow($c, $shadow_name);
             return PLUGIN_FATAL;
         } elsif ($status == 1) {
             # There was a warning.
             $c->error('crm_verify returned a warning', 'warn');
-            parse_output($c, 'crm_verify', 'warn', (@stdout, @stderr));
+            parse_output($c, 'crm_verify', 'warn', $version, (@stdout, @stderr));
         } else {
             # Unknown status.
             $c->error("crm_verify returned unknown status $status", 'err');
-            parse_output($c, 'crm_verify', 'err', (@stdout, @stderr));
+            parse_output($c, 'crm_verify', 'err', $version, (@stdout, @stderr));
             delete_shadow($c, $shadow_name);
             return PLUGIN_FATAL;
         }
     }
 
     # OK print or state transitions
-    my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 1, $PTEST,
-                                     '--live-check -VVV -S');
-    if ($status != 0) {
-        delete_shadow($c, $shadow_name);
-        return PLUGIN_FATAL;
+    use feature "switch";
+    $c->print(2, 'Cluster Action Simulation:');
+    given ($version) {
+        when (/^1\.1\.6$/) {
+            # crm_simulate doesn't work in 1.1.6 so we use ptest instead.
+            my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 1, $PTEST,
+                                             '--live-check -VVV -S');
+            if ($status != 0) {
+                $c->error("ptest returned $status", "err");
+                delete_shadow($c, $shadow_name);
+                return PLUGIN_FATAL;
+            }
+            parse_output($c, 'ptest', 'info', $version, (@stdout, @stderr));
+        }
+        default {
+            my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 1, $CRM_SIMULATE,
+                                             '-S -L');
+            if ($status != 0) {
+                $c->error("crm_simulate returned $status", "err");
+                delete_shadow($c, $shadow_name);
+                return PLUGIN_FATAL;
+            }
+            # We only want to print certain sections
+            my $capture = 0;
+            foreach my $line (@stdout) {
+                # If the line is the start of a section we care about go into
+                # capture mode.
+                if (($line =~ m/^Transition\sSummary:$/i) || 
+                   ($line =~ m/^Executing\scluster\stransition:$/i)) {
+                   $capture = 1;
+                }
+                if ($capture) {
+                    # If we are are in capture mode, log the line.
+                    chomp $line;
+                    $c->print(2, " $line");
+                    # If the line is a blank line its the end of a section so
+                    # exit capture mode.
+                    if ($line =~ m/^$/i) {
+                        $capture = 0;
+                    }
+                }
+            }
+        }
     }
-    parse_output($c, 'ptest', 'info', (@stdout, @stderr));
 
     # Now we get to actually load the config.
-    my $dryrun = 0;
-    $dryrun = $c->getval('c_dryrun');
     if (! $dryrun) {
         $c->print(1, 'commiting cluster configuration');
         my ($status, @stdout, @stderr) = _exec_cmd($c, 0, 1, $CRM_SHADOW,
@@ -324,23 +396,53 @@ sub get_cmdlines {
     }
 }
 
-sub get_status {
+sub get_version {
     my $c = shift;
-
-    # Call crm status
-    my ($status, @stdout, @stderr) = _exec_cmd($c, 1 , 1, $CRM, 'status');
-
-    # Parse the output of crm status looking for our DC and cluster status.
-    my $master = '';
-    my $cluster_status = '';
+    my $status = 0;
+    my ($status, @stdout, @stderr) = _exec_cmd($c, 1, 0, $CRM_VERIFY,
+                                               '--version');
+    my $version = 0;
+    if ($status != 0) {
+        $c->error('crm_verify --version returned an error', 'err');
+        parse_output($c, 'crm_verify', 'err', $version, (@stdout, @stderr));
+        return ($status, $version);
+    }
     foreach my $line (@stdout) {
-        next unless ($line =~ m/^Current\sDC:\s(.+)\s-\s(.+)/i);
-        $master = $1;
-        $cluster_status = $2;
+        next unless ($line =~ m/^Pacemaker\s(.+)/i);
+        $version = $1;
         last;
     }
+    return ($status, $version);
+}
 
-    return ($status, $master, $cluster_status);
+sub get_master {
+    my $c = shift;
+    my $status = 0;
+    # Call crm status
+    my ($status, @stdout, @stderr) = _exec_cmd($c, 1 , 1, $CRMADMIN, '-D -q');
+
+    # Parse the output to get the current DC.
+    my $master = '';
+    foreach my $line (@stdout) {
+        next unless ($line =~ m/^Designated\sController\sis:\s(.+)/i);
+        $master = $1;
+        last;
+    }
+    return ($status, $master);
+}
+
+sub get_cluster_status {
+    my $c = shift;
+    my $status = 0;
+    # Call crm status
+    my ($status, @stdout, @stderr) = _exec_cmd($c, 1 , 1, $CRM_NODE, '-q');
+
+    # Parse the output to get the current DC.
+    my $cluster_status = '0';
+    if ($status == 0) {
+        $cluster_status = $stdout[0];
+    }
+    return ($status, $cluster_status);
 }
 
 sub get_attr {
@@ -400,14 +502,31 @@ sub parse_output {
     my $c = shift;
     my $tag = shift;
     my $status = shift;
+    my $version = shift;
     my @data = @_;
 
     foreach my $line (@data) {
-        if ($line =~ m|^\w+\[\d+\]:\s\d{4}/\d{2}/\d{2}_\d{2}:\d{2}:\d{2}\s\w+:\s(.*)$|) {
-            $c->error("$tag: $1", $status);
-        } else {
-            # No clue what this line is, print it.
-            $c->error("$tag: $line", $status);
+        use feature "switch";
+        given ($version) {
+            when (/^1\.1\.6$/) {
+                if ($line =~ m|^\w+\[\d+\]:\s\d{4}/\d{2}/\d{2}_\d{2}:\d{2}:\d{2}\s\w+:\s(.*)$|) {
+                    $c->error("$tag: $1", $status);
+                } else {
+                    # No clue what this line is, print it.
+                    $c->error("$tag: $line", $status);
+                }
+            }
+            when (/^1\.1\.9$/) {
+                # There is a bug in 1.1.9 that prints these lines incorrectly
+                if ($line =~ m|crit: get_timet_now|) {
+                    next;
+                }
+                $c->error("$tag: $line", $status);
+            }
+            default {
+                # No clue what it is so just print it.
+                $c->error("$tag: $line", $status);
+            }
         }
     }
 }
