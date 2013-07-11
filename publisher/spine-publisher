@@ -323,10 +323,7 @@ sub check_or_create_fifo
 sub is_int
 {
     my $value = shift;
-    if ($value =~ m/^\d+/)
-    { return 1 }
-
-    return 0;
+    return int($value) eq $value && $value >= 0;
 }
 
 sub rm_trail_slash
