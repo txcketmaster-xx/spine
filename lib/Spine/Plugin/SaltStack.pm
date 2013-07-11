@@ -29,10 +29,15 @@ $MODULE = { author      => 'nic@submedia.net',
             version     => $VERSION,
             hooks       => { APPLY => [ { name => 'saltstack',
                                           code => \&saltstack } ],
+                             EMIT => [ { name => 'overlay_metadata',
+                                         code => \&overlay_metadata } ],
                            },
           };
 
 use Spine::Util qw(simple_exec);
+use File::Basename;
+use File::Spec;
+use File::Temp;
 
 sub saltstack
 {
@@ -70,5 +75,83 @@ sub saltstack
     return PLUGIN_SUCCESS;
 }
 
+
+# A purpose-built plugin that uses saltstack to fix-up file
+# ownerships/permissions/types in the temp overlays.  Required for
+# setups like FileTree where the filesystem is mounted nodev, or where
+# the configballs don't have proper ownerships applied.
+sub overlay_metadata
+{
+    my $c = shift;
+    my $overlay_dir = $c->getval('c_tmpdir');
+
+    # emit a config file that points things in the right direction
+    my $dir = File::Temp->newdir();
+    $c->print(3, "using temp directory $dir");
+    open(my $cfg, '>', File::Spec->catfile($dir->dirname, 'minion')) or
+        return PLUGIN_ERROR;
+    print $cfg <<EOF_MINION_CONFIG;
+file_client: local
+root_dir: $dir
+log_level: warning
+output: yaml
+state_verbose: False
+file_roots:
+  base:
+    - $dir
+EOF_MINION_CONFIG
+    close($cfg);
+
+    # unserialize the metadata into a somewhat cogent data structure
+    my %metadata;
+    foreach my $line (@{ $c->getvals('spine_file_metadata') }) {
+        chomp($line);
+        $c->print(3, "candidate: $line");
+        my ($path, $owner, $group, $mode) = split(':', $line);
+        $path = File::Spec->catdir($overlay_dir, $path);
+        next unless -e $path;
+        $c->print(3, "found $path");
+        $metadata{$path} = { 'owner' => 0, 'group' => 0, 'mode' => 0644 };
+        $metadata{$path}->{'owner'} = $owner if $owner;
+        $metadata{$path}->{'group'} = $group if $group;
+        $metadata{$path}->{'mode'} = oct($mode) if $mode;
+        $metadata{$path}->{'is_dir'} = (-d $path) ? 1 : 0;
+        $metadata{$path}->{'mode'} |= 0111 if $metadata{$path}->{'is_dir'};
+    }
+
+    # emit an SLS describing all the things needing fixing
+    my $sls = File::Temp->new(DIR => $dir, UNLINK => 0, SUFFIX => '.sls');
+    foreach my $path (keys %metadata) {
+        my $owner = $metadata{$path}->{'owner'};
+        my $group = $metadata{$path}->{'group'};
+        my $mode = sprintf "%#o", $metadata{$path}->{'mode'};
+        print $sls <<EOF_STATE;
+# can't use the file state because the UGID might not be setup yet.
+# this is actually simpler.
+chmod -f $mode $path:
+  cmd.wait:
+    - cwd: /
+    - unless: test -h $path
+chmod -h -f $owner:$group $path:
+  cmd.wait:
+    - cwd: /
+
+EOF_STATE
+    }
+    close($sls);
+    my ($state,) = fileparse($sls, '.sls');
+
+    # the money shot
+    my @res = simple_exec(merge_error => 1,
+                          exec        => 'salt-call',
+                          args        => ["--config-dir=$dir",
+                                          'state.sls',
+                                          $state],
+                          c           => $c,
+                          quiet       => 0,
+                          inert       => 1);
+    $c->print(3, @res);
+    return PLUGIN_ERROR if ($? > 0);
+}
 
 1;
