@@ -114,9 +114,11 @@ EOF_MINION_CONFIG
         $metadata{$path} = { 'owner' => 0, 'group' => 0, 'mode' => 0644 };
         $metadata{$path}->{'owner'} = $owner if $owner;
         $metadata{$path}->{'group'} = $group if $group;
-        $metadata{$path}->{'mode'} = oct($mode) if $mode;
-        $metadata{$path}->{'is_dir'} = (-d $path) ? 1 : 0;
-        $metadata{$path}->{'mode'} |= 0111 if $metadata{$path}->{'is_dir'};
+        if ($mode) {
+            $metadata{$path}->{'mode'} = oct($mode);
+        } else {
+            $metadata{$path}->{'mode'} |= 0111 if -d $path;
+        }
     }
 
     # emit an SLS describing all the things needing fixing
@@ -129,11 +131,11 @@ EOF_MINION_CONFIG
 # can't use the file state because the UGID might not be setup yet.
 # this is actually simpler.
 chmod -f $mode $path:
-  cmd.wait:
+  cmd.run:
     - cwd: /
     - unless: test -h $path
-chmod -h -f $owner:$group $path:
-  cmd.wait:
+chown -h -f $owner:$group $path:
+  cmd.run:
     - cwd: /
 
 EOF_STATE
