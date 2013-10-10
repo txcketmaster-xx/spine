@@ -61,7 +61,6 @@ our (@TEMPLATES, @IGNORE, $TMPDIR);
 sub process_templates
 {
     my $c = shift;
-    my $rval = 0;
     my $tmpdir = $c->getval('c_tmpdir');
     my $ignore = $c->getvals("templates_ignore");
 
@@ -92,19 +91,11 @@ sub process_templates
     {
         my $status = process_template($c, $template);    
         if ($status != PLUGIN_SUCCESS)
-        {
-            if ($status == PLUGIN_FATAL)
-            {
-                return PLUGIN_FATAL;
-            }
-            else
-            {
-                $rval++;
-            }
+            return PLUGIN_FATAL;
         }
     }
 
-    return $rval ? PLUGIN_ERROR : PLUGIN_SUCCESS;
+    return PLUGIN_SUCCESS;
 }
 
 
