@@ -91,6 +91,7 @@ sub process_templates
     {
         my $status = process_template($c, $template);    
         if ($status != PLUGIN_SUCCESS)
+        {
             return PLUGIN_FATAL;
         }
     }
