@@ -38,6 +38,8 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                       code => \&build_overlay } ],
                        APPLY =>   [ { name => 'apply_overlay',
                                       code => \&apply_overlay } ],
+                       EMIT  =>   [ { name => 'overlay_perms',
+                                      code => \&overlay_perms } ],
                        CLEAN =>   [ { name => 'clean_overlay',
                                       code => \&clean_overlay } ]
                      },
@@ -55,6 +57,7 @@ use Spine::Util qw(simple_exec do_rsync mkdir_p octal_conv uid_conv gid_conv);
 use Text::Diff;
 BEGIN { @AnyDBM_File::ISA = qw(DB_File GDBM_File NDBM_File) }
 use AnyDBM_File;
+use POSIX;
 
 my $DRYRUN;
 my $c;
@@ -509,6 +512,50 @@ sub _find_changed
     changed:
         push @ENTRIES, $dest;
         return;
+}
+
+# fix-up file ownerships/permissions/types in the temp overlays.
+# Required for setups like FileTree where the filesystem is mounted
+# nodev, or where the configballs don't have proper ownerships
+# applied.
+sub overlay_perms
+{
+    my $c = shift;
+    my $overlay_dir = $c->getval('c_tmpdir');
+
+    # unserialize the metadata into a somewhat cogent data structure
+    my %metadata;
+    foreach my $line (@{ $c->getvals('spine_file_metadata') })
+    {
+        chomp($line);
+        $c->print(3, "candidate: $line");
+        my ($path, $owner, $group, $mode) = split(':', $line);
+        $path = File::Spec->catdir($overlay_dir, $path);
+        next unless -e $path;
+        $c->print(3, "found $path");
+        $metadata{$path} = { 'owner' => 0, 'group' => 0, 'mode' => 0644 };
+        $metadata{$path}->{'owner'} = $owner if $owner;
+        $metadata{$path}->{'group'} = $group if $group;
+        if ($mode) {
+            $metadata{$path}->{'mode'} = oct($mode);
+        } else {
+            $metadata{$path}->{'mode'} |= 0111 if -d $path;
+        }
+    }
+
+    # run the work queue
+    foreach my $path (keys %metadata)
+    {
+        my $owner = $metadata{$path}->{'owner'};
+        my $group = $metadata{$path}->{'group'};
+        my $mode  = $metadata{$path}->{'mode'};
+        $c->print(3, sprintf("setting ugid(%d:%d) and mode(%#o) on path(%s)",
+            $owner, $group, $mode, $path));
+        chmod($mode, $path) unless -l $path;
+        POSIX::lchown($owner, $group, $path);
+    }
+
+    return PLUGIN_SUCCESS;
 }
 
 
