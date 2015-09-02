@@ -58,7 +58,7 @@ sub new
     {
         my $section = $args{Config}->{ISO9660};
 
-        foreach my $item (qw(Destination URL Timeout Username Password))
+        foreach my $item (qw(Destination URL Timeout Username Password Proxy))
         {
             if ( ( not exists($self->{$item})
                    or not defined($self->{$item}) )
@@ -92,6 +92,12 @@ sub new
 
     $self->{UA} = exists($args{UserAgent}) ? $args{UserAgent} :
         new LWP::UserAgent(timeout => $self->{Timeout});
+
+    if (exists $self->{Proxy})
+    {
+        $self->{UA}->proxy('http', "http://$self->{Proxy}");
+        $self->{UA}->proxy('https', "connect://$self->{Proxy}/");
+    }
 
     $self->{_cache} = new Spine::ConfigSource::Cache(Directory => $self->{Destination},
                                                      Method => Spine::ConfigSource::Cache::MAX_FILES,
