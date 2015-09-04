@@ -21,7 +21,7 @@
 #
 
 require 5.10.0;
-our $VERSION = qq(2.1.0);
+our $VERSION = qq(2.1.2);
 
 use strict;
 

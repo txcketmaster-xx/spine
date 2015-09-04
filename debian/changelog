@@ -1,3 +1,9 @@
+spine (2.1.2-0metacloud1) precise; urgency=low
+
+  * Add support for HTTP/HTTPS proxy
+
+ -- Chet Burgess <cfb@metacloud.com>  Wed, 02 Sep 2015 22:39:08 +0000
+
 spine (2.1.0-1ubuntu1) unstable; urgency=low
 
   * Add getvals script for perusing the spine config object from external scripts
