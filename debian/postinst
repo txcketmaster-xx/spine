@@ -1,0 +1,3 @@
+#!/bin/sh
+
+test -f /var/spine-mgmt/fstab || install -m 0644 /etc/fstab /var/spine-mgmt/fstab

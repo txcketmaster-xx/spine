@@ -2,7 +2,7 @@
 # vim:ts=8:noet
 
 %define spine_ver		2.1.0
-%define spine_rel		2
+%define spine_rel		3
 %define spine_prefix		/usr
 %define spine_lib_prefix	%{spine_prefix}/lib/spine-mgmt
 
@@ -73,6 +73,7 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %attr(0755,root,root) %{spine_prefix}/bin/ui
 %attr(0755,root,root) %{spine_prefix}/bin/spine-mgmt
 %attr(0755,root,root) %{spine_prefix}/bin/quick_template
+%attr(0755,root,root) %{spine_prefix}/bin/getvals
 %dir %{spine_lib_prefix}
 %{spine_lib_prefix}/Spine/*
 %config(noreplace) /etc/spine-mgmt/spine-mgmt.conf
@@ -91,6 +92,9 @@ make DESTDIR=$RPM_BUILD_ROOT install
 %endif
 
 %changelog
+* Wed Aug 29 2012 Nicolas Simonds <nic@metacloud.com> 2.1.0-3
+- Add getvals script for perusing the spine config object via external scripts
+
 * Fri Mar 25 2011 Chet Burgess <cfb@liquidreality.org> 2.1.0-2
 - Sync spec files between spine versions to be consistent.
 

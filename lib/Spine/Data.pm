@@ -1,7 +1,7 @@
 # -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Data.pm 289 2009-11-12 01:53:39Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -29,7 +29,7 @@ use File::Basename;
 use File::Spec::Functions;
 use IO::Dir;
 use IO::File;
-use Spine::Constants qw(:basic);
+use Spine::Constants qw(:basic DEFAULT_CONFIG);
 use Spine::Registry;
 use Spine::Util;
 use Sys::Syslog;
@@ -59,11 +59,9 @@ sub new {
         die "No configuration root passed to Spine::Data!  Badness!";
     }
 
-    my $data_object = bless( { hostname => $args{hostname},
-                               c_hostname => $args{hostname}, 
+    my $data_object = bless( { c_hostname => $args{hostname},
                                c_release => $args{release},
                                c_verbosity => $args{verbosity} || 0,
-                               c_quiet => $args{quiet},
                                c_version => $args{version} || $::VERSION,
                                c_config => $args{config},
                                c_croot => $croot,
@@ -94,6 +92,20 @@ sub new {
     unless ($data_object->_data() == SPINE_SUCCESS) {
         $data_object->{c_failure} = 1;
     }
+
+    # Run openlog() once so any plugin can use it with the user-configured
+    # facility, options, and program name (or the defaults).
+    my $CONFIG = $args{config};
+    openlog($CONFIG->{spine}->{SyslogIdent} ?
+                $CONFIG->{spine}->{SyslogIdent} :
+                DEFAULT_CONFIG->{spine}->{SyslogIdent},
+            $CONFIG->{spine}->{SyslogFacility} ?
+                $CONFIG->{spine}->{SyslogFacility} :
+                DEFAULT_CONFIG->{spine}->{SyslogFacility},
+            $CONFIG->{spine}->{SyslogOptions} ?
+                $CONFIG->{spine}->{SyslogOptions} :
+                DEFAULT_CONFIG->{spine}->{SyslogOptions});
+
     return $data_object;
 }
 
@@ -357,7 +369,7 @@ sub _get_values
         }
 
         if ($keyname =~ m/(?:(?:^(?:\.|c_\#).*)|(?:.*(?:~|\#)$))/) {
-            $self->error("ignoring $directory/$keyname because of lame"
+            $self->print(3, "ignoring $directory/$keyname because of lame"
                          . ' file name');
             next;
        }
@@ -1041,11 +1053,9 @@ sub cprint
 
     if ($level <= $self->{c_verbosity})
     {
-	print $self->{c_label}, ": $msg\n"
-            unless $self->{c_quiet};
-
+	print $self->{c_label}, ": $msg\n";
 	syslog("info", "$msg")
-            if ( not $self->{c_dryrun} or $log_to_syslog );
+            if ( $log_to_syslog );
     }
 }
 
@@ -1055,12 +1065,8 @@ sub print
     my $self = shift;
     my $lvl = shift || 0;
 
-    if ($lvl <= $self->{c_verbosity})
-    {
-#	print $self->{c_label}, '[', join('::', caller()), ']: ', @_, "\n";
-	print $self->{c_label}, ': ', @_, "\n"
-            unless $self->{c_quiet};
-    }
+    my $msg = join(' ', @_);
+    $self->cprint($msg, $lvl)
 }
 
 
@@ -1069,9 +1075,7 @@ sub log
     my $self = shift;
     my $msg = shift;
 
-    if (not $self->{c_dryrun}) {
-        syslog('info', "$msg");
-    }
+    syslog('info', "$msg");
 }
 
 
@@ -1086,15 +1090,15 @@ sub error
     $msg =~ tr/\n/ -- /;
 
     # needed for syslog
-    $msg = "warning" if ($msg eq 'warn');
+    $level = "warning" if ($level eq 'warn');
 
     unless ($self->{c_verbosity} == -1)
     {
 	print STDERR $self->{c_label} . ": \[$level\] $msg\n";
     }
 
-    syslog("$level", "$msg")
-        unless $self->{c_dryrun};
+    syslog("$level", "$msg");
+
     push(@{$self->{c_errors}}, $msg);
 }
 

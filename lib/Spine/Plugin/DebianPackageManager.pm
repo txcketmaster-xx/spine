@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id: RPMPackageManager.pm 266 2009-11-04 00:25:50Z cfb $
+# $Id: DebianPackageManager.pm 266 2009-11-04 00:25:50Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -21,22 +21,20 @@
 
 use strict;
 
-package Spine::Plugin::RPMPackageManager;
+package Spine::Plugin::DebianPackageManager;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
 $VERSION = sprintf("%d", q$Revision: 266 $ =~ /(\d+)/);
-$DESCRIPTION = "RPM package management using the apt-get for RPM utility";
+$DESCRIPTION = "Debian package management using the apt-get";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
             description => $DESCRIPTION,
             version => $VERSION,
             hooks => { APPLY => [ { name => 'install_packages',
-                                    code => \&install_packages } ],
-                       CLEAN => [ { name => 'clean_packages',
-                                    code => \&clean_packages } ]
+                                    code => \&install_packages } ]
                      },
           };
 
@@ -44,8 +42,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
 use File::Spec::Functions;
 use IO::Handle;
 use IPC::Open3;
-use Spine::RPM;
-use Spine::Util qw(mkdir_p create_exec simple_exec);
+use Spine::Util qw(mkdir_p create_exec);
 
 my $DRYRUN = 0;
 
@@ -56,16 +53,19 @@ sub install_packages
     my $packages = $c->getvals("packages");
     
     unless ($packages) {
-        $c->error('no "packages" key defined', 'crit');
-        return PLUGIN_FATAL;
+	$c->print(2, 'skipping, no "packages" key defined');
+        return PLUGIN_SUCCESS;
     }
     
     $DRYRUN = $c->getval('c_dryrun');
 
     apt_exec($c, 'autoclean', '', 0) == PLUGIN_SUCCESS or $rval++;
-    apt_exec($c, 'update', '', 0) == PLUGIN_SUCCESS or $rval++;
+
+    unless (exists $ENV{'SPINE_NO_APT_UPDATE'}) {
+        apt_exec($c, 'update', '', 0) == PLUGIN_SUCCESS or $rval++;
+    }
+
     apt_exec($c, 'dist-upgrade', '', 1) == PLUGIN_SUCCESS or $rval++;
-    apt_exec($c, 'update', '', 0) == PLUGIN_SUCCESS or $rval++;
 
     unless (scalar(@{$packages}) <= 0)
     {
@@ -82,6 +82,7 @@ sub apt_exec
     my ($c, $apt_func, $apt_func_args, $run_test) = @_;
     
     my @aptget_args = ();
+    push @aptget_args, '--option Dpkg::Options::=--force-confold --force-yes';
 
     if ($DRYRUN)
     {
@@ -93,7 +94,6 @@ sub apt_exec
         my $overlay = $c->getval('c_tmpdir');
 
         foreach my $dir (qw(/var/cache/apt/archives/partial
-                            /var/state/apt/lists/partial
                             /var/lib/apt/lists/partial))
         {
             unless (Spine::Util::mkdir_p(catfile($overlay, $dir)))
@@ -103,21 +103,22 @@ sub apt_exec
             }
         }
 
+        #
+        # Prevent the apt stuff from getting copied.
+        #
+        $c->set('apply_overlay_excludes', '/var/cache/apt');
+        $c->set('apply_overlay_excludes', '/var/lib/apt');
+
         my $apt_conf_ovrl = catfile($overlay, qw(etc apt));
 
         push @aptget_args, '--option', 'Dir=' . $c->getval('c_tmpdir');
 
-        #
-        # Simple loop to allow us to add command line switches easily.  We
-        # must default to using the currently installed files or apt-get gets
-        # all pissy about missing files due to the "--option Dir=..." tidbit
-        # above.
-        #
-        # rtilder    Tue Apr 10 12:39:19 PDT 2007
-        #
-        foreach my $file ( ( [ '--config-file', 'apt.conf' ],
-                             [ '--option Dir::Etc::rpmpriorities',
-                               'rpmpriorities' ],
+        foreach my $file ( ( [ '--option Dir::Etc::parts',
+                               'apt.conf.d' ],
+                             [ '--option Dir::Etc::preferencesparts',
+                               'preferences.d'],
+                             [ '--option Dir::Etc::sourceparts',
+                               'sources.list.d'],
                              [ '--option Dir::Etc::sourcelist',
                                'sources.list' ] ) )
         {
@@ -160,9 +161,8 @@ sub apt_exec
 
         my @apt_cmd = (@aptget_args, '-qq', $apt_func,
                        $apt_func_args);
-
-        my $inert = 0;
-        if ($DRYRUN && $apt_func =~ /update/) { $inert = 1; }
+	my $inert = 0;
+	if ($DRYRUN && $apt_func =~ /update/) { $inert = 1; }
         unless (defined(_exec_apt($c, $apt_func, $inert, \@apt_cmd)))
         {
             # Error reporting handled by _exec_apt()
@@ -182,6 +182,11 @@ sub _exec_apt
     my $inert = shift;
     my @cmdline = @_;
     my $pid = -1;
+
+    # Eliminate interactive prompts from dpkg.
+    $ENV{'DEBIAN_FRONTEND'} = 'noninteractive';
+    $ENV{'APT_LISTBUGS_FRONTEND'} = 'none';
+    $ENV{'APT_LISTCHANGES_FRONTEND'} = 'none';
 
     if (ref($_[0]) eq 'ARRAY')
     {
@@ -214,13 +219,13 @@ sub _exec_apt
         $c->error('apt-get failed to run it seems', 'err');
         return undef;
     }
-   
+
     # See if we are in dryrun.
     if (exists $exec_c->{dryrun} && $exec_c->{dryrun})
     {
         return "";
-    } 
-
+    }
+    
     $exec_c->closeinput();
     
     my @foo = $exec_c->readlines();
@@ -324,65 +329,5 @@ sub parse_apt_output
 
     return \@msgs;
 }
-
-
-sub clean_packages
-{
-    my $c = shift;
-    my $rval = 0;
-    my $rpm_bin = $c->getval('rpm_bin');
-    my $rpm_opts = $c->getval('rpm_opts') || '';
-    # RPM is stupid and thinks extra spaces are package names.
-    $rpm_opts =~ s/\s+//;
-    $rpm_opts =~ s/\s+$//;
-
-    # apt understands package.arch but RPM does not. The Spine RPM module
-    # uses the "name" tag from the installed RPM and compares that to the 
-    # values of the package key. package != package.arch so it will 
-    # uninstall the package. We strip off the .arch portion before 
-    # calling the keep function. Thanks to Nic for the idea.
-    # 
-    # cfb       Thu Jun 18 17:55:12 PDT 2009
-    #
-    my @packages;
-    foreach my $package (@{$c->getvals('packages')})
-    {
-	my ($clean, undef) = split(/#|=/, $package);
-        $clean =~ s/\.(32bit|noarch)$//;
-	push @packages, $clean;	
-    }
-
-    $c->print(2, "checking for unauthorized packages");
-    my @remove = Spine::RPM->new->keep(@packages);
-
-    if ( scalar @remove > 0 )
-    {
-	my $remv = join (" ", @remove);
-	$c->print(2, "removing packages \[$remv\]");
-
-	unless ($c->getval('c_dryrun'))
-	{
-            my $rpm_args = "-e $rpm_opts $remv";
-            if ( $rpm_opts =~ m// )
-            {
-                $rpm_args = "-e $remv";    
-            }
-            my @result = simple_exec(merge_error => 1,
-                                     exec        => 'rpm',
-                                     args        => $rpm_args,
-                                     c           => $c,
-                                     inert       => 0);
-
-	    if ($? > 0)
-	    {
-	        $c->error("package removal failed \[". join("",@result) . "\]", 'err');
-	        $rval++;
-	    }
-	}
-    }
-
-    return $rval ? PLUGIN_ERROR : PLUGIN_SUCCESS;
-}
-
 
 1;

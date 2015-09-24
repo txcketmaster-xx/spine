@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Overlay.pm 267 2009-11-04 00:53:28Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -25,9 +25,10 @@ package Spine::Plugin::Overlay;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
-our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE, $TMPDIR, @ENTRIES);
+our ($VERSION, $DESCRIPTION, $MODULE, $DONTDELETE,
+        $TMPDIR, @ENTRIES, $EXCLUDES);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 267 $ =~ /(\d+)/);
 $DESCRIPTION = "Plugin for creating and processing overlays.";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -35,10 +36,12 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             version => $VERSION,
             hooks => { PREPARE => [ { name => 'build_overlay',
                                       code => \&build_overlay } ],
-                       APPLY => [ { name => 'apply_overlay',
-                                    code => \&apply_overlay } ],
-                       CLEAN => [ { name => 'clean_overlay',
-                                    code => \&clean_overlay } ]
+                       APPLY =>   [ { name => 'apply_overlay',
+                                      code => \&apply_overlay } ],
+                       EMIT  =>   [ { name => 'overlay_perms',
+                                      code => \&overlay_perms } ],
+                       CLEAN =>   [ { name => 'clean_overlay',
+                                      code => \&clean_overlay } ]
                      },
             cmdline => { options => { 'keep-overlay' => \$DONTDELETE } }
           };
@@ -47,14 +50,17 @@ use Digest::MD5;
 use File::Find;
 use File::Spec::Functions;
 use File::stat;
-use Fcntl qw(:mode);
+use Fcntl qw(:DEFAULT :mode);
 use IO::File;
 use Spine::Constants qw(:basic);
 use Spine::Util qw(simple_exec do_rsync mkdir_p octal_conv uid_conv gid_conv);
 use Text::Diff;
+BEGIN { @AnyDBM_File::ISA = qw(DB_File GDBM_File NDBM_File) }
+use AnyDBM_File;
+use POSIX;
 
 my $DRYRUN;
-my $c; 
+my $c;
 
 sub build_overlay
 {
@@ -90,30 +96,32 @@ sub build_overlay
     symlink $tmpdir, $tmplink;
 
     my $descend_order = $c->getvals("c_descend_order");
-    unless ($descend_order) {
+    unless ($descend_order)
+    {
         $c->error("nothing in the descend order so no overlays to process",
-                  'warn');
+            'warn');
         return PLUGIN_SUCCESS;
     }
-    
+
     # This is a for loop instead of a foreach because I want to manipulate the
     # $dir variable without affecting the Spine::Data object's data members
     #
     # rtilder    Tue Dec 19 14:11:38 PST 2006
     #
-    for my $dir ( @{$descend_order})
+    for my $dir (@{$descend_order})
     {
         my @overlay_map = ('overlay:/');
         if ( exists $c->{'overlay_map'} )
         {
-           @overlay_map = @{$c->getvals("overlay_map")}; 
+            @overlay_map = @{$c->getvals("overlay_map")};
         }
         for my $element ( @overlay_map )
         {
             my ($overlay, $target) = split( /:/, $element);
             $overlay = "${dir}/${overlay}/";
 
-            unless (file_name_is_absolute($dir)) {
+            unless (file_name_is_absolute($dir))
+            {
                 $overlay = catfile($croot, $overlay);
                 $overlay .= '/'; # catfile() removes trailing slashes
             }
@@ -122,21 +130,24 @@ sub build_overlay
             {
                 $c->print(4, "performing overlay from $dir");
                 unless (do_rsync(Config => $c,
-                                 Inert => 1,
-                                 Source => $overlay,
-                                 Target => catfile($tmpdir, $target),
+                                 Source   => $overlay,
+                                 Inert    => 1,
+                                 Target   => catfile($tmpdir, $target),
                                  Excludes => \@excludes)) {
                     $rval++;
                 }
             }
 
             # If we've had errors, then we should quit.
-            if ($rval) {
-                unless ($masochist) {
+            if ($rval)
+            {
+                unless ($masochist)
+                {
                     return PLUGIN_FATAL;
                 }
 
-                unless ($youve_been_warned) {
+                unless ($youve_been_warned)
+                {
                     $youve_been_warned++;
                     $c->print(1, "You're an idiot because you have the ",
                               'masochistic_build_overlay key set to something ',
@@ -161,15 +172,28 @@ sub apply_overlay
     my $tmpdir = $c->getval('c_tmpdir');
     my $tmplink = $c->getval('c_tmplink');
     my $overlay_root = $c->getval('overlay_root');
-    my $excludes = $c->getvals('apply_overlay_excludes');
     my $max_diff_lines = $c->getval('max_diff_lines_to_print');
+    $EXCLUDES = $c->getvals('apply_overlay_excludes')
+        if ($c->getval('apply_overlay_excludes'));
+
+    if (exists $ENV{'SPINE_APPLY_OVERLAY_EXCLUDES'})
+    {
+        foreach my $file (split(/ /, $ENV{'SPINE_APPLY_OVERLAY_EXCLUDES'}))
+        {
+            push(@{$EXCLUDES}, $file);
+        }
+    }
+
     my %rsync_args = (Config => $c, Source => $tmpdir, Output => undef,
                       Target => $overlay_root, Options => [qw(-c)],
-                      Excludes => $excludes);
+                      Excludes => $EXCLUDES, Inert => 0);
 
     $TMPDIR = $tmpdir;
     $DRYRUN = $c->getval('c_dryrun');
     @ENTRIES = ();
+    my $profile = $c->{'c_config'}->{'spine'}->{'Profile'};
+    my $NOSAVE = $c->{'c_config'}->{$profile}->{'APPLY'} !~ m/RestartServices/;
+    $NOSAVE = 1 if $DRYRUN;
 
     if ($overlay_root eq '')
     {
@@ -179,18 +203,29 @@ sub apply_overlay
 
     unless (-d $tmpdir)
     {
-	$c->error("temp directory [$tmpdir] does not exist", 'crit');
-	return PLUGIN_FATAL;
+        $c->error("temp directory [$tmpdir] does not exist", 'crit');
+        return PLUGIN_FATAL;
     }
 
     # Make sure that the source matches rsync's include pattern rules.
-    unless ($tmpdir =~ m|/$|) {
+    unless ($tmpdir =~ m|/$|)
+    {
         $rsync_args{Source} = "$tmpdir/";
     }
 
     # Populates @ENTRIES via the find_changed() callback
-    find( { follow => 0, no_chdir => 1, wanted => \&find_changed },
+    find( { follow => 0, no_chdir => 1, wanted => \&_find_changed },
           $tmpdir);
+
+    my %entries;
+    unless ($NOSAVE)
+    {
+        my $dbfile = catfile($c->{c_config}->{spine}->{StateDir},
+            'restart_deps.db');
+        tie %entries, 'AnyDBM_File', $dbfile, O_RDWR|O_CREAT, 0600
+            or $c->error("could not open $dbfile($!).  "
+                . 'fatal errors may cause inconsistent results', 'warn');
+    }
 
     foreach my $srcfile (@ENTRIES)
     {
@@ -208,6 +243,8 @@ sub apply_overlay
         next if $destfile =~ /^$/;
 
         sync_attribs($c, $srcfile, $destfile) if (-e $destfile);
+
+        $entries{$destfile} = undef if -f $srcfile;
 
         # Compare the source and destination files.  If nothing
         # has changed, delete the source file from the temp overlay.
@@ -264,6 +301,8 @@ sub apply_overlay
 
     unless ($DRYRUN)
     {
+        untie %entries;
+
         if (do_rsync(%rsync_args) != SPINE_SUCCESS)
         {
             # These particular return values don't necessarily indicate that
@@ -306,16 +345,16 @@ sub sync_attribs
 
     unless ($src_stat->mode eq $dest_stat->mode)
     {
-       $c->print(2, "updating permissions on $destfile from " .
-                 octal_conv($dest_stat->mode) . " to " .
-                 octal_conv($src_stat->mode));
+        $c->print(2, "updating permissions on $destfile from " .
+            octal_conv($dest_stat->mode) . " to " .
+            octal_conv($src_stat->mode));
 
         chmod $src_stat->mode, $destfile
             unless ($DRYRUN);
     }
 
-    unless ( ($src_stat->uid eq $dest_stat->uid) and
-             ($src_stat->gid eq $dest_stat->gid) )
+    unless (($src_stat->uid eq $dest_stat->uid) and
+             ($src_stat->gid eq $dest_stat->gid))
     {
         $c->print(2, "updating owner/group on $destfile from " .
                   uid_conv($dest_stat->uid) . ":" .
@@ -337,7 +376,8 @@ sub clean_overlay
     my $rc = 0;
 
     # If --keep-overlay was specified on the command line, pretend like we did
-    if ($DONTDELETE) {
+    if ($DONTDELETE)
+    {
         $c->print(1, "Leaving overlay in \"$tmpdir\"");
         return PLUGIN_SUCCESS;
     }
@@ -355,13 +395,13 @@ sub remove_tmpdir
     my $tmpdir = shift;
 
     # rm -rf paranoia.
-    if ( ($tmpdir =~ m@^/tmp/.*@) and ($tmpdir =~ m@[^\.~]*@) )
+    if (($tmpdir =~ m@^/tmp/.*@) and ($tmpdir =~ m@[^\.~]*@))
     {
         my $result = simple_exec(merge_error => 1,
-	                             exec        => 'rm',
-	                             inert       => 1,
-	                             c           => $c,
-	                             args        => "-rf $tmpdir");;
+                                 exec        => 'rm',
+                                 inert       => 1,
+                                 c           => $c,
+                                 args        => "-rf $tmpdir");;
         return 1;
     }
 
@@ -372,7 +412,7 @@ sub remove_tmpdir
 #
 # @ENTRIES is a module level global
 #
-sub find_changed
+sub _find_changed
 {
     my $fname = $File::Find::name;
     # The target filename
@@ -381,6 +421,12 @@ sub find_changed
     if ($fname eq $TMPDIR
         or $fname eq "$TMPDIR/")
     {
+        return;
+    }
+
+    if (grep(/^${dest}$/i, @{$EXCLUDES}))
+    {
+        $File::Find::prune = 1;
         return;
     }
 
@@ -422,7 +468,8 @@ sub find_changed
         goto changed;
     }
     # If it's a file, are the contents the same?
-    elsif (S_ISREG($lstat->mode) and S_ISREG($dstat->mode)) {
+    elsif (S_ISREG($lstat->mode) and S_ISREG($dstat->mode))
+    {
         my $currfh = new IO::File($dest);
         my $newfh  = new IO::File($fname);
         my $curr = new Digest::MD5();
@@ -447,12 +494,14 @@ sub find_changed
         undef $curr;
         undef $new;
     }
-    elsif (S_ISLNK($lstat->mode) and S_ISLNK($dstat->mode)) {
+    elsif (S_ISLNK($lstat->mode) and S_ISLNK($dstat->mode))
+    {
         my $curr_target = readlink $fname;
         my $new_target = readlink $dest;
 
         if ((defined($curr_target) and defined($new_target))
-            and $curr_target ne $new_target) {
+            and $curr_target ne $new_target)
+        {
             goto changed;
         }
     }
@@ -460,9 +509,53 @@ sub find_changed
     utime $dstat->atime, $dstat->mtime, $fname;
     return;
 
-  changed:
-    push @ENTRIES, $dest;
-    return;
+    changed:
+        push @ENTRIES, $dest;
+        return;
+}
+
+# fix-up file ownerships/permissions/types in the temp overlays.
+# Required for setups like FileTree where the filesystem is mounted
+# nodev, or where the configballs don't have proper ownerships
+# applied.
+sub overlay_perms
+{
+    my $c = shift;
+    my $overlay_dir = $c->getval('c_tmpdir');
+
+    # unserialize the metadata into a somewhat cogent data structure
+    my %metadata;
+    foreach my $line (@{ $c->getvals('spine_file_metadata') })
+    {
+        chomp($line);
+        $c->print(3, "candidate: $line");
+        my ($path, $owner, $group, $mode) = split(':', $line);
+        $path = File::Spec->catdir($overlay_dir, $path);
+        next unless -e $path;
+        $c->print(3, "found $path");
+        $metadata{$path} = { 'owner' => 0, 'group' => 0, 'mode' => 0644 };
+        $metadata{$path}->{'owner'} = $owner if $owner;
+        $metadata{$path}->{'group'} = $group if $group;
+        if ($mode) {
+            $metadata{$path}->{'mode'} = oct($mode);
+        } else {
+            $metadata{$path}->{'mode'} |= 0111 if -d $path;
+        }
+    }
+
+    # run the work queue
+    foreach my $path (keys %metadata)
+    {
+        my $owner = $metadata{$path}->{'owner'};
+        my $group = $metadata{$path}->{'group'};
+        my $mode  = $metadata{$path}->{'mode'};
+        $c->print(3, sprintf("setting ugid(%d:%d) and mode(%#o) on path(%s)",
+            $owner, $group, $mode, $path));
+        chmod($mode, $path) unless -l $path;
+        POSIX::lchown($owner, $group, $path);
+    }
+
+    return PLUGIN_SUCCESS;
 }
 
 

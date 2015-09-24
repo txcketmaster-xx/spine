@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Templates.pm 289 2009-11-12 01:53:39Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE, $MARKERS, $QUICK);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 289 $ =~ /(\d+)/);
 $DESCRIPTION = "Plugin for interperolating templates.";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -61,7 +61,6 @@ our (@TEMPLATES, @IGNORE, $TMPDIR);
 sub process_templates
 {
     my $c = shift;
-    my $rval = 0;
     my $tmpdir = $c->getval('c_tmpdir');
     my $ignore = $c->getvals("templates_ignore");
 
@@ -90,14 +89,14 @@ sub process_templates
 
     foreach my $template (@TEMPLATES)
     {
-        if (process_template($c, $template) == PLUGIN_ERROR)
+        my $status = process_template($c, $template);    
+        if ($status != PLUGIN_SUCCESS)
         {
-            $c->error("error processing $template", "err");
-            $rval++;
+            return PLUGIN_FATAL;
         }
     }
 
-    return $rval ? PLUGIN_ERROR : PLUGIN_SUCCESS;
+    return PLUGIN_SUCCESS;
 }
 
 
@@ -209,16 +208,22 @@ sub process_template
             return PLUGIN_SUCCESS;
         }
         
-        # If we encounter an error we want to abort the current template
-        # but keep processing, so log the error, remove the template 
-        # from the overlay, and return PLUGIN_ERROR to move on instead
-        # of PLUGIN_FATAL and blowing up.
+        $c->error("error processing $template", "err");
         $c->error('could not process template: ' . $TT->error(), "err");
         if (! $QUICK) 
         {
+            # Remove the templat from the overlay.
             unlink($template);
         }
-        return PLUGIN_ERROR;
+        # Check the error type to see if we need to abort the run.
+        if ($TT->error()->type() eq 'spine_abort')
+        {
+            return PLUGIN_FATAL;
+        }
+        else
+        {
+            return PLUGIN_ERROR;
+        }
     }
 
     unless (ref($output) eq 'SCALAR')
@@ -230,6 +235,31 @@ sub process_template
 	chmod $sb->mode, $output;
 	chown $sb->uid, $sb->gid, $output;
         unlink($template);
+
+        # if the template produced no output, and the user wants to,
+        # prune out "empty" destination files
+
+        # "empty" files are likely less than 0.25KB (although the template
+        # could emit a lot of whitespace)
+        if ((stat($output))[7] < 256)
+        {
+            if ($c->getval('prune_empty_output_files'))
+            {
+                # suck in file contents into a single scalar
+                local $/;
+                open INPUT, "<$output";
+                my $contents = <INPUT>;
+                close INPUT;
+
+                # if it's anything other than whitespace, chuck it
+                unless ($contents =~ m#\S#m)
+                {
+                    $c->cprint("pruning empty file $output", 3);
+                    unlink($output);
+                }
+            }
+        }
+
     }
 
     return PLUGIN_SUCCESS;

@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: SystemInfo.pm 271 2009-11-04 20:14:58Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@ use Spine::Util qw(simple_exec);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf('%d', q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf('%d', q$Revision: 271 $ =~ /(\d+)/);
 $DESCRIPTION = 'Spine::Plugin system information harvester';
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -36,16 +36,18 @@ $MODULE = { author => 'osscode@ticketmaster.com',
             version => $VERSION,
             hooks => { 'DISCOVERY/populate' => [ { name => 'sysinfo',
                                                    code => \&get_sysinfo },
+                                                 { name => 'wwn_id',
+                                                   code => \&get_wwn_id },
                                                  { name => 'netinfo',
                                                    code => \&get_netinfo },
-                                                 { name => 'distro',
-                                                   code => \&get_distro },
-                                                 { name => 'architecture',
-                                                   code => \&get_hw_arch },
+                                                 { name => 'cpu_architecture',
+                                                   code => \&get_cpu_arch },
+                                                 { name => 'os_architecture',
+                                                   code => \&get_os_arch },
                                                  { name => 'is_virtual',
                                                    code => \&is_virtual },
-                                                 { name => 'num_procs',
-                                                   code => \&get_num_procs } ,
+                                                 { name => 'cpu_info',
+                                                   code => \&get_cpu_info } ,
                                                  { name => 'hardware_platform',
                                                    code => \&get_hardware_platform } , 
                                                  { name => 'current_kernel_version',
@@ -58,98 +60,114 @@ use File::Basename;
 use File::Spec::Functions;
 use IO::File;
 use NetAddr::IP;
-use RPM2;
 use Spine::Util qw(resolve_address);
 
-#
-# This should really be a much more generic in terms of populating data about
-# the devices on the PCI bus and use linux/drivers/pci/pci.ids.  Should really
-# just gather various stuff from /proc really.
-#
-# rtilder    Fri Sep 10 16:17:11 PDT 2004
-#
+sub get_wwn_id
+{
+    my $c = shift;
+    $c->cprint('determining disk IDs', 3);
+
+    my @devices = glob("/dev/sd?");
+    foreach my $file (@devices)
+    {
+        my (undef, undef, $dev) = split(/\//, $file);
+        my ($wwn) = simple_exec(c     => $c,
+                                exec  => '/lib/udev/scsi_id',
+                                args  => [ "-g", "-u", $file ],
+                                quiet => 1,
+                                inert => 1);
+        if ($? == 0)
+        {
+            chomp $wwn;
+            $c->{c_devices}->{dev}->{$dev}->{wwn}=$wwn;
+            if (! exists $c->{c_devices}->{wwn}->{$wwn})
+            {
+                $c->{c_devices}->{wwn}->{$wwn} = [];
+            }
+            push @{$c->{c_devices}->{wwn}->{$wwn}}, $dev;
+        }
+    }    
+
+    my @devices = glob("/dev/sd*");
+    my @output = simple_exec(c     => $c,
+                             exec  => 'blkid',
+                             args  => [ @devices ],
+                             inert => 1);
+    foreach my $line (@output)
+    {
+        my ($dev, $label, $uuid, $type) = split(' ', $line);
+        $dev =~ s|^/dev/(sd.+):$|$1|g;
+        $label =~ s/^LABEL="(.*)"$/$1/g;
+        $uuid =~ s/^UUID="(.+)"$/$1/g;
+        $type =~ s/^TYPE="(.+)"$/$1/g;
+        my $part = $dev;
+        $part =~ s/^sd.+(\d+)$/$1/g;
+        $dev =~ s/^(sd.+)\d+$/$1/g;
+        $c->{c_devices}->{dev}->{$dev}->{$part}->{label}=$label;
+        $c->{c_devices}->{dev}->{$dev}->{$part}->{uuid}=$uuid;
+        $c->{c_devices}->{dev}->{$dev}->{$part}->{type}=$type;
+        if (! exists $c->{c_devices}->{label}->{$label})
+        {
+            $c->{c_devices}->{label}->{$label} = [];
+        }
+        push @{$c->{c_devices}->{label}->{$label}}, "$dev$part";
+        if (! exists $c->{c_devices}->{uuid}->{$uuid})
+        {
+            $c->{c_devices}->{uuid}->{$uuid} = [];
+        }
+        push @{$c->{c_devices}->{uuid}->{$uuid}}, "$dev$part";
+    }
+}
+
 sub get_sysinfo
 {
     my $c = shift;
     my ($ip_address, $bcast, $netmask, $netcard);
-    my $iface = $c->getval('primary_iface');
 
     $c->cprint('retrieving system information', 3);
 
     my ($platform) = simple_exec(c     => $c,
                                  exec  => 'uname',
                                  inert => 1);
-                               
+    return PLUGIN_FATAL unless ($? == 0);                               
+   
     chomp $platform;
     $platform = lc($platform);
+    $c->{c_platform} = $platform;
 
     if ($platform =~ m/linux/i)
     {
-        # Grab the network_device_map key contents as a hash so we can walk it
-        # more quickly
-        my $devmap = $c->getvals('network_device_map');
-        my %devs;
-        if ($devmap) {
-            %devs = @{$devmap};
-        } else {
-            $c->error('the "c_netcard" key will be "unknown" as '.
-                        'no "network_device_map" key has been defined',
-                      'warning');
-        }
-        
-
-        # We walk the PCI bus to determine which network card we have
-        my @lspci_res = simple_exec(c     => $c,
-                                    exec  => 'lspci',
-                                    inert => 1);
-        return PLUGIN_FATAL unless ($? == 0);
-        
-        foreach my $line (@lspci_res)
+        # Use lsb_release to figure out some basic info about our distro
+        $c->{c_os_vendor} = 'UNKNOWN';
+        $c->{c_os_description} = 'UNKNOWN';
+        $c->{c_os_release} = 'UNKNOWN';
+        $c->{c_os_codename} = 'UNKNOWN';
+        my @lsb_res = simple_exec(c        => $c,
+                                   exec     => 'lsb_release',
+                                   args     => '-a',
+                                   inert    => 1);
+        if ($? == 0)
         {
-            next unless ($line =~ m/Ethernet/);
-            # FIXME  This is kind of dumb.  We don't provide any kind of
-            #        interface to driver mapping and we really should
-            while (my ($re, $card) = each(%devs)) {
-                $netcard = $card if ($line =~ m/$re/);
-            }
-        }
-        $netcard = 'unknown' unless $netcard;
-
-        unless (defined $iface) {
-            $c->error('no "primary_iface" key defined', 'crit');
-            return PLUGIN_FATAL;
-        }
-
-        my @ifconfig_res = simple_exec(c     => $c,
-                                       exec  => 'ifconfig',
-                                       args  => 'eth' . $iface,
-                                       inert => 1);
-        return PLUGIN_FATAL unless (@ifconfig_res);
-
-        foreach my $line (@ifconfig_res)
-        {
-            if ($line =~
-                m/
-                \s*inet\s+addr:(\d+\.\d+\.\d+\.\d+)
-                \s*Bcast:(\d+\.\d+\.\d+\.\d+)
-                \s*Mask:(\d+\.\d+\.\d+\.\d+)
-                /xi )
+            foreach my $line (@lsb_res)
             {
-                $ip_address = $1;
-                $bcast = $2;        
-                $netmask = $3;
+                use feature "switch";
+                given ($line) {
+                    when (/^Distributor ID:\s*(.*)$/) {
+                        $c->{c_os_vendor} = lc($1);
+                    }
+                    when (/^Description:\s*(.*)$/) {
+                        $c->{c_os_description} = lc($1);
+                    }
+                    when (/^Release:\s*(.*)$/) {
+                        $c->{c_os_release} = lc($1);
+                    }
+                    when (/^Codename:\s*(.*)$/) {
+                        $c->{c_os_codename} = lc($1);
+                    }
+                }
             }
         }
     }
-
-    $c->{c_platform} = $platform;
-    $c->{c_local_ip_address} = $ip_address;
-    $c->{c_local_bcast} = $bcast;
-    $c->{c_local_netmask} = $netmask;
-    $c->{c_netcard} = $netcard;
-
-    $c->get_values("platform/$platform");
-
     return PLUGIN_SUCCESS;
 }
 
@@ -215,7 +233,7 @@ sub get_netinfo
                    $b->within($a) and return -1;
                    return 0; } @nets;
 
-    my $nobj = @nets[-1];
+    $nobj = $nets[-1];
     unless (ref($nobj) eq 'NetAddr::IP') {
         $c->error("unable to find a matching network within \"${c_root}/${network_path}/\"",
                      " for \"$c->{c_ip_address}\"",
@@ -295,137 +313,6 @@ sub is_virtual
     return PLUGIN_SUCCESS;
 }
 
-sub get_distro
-{
-    my $c = shift;
-
-    my $release_pkgs = $c->getvals('linux_release_packages');
-    my $distro_map = $c->getvals('linux_distro_map');
-
-    unless ($release_pkgs and $distro_map)
-    {
-        # Try the old names
-        if (not $release_pkgs)
-        {
-            $release_pkgs = $c->getvals('release_packages');
-        }
-
-        unless ($distro_map)
-        {
-             $distro_map = $c->getvals('distro_map');
-        }
-
-       unless ($release_pkgs and $distro_map) {
-           unless ($release_pkgs) {
-               $c->error("linux_release_packages key is not defined or empty");
-           }
-           unless ($distro_map) {
-                $c->error("linux_distro_map key is not defined or empty");
-           }
-           return PLUGIN_FATAL;
-       }
-
-    }
-
-    # We need to be certain that we unique-ify the release_pkgs list.
-    my %uniques = map { $_ => undef } @{$release_pkgs};
-    my @uniques = keys(%uniques);
-    undef %uniques;
-    $release_pkgs = \@uniques;
-
-    # We *don't* need to unique-ify the distro_map because it's a hash so
-    # perl automagically does this for us with the following assignment.
-    #
-    # Perl: Furthering the Cause of Pathetically Lazy Programmers Everywhere
-
-    my %release_map = @{ $distro_map };
-    my $release_pkg;
-    my @matches;
-
-    my $db = RPM2->open_rpm_db();
-
-    # Used to track if any packages are found
-    # regardless of if thye match the release map
-    my $valid_rel_pkg = 0;
-    # Find out what our distro release package is
-    foreach my $relpkg (@{$release_pkgs}) {
-        my $i = $db->find_by_name_iter($relpkg);
-
-        while (my $pkg = $i->next) {
-            $valid_rel_pkg = 1;
-            $c->print(3, 'Release package: ', $pkg->as_nvre);
-            while (my ($k, $v) = each(%release_map)) {
-                if (_pkg_vr($pkg) eq $k) {
-                    push @matches, $k;
-                    # We assign here instead of keeping a separate list because
-                    # we error if @matches has more than one element
-                    $release_pkg = $relpkg;
-                    $c->print(0, "found a distro release package: $k");
-                }
-            }
-        }
-    }
-
-    if (scalar(@matches) > 1) {
-        $c->error('Multiple release packages installed.'
-                    . join(' ', @matches), 'crit');
-        return PLUGIN_FATAL;        
-    }
-
-    # Were any valid release packages found?
-    unless ($valid_rel_pkg) {
-        $c->error('No release packages found. You need to add a '.
-                  'package name to "linux_release_packages" key.', "crit");
-        return PLUGIN_FATAL;
-    }
-
-    # Did ver match the release versions?
-    unless ($release_pkg) {
-        $c->error('No matching release found. You need to edit '.
-                  'the "linux_distro_map" key.', "crit");
-        return PLUGIN_FATAL;
-    }
-
-    my $distro_pkg = pop @matches;
-    ($c->{c_distro_name}, $c->{c_distro_version}, $c->{c_distro}) =
-        split(/,\s*/, $release_map{$distro_pkg}, 3);
-
-    $c->{c_distro_pkg} = $release_pkg;
-
-    #
-    # Backward compatible cruft
-    #
-    $c->{c_distro_release} = $c->{c_distro};
-    $c->{c_distro_dir} = catfile($c->{c_platform_dir}, $c->{c_distro_release});
-
-    $c->print(0, 'configuring as an ', $c->{c_distro}, ' system');
-
-    # The RPM DB is "automagically" closed by the RPM2 XS code when it passes
-    # from scope(actually via the DESTROY method).  Therefore there it isn't
-    # necessary to explicitly close it or undef it, though that's good for
-    # the sake of explicitness.
-    #
-    # rtilder    Fri Apr  8 12:41:49 PDT 2005
-
-    undef $db;
-
-    return PLUGIN_SUCCESS;
-}
-
-
-# We don't care much about epoch at the moment.
-sub _pkg_vr
-{
-    my $pkg = shift;
-
-    my $pname = $pkg->tag('name');
-    my $pver  = $pkg->tag('version');
-    my $prel  = $pkg->tag('release');
-
-    return "$pname-$pver-$prel";
-}
-
-
 #
 # Cute trick:
 #
@@ -435,57 +322,117 @@ sub _pkg_vr
 #
 # rtilder    Fri May  5 13:39:31 PDT 2006
 #
-sub get_hw_arch
+# This may not be true, there are reports of people with 32-bit CPUs
+# and a cflush size value of 64.
+#
+# cfb        Tue Oct 25 21:56:00 PDT 2011A
+#
+sub get_cpu_arch
 {
     my $c = shift;
-    $c->{c_arch} = 'x86';
+    $c->{c_cpu_arch} = '32-bit';
 
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
 
     if (not defined($cpuinfo)) {
-        $c->error("Coundn't open /proc/cpuinfo: $!", 'crit');
+        $c->error("Couldn't open /proc/cpuinfo: $!", 'crit');
         return PLUGIN_FATAL;
     }
 
     while (<$cpuinfo>) {
         if (m/^clflush size.*/) {
-            $c->{c_arch} = 'x86_64';
+            $c->{c_cpu_arch} = '64-bit';
             last;
         }
     }
 
     $cpuinfo->close();
 
-    $c->print(0, 'running on a ', $c->{c_arch}, ' kernel.');
-
     return PLUGIN_SUCCESS;
 }
 
-
-sub get_num_procs
+sub get_os_arch
 {
     my $c = shift;
-    my $getconf = qq(/usr/bin/getconf);
+    my ($uname_res) = simple_exec(c     => $c,
+                                  exec  => 'uname',
+                                  args  => '-i',
+                                  inert => 1);
+    return PLUGIN_FATAL unless ($? == 0);
 
-    $c->{c_num_procs} = 1;
+    chomp $uname_res;
+    $c->{c_os_arch} = $uname_res;
 
+    $c->print(0, 'running on a ', $c->{c_os_arch}, ' kernel.');
+    return PLUGIN_SUCCESS;
+}
+
+sub get_cpu_info
+{
+    my $c = shift;
 
     my $cpuinfo = new IO::File('< /proc/cpuinfo');
-    my $nprocs = 0;
 
     unless (defined($cpuinfo)) {
         $c->error('Failed to open /proc/cpuinfo', 'err');
         return PLUGIN_FATAL;
     }
 
-    # Try to determine the number of processors
+    my %cores;
+    my $fake_id = 1;
+    my $xthreads = 0;
+    my $physical_id = -1;
+    my $cpu_cores = -1;
+
+    # Parse the data
     while(<$cpuinfo>) {
-        $nprocs++ if m/^processor\s+:\s+\d+/i;
+        if (m/^processor\s+:\s+(\d+)/i) {
+            $xthreads++;
+            next;
+        }
+        if (m/^physical id\s+:\s+(\d+)/i) {
+            $physical_id = $1;
+            next;
+        }
+        if (m/^cpu[ _]cores\s+:\s+(\d+)/i) {
+            $cpu_cores = $1;
+            next;
+        }
+        if (m/^$/i) {
+            # End of the entry, do the data keeping.
+            if ($physical_id != -1) {
+                if (! exists $cores{$physical_id}) {
+                    $cores{$physical_id} = 1;
+                }
+                if ($cpu_cores > 0) {
+                    $cores{$physical_id} = $cpu_cores;
+                }
+            }
+            else {
+                # If we don't have a physical ID we just assume
+                # its a unique proc with 1 core.
+
+                # We need to generate a unique ID.
+                $physical_id = "UNKNOWN_" . $fake_id;
+                $fake_id++;
+                $cores{$physical_id} = 1;
+            }
+            # Done with record keeping, reset;
+            $physical_id = -1;
+            $cpu_cores = -1;
+        }
     }
 
     $cpuinfo->close();
-
-    $c->{c_num_procs} = $nprocs;
+    
+    $c->{c_num_cpus} = scalar(keys %cores);
+    $c->{c_num_x_threads} = $xthreads;
+   
+    $cpu_cores = 0;
+    foreach my $key (keys %cores) {
+        $cpu_cores = $cpu_cores + $cores{$key};
+    }
+    $c->{c_num_cores} = $cpu_cores;
 
     return PLUGIN_SUCCESS;
 }
@@ -507,38 +454,21 @@ sub get_hardware_platform
     }
     else
     {
-        my @dmidecode_res = simple_exec(c     => $c,
+        my ($product_name) = simple_exec(c     => $c,
                                         exec  => 'dmidecode',
+                                        args  => '--string system-product-name',
                                         inert => 1);
         return PLUGIN_FATAL unless ($? == 0);
 
-        my $sys_section = 0;
-        my $hardware_platform = 'UNKNOWN';
-
-        foreach my $line (@dmidecode_res)
+        chomp $product_name;
+        if ($product_name eq '') 
         {
-            # We need to find the "Product Name:" key under 'DMI type 1'
-            # (which is the "System Information" section).
-            if ($line =~ m/DMI type 1/i)
-            {
-                $sys_section = 1;
-                next;
-            }
-
-            # If we are in the sys_section, look for "Product Name:"
-            if ($sys_section and $line =~ m/Product Name:/i)
-            {
-                (undef, $hardware_platform) = split(': ', $line, 2);
-                $hardware_platform =~ s/^\s+|\s+$//g;
-                $hardware_platform = 'UNKNOWN' if $hardware_platform eq '';
-                last;
-            } 
-
-            # If we enter another DMI section we are done.
-            last if ($sys_section and $line =~ m/DMI type/i);
+            $c->{c_hardware_platform} = 'UNKNOWN';
         }
-
-        $c->{c_hardware_platform} = $hardware_platform;
+        else
+        {
+            $c->{c_hardware_platform} = $product_name;
+        }
     }
     return PLUGIN_SUCCESS;
 }

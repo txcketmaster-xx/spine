@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Auth.pm 289 2009-11-12 01:53:39Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use Spine::Constants qw(:plugin);
 
 our ($VERSION, $DESCRIPTION, $MODULE);
 
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 289 $ =~ /(\d+)/);
 $DESCRIPTION = "Identity Management and Auththentication/Authorization module";
 
 $MODULE = { author => 'osscode@ticketmaster.com',
@@ -84,6 +84,8 @@ sub parse_auth_data
                 gid_map => { by_id => {}, by_name => {} },
                 user_map => {},
                 group_map => {},
+                ignore_map => { min_gid => undef, max_gid => undef,
+                                min_uid => undef, max_uid => undef},
                 auth_type => ''
                );
 
@@ -346,6 +348,30 @@ sub _parse_maps
 
     return 0 unless( -d $directory );
 
+    {
+        #populate the ignoremap
+        my $map_type = 'ignore_map';
+        my $keyfile = "$directory/$map_type";
+        my $keyname = basename($keyfile);
+        my $ignore_map = $auth_ref->{$map_type};
+        my $values = $c->read_keyfile($keyfile);
+
+        if (defined($values)) {
+            foreach my $value (@{$values}) {
+                my @list = split(m/:/,$value);
+                if (scalar(@list) != 2) {
+                    $c->error("Invalid line in $map_type: \"$value\"", 'crit');
+                    die('Bad data');
+                }
+                my ($k,$id) = @list;
+                $id = int($id);
+                if (exists($ignore_map->{$k})) {
+                    $ignore_map->{$k} = $id;
+                }
+            }
+        }
+
+    }
     for my $map_type (qw(uid gid)) {
         my $map = $map_type . '_map';
         my $by_id = $auth_ref->{$map}->{by_id};
@@ -831,10 +857,7 @@ sub emit_auth_data
 {
     my $c = shift;
 
-    my $min_root_keys = $c->getval_last('min_root_keys');
-    unless (defined($min_root_keys) && $min_root_keys =~ /\d+/) {
-        $min_root_keys = 3;
-    }
+    my $min_root_keys = $c->getval_last('min_root_keys') || 3;
 
     #
     # Coresys can't keep their users straight and don't want to be
@@ -914,25 +937,28 @@ sub emit_auth_data
     # and a list of users owning crontabs
     #
     my %cron_users;
-    foreach my $cronuser (</var/spool/cron/*>) {
-        my $user = basename($cronuser);
-        if ($user =~ /^tmp\.\d+/) {
-            # Skip temporary files from cron
-            next;
+    if ($c->getval('auth_cron_scan')) {
+        my $cron_dir = $c->getval('auth_cron_dir') || qq(/var/spool/cron);
+        foreach my $cronuser (<$cron_dir/*>) {
+            my $user = basename($cronuser);
+            if ($user =~ /^tmp\.\d+/) {
+                # Skip temporary files from cron
+                next;
+            }
+            $cron_users{$user} = 1;
         }
-        $cron_users{$user} = 1;
-    }
+    }    
 
     #
     # and compare them to what we're installing
     #
     my $retval = _grep_hash_element($c, \%running_uids, 'uid',
                                     $AUTH->{user_map}, CHECK_TYPE_INT,
-                                    'processes');
+                                    'processes', $AUTH->{ignore_map});
 
     $retval += _grep_hash_element($c, \%running_gids, 'gid',
                                   $AUTH->{group_map}, CHECK_TYPE_INT,
-                                  'processes');
+                                  'processes', $AUTH->{ignore_map});
 
     $retval += _grep_hash_element($c, \%cron_users, 'user', $AUTH->{user_map},
                                   CHECK_TYPE_STR, 'crontabs');
@@ -942,6 +968,9 @@ sub emit_auth_data
             $c->error('Found running processes or crons with UIDs/GIDs not being'
                     . ' installed on this system - but carrying on due to'
                     . ' \'auth_extra_checks_warn_only\' key','warning');
+        } elsif ($c->getval('c_dryrun')) {
+            $c->error('Ignoring processes or crons with UIDs/GIDs not being'
+                    . ' installed on this system due to dryrun mode','warning');
         } else {
             return PLUGIN_FATAL;
         }
@@ -1028,7 +1057,7 @@ sub emit_auth_data
 #
 sub _grep_hash_element
 {
-    my ($c,$hash_ref,$type,$map_ref,$cmp_type,$what) = @_;
+    my ($c,$hash_ref,$type,$map_ref,$cmp_type,$what,$ignore_map) = @_;
     my $errors = 0;
     my $id_map = $AUTH->{$type . '_map'}->{by_id};
 
@@ -1046,7 +1075,26 @@ sub _grep_hash_element
                       . ' something other than int or string.', 'crit');
             return PLUGIN_FATAL;
         }
+        
+        if (defined($ignore_map)) {
+            foreach my $ignore_key (qw(gid uid')) {
+                my $min_key = "min_" . $ignore_key;
+                my $max_key = "max_" . $ignore_key;
 
+                if (defined($ignore_map->{$min_key}) &&
+                    defined($ignore_map->{$max_key})) {
+
+                    my $minimum = $ignore_map->{$min_key};
+                    my $maximum = $ignore_map->{$max_key};
+                  
+                    if ($id >= $minimum && $id <= $maximum ) {
+                        next;
+                    }
+                }
+            }
+        }
+                
+                
         unless ($installing) {
             $c->error(uc($type) . " $id owns $what, but is not"
                       . ' being installed on the system', 'err');
@@ -1129,8 +1177,12 @@ sub _generate_passwd_shadow_home
         $c->error("couldn't open $filename: $!",'crit');
         return PLUGIN_FATAL;
     }
-    chown(0, 0, $filename);
-    chmod(0444, $filename);
+    my $file_uid = $c->getval('auth_passwd_uid') || q(0);
+    my $file_gid = $c->getval('auth_passwd_gid') || q(0);
+    my $file_mode = oct($c->getval('auth_passwd_mode') || q(0444));
+
+    chown($file_uid, $file_gid, $filename);
+    chmod($file_mode, $filename);
 
     $filename = catfile($tmpdir, qw(etc shadow));
     unless (open(SHADOW, "> $filename"))
@@ -1138,8 +1190,12 @@ sub _generate_passwd_shadow_home
         $c->error("couldn't open $filename: $!",'crit');
         return PLUGIN_FATAL;
     }
-    chown(0, 0, $filename);
-    chmod(0400, $filename);
+
+    my $file_uid = $c->getval('auth_shadow_uid') || q(0);
+    my $file_gid = $c->getval('auth_shadow_gid') || q(0);
+    my $file_mode = oct($c->getval('auth_shadow_mode') || q(0444));
+    chown($file_uid, $file_gid, $filename);
+    chmod($file_mode, $filename);
 
     #
     # Emit!
@@ -1164,56 +1220,44 @@ sub _generate_passwd_shadow_home
         }
         $s_count++;
 
+        # If its a system_homedir and the user isn't root skip them.
+        next if (exists($system_homedirs{$acct->{homedir}})
+                    && $acct->{uid} != 0);
+
         my $dir = catfile($tmpdir, $acct->{homedir});
 
-        if (!exists($system_homedirs{$acct->{homedir}})
-                && $acct->{uid} != 0) {
-            # 
-            # If the account has specific permissions use those
-            # otherwise use the value of the default_homedir_perms key
-            # if set, finally use the code default of 0700 if no other
-            # perms exists.
-            #
-            if (defined $acct->{permissions})
-            {
-                my $perm = $acct->{permissions};
-                mkdir_p($dir, oct($perm));
-            }
-            else
-            {
-                my $perm = $c->getval('auth_default_homedir_perms') || qq(0700);
-                mkdir_p($dir, oct($perm));
-            }
-                    
-            #
-            # As a default, we chown it to root - we'll chown
-            # it to the right user later if need be
-            #
-            chown(0,0,$dir);
-
-            #
-            # Here we chown it to the user *unless*..
-            #
-            # lets not chown any special dirs to anyone other than root
-            # they're system dirs, let overlays handle them
-            #
-            # while we're at it, we'll populate skel stuff
-            #
-
-            # We only do this for non-root users with non-system homedirs
-
-            chown($acct->{uid}, $acct->{gid}, $dir);
-
-            my $skel = catfile($c->getval('c_croot'),
-                               qw(includes skel default));
-
-            if ($acct->{skeldir}) {
-                $skel = catfile($c->getval('c_croot'), $acct->{skeldir});
-            }
-			
-            _copy_skel_dir($c,$skel,catfile($tmpdir, $acct->{homedir}),
-                           $acct->{uid},$acct->{gid});
+        # 
+        # If the account has specific permissions use those
+        # otherwise use the value of the default_homedir_perms key
+        # if set, finally use the code default of 0700 if no other
+        # perms exists.
+        #
+        if (defined $acct->{permissions})
+        {
+            my $perm = $acct->{permissions};
+            mkdir_p($dir, oct($perm));
         }
+        else
+        {
+            my $perm = $c->getval('auth_default_homedir_perms') || qq(0700);
+            mkdir_p($dir, oct($perm));
+        }
+		
+
+        #
+        # Here we chown it to the user
+        #
+
+        chown($acct->{uid}, $acct->{gid}, $dir);
+
+        my $skel = $c->getval('auth_skel_dir') || qq(/etc/skel);
+
+        if ($acct->{skeldir}) {
+            $skel = catfile($c->getval('c_croot'), $acct->{skeldir});
+        }
+			
+        _copy_skel_dir($c,$skel,catfile($tmpdir, $acct->{homedir}),
+            $acct->{uid},$acct->{gid});
     }
 
     unless (close(PASSWD))
@@ -1274,8 +1318,11 @@ sub _generate_group
         $c->error("couldn't open $tmpdir/etc/group",'crit');
         return PLUGIN_FATAL;
     }
-    chown(0, 0, $filename);
-    chmod(0444, $filename);
+    my $file_uid = $c->getval('auth_group_uid') || q(0);
+    my $file_gid = $c->getval('auth_group_gid') || q(0);
+    my $file_mode = oct($c->getval('auth_group_mode') || q(0444));
+    chown($file_uid, $file_gid, $filename);
+    chmod($file_mode, $filename);
 
     #
     # Emit
@@ -1412,7 +1459,7 @@ sub _generate_authorized_keys
         if ($local_authkeys == 1) {
             $keydir = catfile($tmpdir, $accounts->$user->{homedir}, '.ssh');
             mkdir_p($keydir);
-            chown($user->{uid}, $user->{gid}, $keydir);
+            chown($accounts->{$user}->{uid}, $accounts->{$user}->{gid}, $keydir);
             $keyfile = catfile($keydir, 'authorized_keys');
         } else {
             $keydir = catfile($tmpdir, qw(etc ssh authorized_keys));
@@ -1445,6 +1492,18 @@ sub _generate_authorized_keys
             $errors++;
         }
 
+        #
+        # Root owns the keys by default, unless auth_user_keys is set,
+        # in which case the user will own them.
+        #
+        my $file_uid = 0;
+        my $file_gid = 0;
+        if ($c->getval('auth_user_keys')) {
+            $file_uid = $accounts->{$user}->{uid};
+            $file_gid = $accounts->{$user}->{gid};
+        }
+
+        chown($file_uid, $file_gid, $keyfile);
         chmod(0444, $keyfile);
     }
 
@@ -1507,7 +1566,7 @@ sub _copy_skel_dir
     foreach my $entry (@entries) {
 
         if ( -d catfile($src, $entry)) {
-            mkdir_p(catfile($dst,$entry),755);
+            mkdir_p(catfile($dst,$entry), 0755);
             if($entry eq ".ssh") {
                 chown($uid,$gid,catfile($dst,$entry));
                 chmod(0700,catfile($dst,$entry));

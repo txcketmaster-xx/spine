@@ -1,7 +1,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: ISO9660.pm 239 2009-08-24 17:29:05Z richard $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -34,7 +34,7 @@ use Storable qw(thaw);
 use JSON::Syck;
 
 @ISA = qw(Spine::ConfigSource);
-$VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+$VERSION = sprintf("%d", q$Revision: 239 $ =~ /(\d+)/);
 
 # See END block at the end of this file.
 my @__MOUNTS;
@@ -58,7 +58,7 @@ sub new
     {
         my $section = $args{Config}->{ISO9660};
 
-        foreach my $item (qw(Destination URL Timeout))
+        foreach my $item (qw(Destination URL Timeout Username Password Proxy Branch))
         {
             if ( ( not exists($self->{$item})
                    or not defined($self->{$item}) )
@@ -92,6 +92,12 @@ sub new
 
     $self->{UA} = exists($args{UserAgent}) ? $args{UserAgent} :
         new LWP::UserAgent(timeout => $self->{Timeout});
+
+    if (exists $self->{Proxy})
+    {
+        $self->{UA}->proxy('http', "http://$self->{Proxy}");
+        $self->{UA}->proxy('https', "connect://$self->{Proxy}/");
+    }
 
     $self->{_cache} = new Spine::ConfigSource::Cache(Directory => $self->{Destination},
                                                      Method => Spine::ConfigSource::Cache::MAX_FILES,
@@ -130,6 +136,10 @@ sub _http_request
     my $response;
 
     my $request = new HTTP::Request('GET', $url);
+
+    if ((exists $self->{Username}) and (exists $self->{Password})) {
+        $request->authorization_basic($self->{Username}, $self->{Password});
+    }
 
     #
     # We use the request() method instead of the simple_request() method here
@@ -209,7 +219,7 @@ sub _mount_isofs
         goto mount_error;
     }
 
-    my $cmd = "/bin/mount -o loop -t iso9660 $filename $mount";
+    my $cmd = "/bin/mount -o loop,ro -t iso9660 $filename $mount";
 
     my $rc = system($cmd);
 
@@ -283,6 +293,11 @@ sub check_for_update
     my $file = shift;
     my $check = "$self->{URL}?a=check&prev=$prev";
 
+    if ($self->{Branch})
+    {
+        $check .= "&branch=" . $self->{Branch}
+    }
+
     my $resp = $self->_http_request($check);
 
     my $version_data = undef;
@@ -338,6 +353,11 @@ sub retrieve
     my $file = "spine-config-$release.iso.gz";
     # Check to see if we have it cached locally first
     my $cached = $self->{_cache}->get($file);
+
+    if ($self->{Branch})
+    {
+        $retrieve .= "&branch=" . $self->{Branch}
+    }
 
     if ($cached)
     {
@@ -443,10 +463,12 @@ sub source_info
 #      without setting up module level var just for cleaning.
 #
 END {
+    # Preserve the exist status, yes the temp assignment is required.
+    my $foo = $?;
+    local $? = $foo;
     foreach my $self (@__MOUNTS) {
         $self->clean();
     }
 }
-
 
 1;

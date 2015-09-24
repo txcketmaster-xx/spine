@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ ! -d /usr/lib/spine-mgmt ]; then
+	sudo mkdir /usr/lib/spine-mgmt
+fi
+
+if [ ! -d /var/spine-mgmt ]; then
+	sudo mkdir /var/spine-mgmt
+fi
+
+sudo rsync -avC --delete ${HOME}/svn/spine/lib/Spine /usr/lib/spine-mgmt

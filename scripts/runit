@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sudo ${HOME}/svn/spine/spine-mgmt --config-file=${HOME}/svn/spine/spine-mgmt-testing.conf $@

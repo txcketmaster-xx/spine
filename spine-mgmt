@@ -2,7 +2,7 @@
 # -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: spine-mgmt 290 2009-11-12 01:57:17Z cfb $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,8 @@
 # (C) Copyright Ticketmaster, Inc. 2007
 #
 
-our $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
+require 5.10.0;
+our $VERSION = qq(2.1.2);
 
 use strict;
 
@@ -35,7 +36,7 @@ use IO::File;
 use Net::Domain qw(hostfqdn);
 use Storable;
 use Spine::ConfigFile;
-use Spine::Constants qw(:basic :plugin);
+use Spine::Constants qw(:basic :plugin DEFAULT_CONFIG);
 use Spine::Data;
 use Spine::Registry;
 use Spine::State;
@@ -49,51 +50,7 @@ use sigtrap 'handler' => \&ignore_signal, 'normal-signals';
 use constant NODEFILE => '/etc/nodename';
 use constant LOCKFILE => '/var/run/spine-mgmt.lock';
 use constant DEFAULT_CONFIGFILE => '/etc/spine-mgmt/spine-mgmt.conf';
-use constant DEFAULT_CONFIGFILE_FALLBACK => ('/etc/spine-config.conf',\
-                                             '/etc/spine.conf');
 use constant SPINE_PHASES => qw(PREPARE EMIT APPLY CLEAN);
-
-use constant DEFAULT_CONFIG => {
-        spine => {
-            StateDir => '/var/spine-mgmt',
-            ConfigSource => 'ISO9660',
-            Profile => 'StandardPlugins',
-            Parser => 'pureTT',
-            SyslogIdent => 'spine-mgmt',
-            SyslogFacility => 'local3',
-            SyslogOptions => 'ndelay,pid',
-        },
-
-        DefaultPlugins => {
-            'DISCOVERY/populate' => 'DryRun SystemInfo',
-            'DISCOVERY/policy-selection' => 'DescendOrder',
-            'PARSE/complete' => 'Interpolate',
-        },
-
-        FileSystem => {
-            Path => '/software/spine/config'
-        },
-
-        ISO9660 => {
-            URL => 'http://repository/cgi-bin/rcrb.pl',
-            Destination => '/var/spine-mgmt/configballs',
-            Timeout => 5
-        },
-
-         StandardPlugins => {
-            PREPARE => 'PrintData Templates Overlay',
-            EMIT => 'Templates',
-            APPLY => 'Overlay RestartServices Finalize',
-            CLEAN => 'Overlay'
-         },
-
-        FirstRun => {
-            PREPARE => 'PrintData Templates Overlay',
-            EMIT => 'FirstRun Templates',
-            APPLY => 'Overlay Finalize',
-            CLEAN => 'Overlay',
-        }
-    };
 
 #
 # These are package level variables so that the various supporting modules and
@@ -129,38 +86,35 @@ Getopt::Long::Configure('pass_through');
 
 my $profile = undef;
 my $conf_file = undef;
-my $quiet = undef;
 my @actions = ();
 
 GetOptions('config-file=s' => \$conf_file,
             'action|plugin=s@' => \@actions,
-            'quiet|q' => \$quiet,
             'actiongroup|profile=s' => \$profile);
 
 Getopt::Long::Configure('no_pass_through');
 
-my @cfiles = (DEFAULT_CONFIGFILE, DEFAULT_CONFIGFILE_FALLBACK);
+my $cfile = DEFAULT_CONFIGFILE;
 
 if (defined($conf_file))
 {
-    @cfiles = ($conf_file);
+    $cfile = ($conf_file);
 }
 
-foreach my $file (@cfiles)
+if (-f $cfile)
 {
-    if (-f $file)
+    print "spine-mgmt: Using config file at $cfile\n";
+    $CONFIG = new Spine::ConfigFile(Filename => $cfile, Type => 'Ini');
+    if (not defined($CONFIG))
     {
-
-        print "spine-mgmt: Using config file at $file\n"
-            unless(defined($quiet));
-        $CONFIG = new Spine::ConfigFile(Filename => $file, Type => 'Ini');
-        if (not defined($CONFIG))
-        {
-            print STDERR $Spine::ConfigFile::ERROR;
-            goto failure;
-        }
-        last;
+        print STDERR $Spine::ConfigFile::ERROR;
+        goto failure;
     }
+}
+elsif (defined($conf_file))
+{
+    print STDERR "spine-mgmt: Config file $cfile not found.\n";
+    goto failure;
 }
 
 if (not defined($CONFIG))
@@ -177,18 +131,6 @@ if (defined($CONFIG->{spine}->{PluginPath}))
 {
     unshift @INC, split(/:/, $CONFIG->{spine}->{PluginPath});
 }
-
-# Run openlog() once so any plugin can use it with the user-configured 
-# facility, options, and program name (or the defaults). 
-openlog($CONFIG->{spine}->{SyslogIdent} ? 
-            $CONFIG->{spine}->{SyslogIdent} : 
-            DEFAULT_CONFIG->{spine}->{SyslogIdent}, 
-        $CONFIG->{spine}->{SyslogFacility} ? 
-            $CONFIG->{spine}->{SyslogFacility} : 
-            DEFAULT_CONFIG->{spine}->{SyslogFacility}, 
-        $CONFIG->{spine}->{SyslogOptions} ? 
-            $CONFIG->{spine}->{SyslogOptions} : 
-            DEFAULT_CONFIG->{spine}->{SyslogOptions}); 
 
 #
 # If specific actions were requested, we don't use our profile,
@@ -375,12 +317,7 @@ if (not defined($release))  # There was an error
 }
 
 
-
-unless(defined($quiet))
-{
-    print 'spine-mgmt core: Using configuration: ', 
-         $source->source_info(), "\n";
-}
+print 'spine-mgmt core: Using configuration: ', $source->source_info(), "\n";
 
 
 # Determine the hostname.
@@ -411,26 +348,17 @@ else
 
 
 # Announce what we're doing
-unless(defined($quiet))
-{
-    print 'spine-mgmt: starting Spine v' . $VERSION . 
-        ' -- configuration release ', $source->release(), "\n";
-
-    print "spine-mgmt: initializing data for $hostname\n";
-}
-
-if ( ${%{$registry->get_options()}->{dryrun}} ) {
-    unless(defined($quiet))
-    {
-        print "spine-mgmt: running in dryrun mode\n";
-    }
+print 'spine-mgmt: starting Spine v' . $VERSION . ' -- configuration release ',
+      $source->release(), "\n";
+print "spine-mgmt: initializing data for $hostname\n";
+if ( ${$registry->get_options()->{dryrun}} ) {
+    print "spine-mgmt: running in dryrun mode\n";
     syslog("info", "running in dryrun mode");
 }
 
 # Create the configuration object.
 my $c = Spine::Data->new(hostname    => $hostname,
                          verbosity   => $verbosity,
-                         quiet       => $quiet,
                          source      => $source,
                          release     => $release,
                          config      => $CONFIG);
@@ -480,7 +408,7 @@ unless ($lock_fh)
 # Now that we have a lock and are potentially going to
 # make changes, check to be sure we aren't in dryrun mode
 # and unfreeze the system.
-if ( ! ${%{$registry->get_options()}->{dryrun}} ) {
+if ( ! ${$registry->get_options()->{dryrun}} ) {
     unlink catfile($CONFIG->{spine}->{StateDir}, 'FrozenAtRelease');
 }
 
@@ -510,8 +438,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
         #
         # rtilder    Wed May  9 10:33:20 PDT 2007
         #
-        print STDOUT "\tAt least one plugin requested a clean exit.\n"
-            unless(defined($quiet));
+        print STDOUT "\tAt least one plugin requested a clean exit.\n";
         last PHASE;
     }
 }
@@ -522,10 +449,7 @@ $source->clean();
 if ($SAVE_STATE)
 {
     # Store our config object to disk.
-    unless(defined($quiet))
-    {
-        print STDERR "Saving state...\n";
-    }
+    print "spine-mgmt: Saving state.\n";
     unless ($state->store())
     {
         $c->error('failed to write session object [' . $state->error . ']',
@@ -554,8 +478,7 @@ if ($SAVE_STATE)
 if ( defined $c->{c_lame_keys} )
 {
     my $size = keys %{$c->{c_lame_keys}};
-    print "spine-mgmt: Encountered $size keys with lame TT syntax!\n"
-        unless(defined($quiet));
+    print "spine-mgmt: Encountered $size keys with lame TT syntax!\n";
 }
 
 finished:
@@ -577,6 +500,9 @@ exit(1);
 
 
 END {
+    # Preserve the exist status, yes the temp assignment is required.
+    my $foo = $?;
+    local $? = $foo;
     release_lock();
 }
 
