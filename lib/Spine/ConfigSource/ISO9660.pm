@@ -58,7 +58,7 @@ sub new
     {
         my $section = $args{Config}->{ISO9660};
 
-        foreach my $item (qw(Destination URL Timeout Username Password Proxy))
+        foreach my $item (qw(Destination URL Timeout Username Password Proxy Branch))
         {
             if ( ( not exists($self->{$item})
                    or not defined($self->{$item}) )
@@ -293,6 +293,11 @@ sub check_for_update
     my $file = shift;
     my $check = "$self->{URL}?a=check&prev=$prev";
 
+    if ($self->{Branch})
+    {
+        $check .= "&branch=" . $self->{Branch}
+    }
+
     my $resp = $self->_http_request($check);
 
     my $version_data = undef;
@@ -348,6 +353,11 @@ sub retrieve
     my $file = "spine-config-$release.iso.gz";
     # Check to see if we have it cached locally first
     my $cached = $self->{_cache}->get($file);
+
+    if ($self->{Branch})
+    {
+        $retrieve .= "&branch=" . $self->{Branch}
+    }
 
     if ($cached)
     {
