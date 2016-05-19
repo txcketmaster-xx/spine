@@ -454,20 +454,20 @@ sub get_hardware_platform
     }
     else
     {
-        my ($product_name) = simple_exec(c     => $c,
-                                        exec  => 'dmidecode',
-                                        args  => '--string system-product-name',
-                                        inert => 1);
+        $c->{c_hardware_platform} = 'UNKNOWN';
+        my @output = simple_exec(c     => $c,
+                                 exec  => 'dmidecode',
+                                 args  => '--string system-product-name',
+                                 inert => 1);
         return PLUGIN_FATAL unless ($? == 0);
 
-        chomp $product_name;
-        if ($product_name eq '') 
+
+        foreach my $line (@output)
         {
-            $c->{c_hardware_platform} = 'UNKNOWN';
-        }
-        else
-        {
-            $c->{c_hardware_platform} = $product_name;
+            next unless ($line !~ m/^#.*/);
+            chomp $line;
+            $c->{c_hardware_platform} = $line;
+            last;
         }
     }
     return PLUGIN_SUCCESS;
