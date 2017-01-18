@@ -15,13 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-## usage: getvals [-d] [keyname] [...]
+## usage: getvals [-d | -y] [keyname] [...]
 ##        getvals -h
 ##
 
 # Load needed modules
 use strict;
 use Data::Dumper;
+use YAML::Syck;
 use Getopt::Std;
 
 use lib q(/usr/lib/spine-mgmt);
@@ -34,10 +35,12 @@ $Data::Dumper::Terse = 1;
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Sortkeys = 1;
 
+$YAML::Syck::SortKeys = 1;
+
 our $CONFIG;
 our $DEFAULT_CONFIGFILE = '/etc/spine-mgmt/spine-mgmt.conf';
 
-getopts('dh', \%main::opt);
+getopts('dyh', \%main::opt);
 usage() if $main::opt{'h'};
 
 # Should probably add a command-line switch so people can specify their
@@ -53,11 +56,19 @@ die $Spine::ConfigFile::ERROR if (not defined($CONFIG));
 # Spine::Data object, but that's just one more module to load, and it's
 # all right there under the '_data' key
 my $stash = new Spine::State($CONFIG);
-$stash->load();
+$stash->load() || die 'ERR: could not load config object under ', $stash->{'StateDir'}, ": $!\n";
 
 ## with no args, print the list of available keys
 unless (scalar(@ARGV)) {
-	print sort keys %{ $stash->{'_data'} };
+	if ($main::opt{'d'}) {
+		warn Dumper($stash->{'_data'});
+	}
+	elsif ($main::opt{'y'}) {
+		print Dump($stash->{'_data'});
+	}
+	else {
+		print sort keys %{ $stash->{'_data'} };
+	}
 	exit 0;
 }
 
@@ -115,6 +126,12 @@ foreach my $arg (@ARGV) {
 ## with -d, do a full dump of the data structure
 	if ($main::opt{'d'}) {
 		warn Dumper($ret);
+		next;
+	}
+
+## with -y, do a full dump of the data structure as YAML
+	if ($main::opt{'y'}) {
+		print Dump($ret);
 		next;
 	}
 
