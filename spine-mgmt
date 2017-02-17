@@ -21,7 +21,7 @@
 #
 
 require 5.10.0;
-our $VERSION = qq(2.1.6);
+our $VERSION = qq(2.1.7);
 
 use strict;
 
@@ -115,13 +115,13 @@ if (-f $cfile)
 }
 elsif (defined($conf_file))
 {
-    print STDERR "spine-mgmt: Config file $cfile not found.\n";
+    print "spine-mgmt: Config file $cfile not found.\n";
     goto failure;
 }
 
 if (not defined($CONFIG))
 {
-    print STDERR "spine-mgmt: No config file found. Using hardcoded defaults.\n";
+    print "spine-mgmt: No config file found. Using hardcoded defaults.\n";
     $CONFIG = DEFAULT_CONFIG;
 }
 
@@ -156,7 +156,7 @@ if (scalar(@actions) > 0)
     foreach my $action (@actions) {
         my $lcaction = lc($action);
         unless (exists $lc_config_keys{'action_' . $lcaction}) {
-            print STDERR "Action $action is not a valid action!\n";
+            print "Action $action is not a valid action!\n";
             goto failure;
         }
 
@@ -214,7 +214,7 @@ while (my ($phase, $plugins) = each(%{$CONFIG->{$CONFIG->{spine}->{Profile}}})) 
     my @plugins = split(/(?:\s*,?\s+)/, $plugins);
 
     unless ($registry->load_plugin(@plugins) == SPINE_SUCCESS) {
-        print STDERR "Failed to load at least one plugin!\n";
+        print "Failed to load at least one plugin!\n";
         goto failure;
     }
 }
@@ -222,7 +222,7 @@ while (my ($phase, $plugins) = each(%{$CONFIG->{$CONFIG->{spine}->{Profile}}})) 
 # No plugins loaded?  Not ok!
 unless (scalar(keys(%{$registry->{PLUGINS}})))
 {
-    print STDERR "Didn't load any plugins.  Library path or config problem!\n";
+    print "Didn't load any plugins.  Library path or config problem!\n";
     goto failure;
 }
 
@@ -261,7 +261,7 @@ if ($OPTIONS{help})
 # Now we get our plugin options
 unless (GetOptions(%{$registry->get_options()}))
 {
-    print STDERR "Invalid option.\n";
+    print "Invalid option.\n";
     goto failure;
 }
 
@@ -314,7 +314,7 @@ my $release = get_release($source, \%OPTIONS, $CONFIG);
 
 if (not defined($release))  # There was an error
 {
-    print STDERR "Couldn't find a config for that release.  Bailing.\n";
+    print "Couldn't find a config for that release.  Bailing.\n";
     goto failure;
 }
 
@@ -369,7 +369,7 @@ my $c = Spine::Data->new(hostname    => $hostname,
 #
 # rtilder  Tue Jun 27 12:23:39 PDT 2006
 if (not defined($c)) {
-    print STDERR 'spine-mgmt initialization: Errors encountered parsing '
+    print 'spine-mgmt initialization: Errors encountered parsing '
         . "data tree.\n";
     goto failure;
 }
@@ -378,7 +378,7 @@ if (not defined($c)) {
 # have had a critical parsing error.
 if ($c->getval('c_failure'))
 {
-    print STDERR 'spine-mgmt initialization: Errors encountered parsing '
+    print 'spine-mgmt initialization: Errors encountered parsing '
         . "data tree.\n";
     goto failure;
 }
@@ -386,9 +386,9 @@ if ($c->getval('c_failure'))
 # A quick sanity check, just to be sure
 if ($c->{c_release} != $source->release())
 {
-    print STDERR "Requested release \"$c->{c_release}\" doesn't match "
+    print "Requested release \"$c->{c_release}\" doesn't match "
         . "release parsed\n";
-    print STDERR 'from config source "', $source->release(), "\"\n";
+    print 'from config source "', $source->release(), "\"\n";
     goto failure;
 }
 
@@ -423,7 +423,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
     my $point = $registry->get_hook_point($phase);
 
     unless ($point->register_hooks() == SPINE_SUCCESS) {
-        print STDERR "Error registering hooks!\n";
+        print "Error registering hooks!\n";
         last;
     }
 
@@ -431,7 +431,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
     $error_count += $errors;
 
     if (($rc & PLUGIN_FATAL) == PLUGIN_FATAL) {
-        print STDERR "\tExiting as gracelessly as possible.\n";
+        print "\tExiting as gracelessly as possible.\n";
         goto failure;
     } elsif ($rc & PLUGIN_EXIT) {
         #
@@ -440,7 +440,7 @@ PHASE: foreach my $pork ( ( ['PREPARE', 'Failed to prepare for emission!'],
         #
         # rtilder    Wed May  9 10:33:20 PDT 2007
         #
-        print STDOUT "\tAt least one plugin requested a clean exit.\n";
+        print "\tAt least one plugin requested a clean exit.\n";
         last PHASE;
     }
 }
@@ -471,7 +471,7 @@ if ($SAVE_STATE)
     #
     unless (freeze_release($release, \%OPTIONS, $CONFIG,
                            catfile($state->{StateDir}, 'FrozenAtRelease'))) {
-        print STDERR "Failed to freeze state!\n";
+        print "Failed to freeze state!\n";
         goto failure;
     }
 }
@@ -515,14 +515,14 @@ sub read_nodefile
     my $hostname = undef;
 
     unless (-f $file) {
-        print STDERR "Node file \"$file\" doesn't exist!\n";
+        print "Node file \"$file\" doesn't exist!\n";
         return undef;
     }
 
     my $fh = new IO::File("< $file");
 
     unless (defined($fh)) {
-        print STDERR "Couldn't open node file \"$file\": $!\n";
+        print "Couldn't open node file \"$file\": $!\n";
         return undef;
     }
 
@@ -545,7 +545,7 @@ sub write_nodefile
     my $fh = new IO::File("> $file");
 
     unless (defined($fh)) {
-        print STDERR "Couldn't open node file \"$file\": $!\n";
+        print "Couldn't open node file \"$file\": $!\n";
         return 0;
     }
 
@@ -579,7 +579,7 @@ sub ignore_signal
     my $signal = shift;
 
     $SIG{$signal} = 'IGNORE';
-    print STDERR "Caught signal $signal.\n";
+    print "Caught signal $signal.\n";
 
     if (-t STDIN and ($signal eq 'INT' or $signal eq 'TERM')) {
         release_lock();
@@ -602,7 +602,7 @@ sub get_frozen_release
 
     if (-z $frozen)
     {
-        print STDERR "Frozen release file \"$frozen\" exists but is 0 bytes.\n";
+        print "Frozen release file \"$frozen\" exists but is 0 bytes.\n";
         return undef;
     }
 
@@ -610,7 +610,7 @@ sub get_frozen_release
 
     if (not defined($fh))
     {
-        print STDERR "Failed to open frozen release file \"$frozen\": $!\n";
+        print "Failed to open frozen release file \"$frozen\": $!\n";
         return undef;
     }
 
@@ -647,12 +647,12 @@ sub get_source
                                                       Path   => $options->{croot});
 
         if (not defined($source)) {
-            print STDERR 'Failed to initialize config root from command line:'
+            print 'Failed to initialize config root from command line:'
                 . " $Spine::ConfigSource::FileSystem::ERROR\n";
             #XXX: I don't think we want to fall back to the config if the
             #     the caller requested us to use something else
             goto failure;
-            #print STDERR "Falling back to configuration file settings.\n";
+            #print "Falling back to configuration file settings.\n";
         }
     }
     # If --config-source was provided, use that.
@@ -673,7 +673,7 @@ sub get_source
         eval "require $source_type";
 
         if ($@) {
-            print STDERR "Failed to load the $source_type configuration "
+            print "Failed to load the $source_type configuration "
                 . "source: $@\n";
             return undef;
         }
@@ -686,7 +686,7 @@ sub get_source
         };
 
         if ($@) {
-            print STDERR "Failed to initialize configuration source: $@\n";
+            print "Failed to initialize configuration source: $@\n";
             return undef;
         }
     }
@@ -700,7 +700,7 @@ sub get_source
         no strict 'refs';
         eval { $foo = ${$source_type . '::ERROR'} };
 
-        print STDERR 'Failure to initialize configuration source '
+        print 'Failure to initialize configuration source '
             . "$source_type: $foo\n";
         use strict 'refs';
         return undef;
@@ -724,7 +724,7 @@ sub get_release
     #
     if (not defined($release))
     {
-        print STDERR "Can't parse frozen release.  Bailing.  Delete or fix.\n";
+        print "Can't parse frozen release.  Bailing.  Delete or fix.\n";
         goto release_failed;
     }
 
@@ -748,14 +748,14 @@ sub get_release
     }
 
     if (not defined($release)) {
-        print STDERR 'Failed while checking for newer configuration '
+        print 'Failed while checking for newer configuration '
             . "releases: $source->{error}\n";
         goto release_failed;
     }
 
     if ($release) {
         if (not defined($source->retrieve($release))) {
-            print STDERR 'Failed to retrieve latest configuration release: '
+            print 'Failed to retrieve latest configuration release: '
                 . "$source->{error}\n";
             goto release_failed;
         }
@@ -763,7 +763,7 @@ sub get_release
 
     if (not defined($source->config_root()))
     {
-        print STDERR 'Couldn\'t mount or find the configuration source: '
+        print 'Couldn\'t mount or find the configuration source: '
             . "$source->{error}\n";
         goto release_failed;
     }
@@ -799,7 +799,7 @@ sub freeze_release
     # Print out a special warning for --release=latest and --freeze on the
     # command line
     if ($options->{release} eq 'latest' and exists($options->{freeze})) {
-        print STDERR "WARNING: Won't freeze when --release=\"latest\"\n";
+        print "WARNING: Won't freeze when --release=\"latest\"\n";
 
         # Don't return an error, though.
         return 1;
@@ -813,7 +813,7 @@ sub freeze_release
         my $fh = new IO::File("> $freeze_file");
 
         if (not defined($fh)) {
-            print STDERR "Failed to open $freeze_file: $!\n";
+            print "Failed to open $freeze_file: $!\n";
             return 0;
         }
 

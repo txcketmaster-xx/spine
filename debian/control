@@ -1,7 +1,7 @@
 Source: spine
 Section: admin
 Priority: extra
-Maintainer: Rafi Khardalian <rafi@metacloud.com>
+Maintainer: Metacloud Engineering <mc-engineering@cisco.com>
 Build-Depends: debhelper (>= 8.0.0)
 Standards-Version: 3.9.2
 Homepage: http://www.metacloud.com

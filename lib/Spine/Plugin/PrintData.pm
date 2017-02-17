@@ -71,21 +71,21 @@ sub printdata
     if ($PRINTALL|$PRINTDATA)
     {
         if ($YAML) {
-            print YAML::Syck::Dump($c);
+            print STDOUT YAML::Syck::Dump($c);
         } else {
             my $data = new Data::Dumper($objects, $names);
-            print $data->Dump();
+            print STDOUT $data->Dump();
         }
     }
     if ($PRINTALL|$PRINTAUTH)
     {
         require Spine::Plugin::Auth;
         if ($YAML) {
-            print YAML::Syck::Dump($Spine::Plugin::Auth::AUTH);
+            print STDOUT YAML::Syck::Dump($Spine::Plugin::Auth::AUTH);
         } else {
             my $data = new Data::Dumper([$Spine::Plugin::Auth::AUTH], \
                 ['Spine::AuthData']);
-            print $data->Dump();
+            print STDOUT $data->Dump();
         }
     }
 
