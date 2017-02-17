@@ -294,10 +294,13 @@ sub quick_template
             return PLUGIN_EXIT;
         }
 
+        # Spine's default filehandle is STDERR, so send the template
+        # out STDOUT explicitly.  This should make quick_template usable
+        # in scripts and the like.
         my $file_short = basename($template);
-        print "[ Start: $file_short ]\n" if ($MARKERS);
-        print $output;
-        print "[ End: $file_short ]\n" if ($MARKERS);
+        print STDOUT "[ Start: $file_short ]\n" if ($MARKERS);
+        print STDOUT $output;
+        print STDOUT "[ End: $file_short ]\n" if ($MARKERS);
     }
 
     return PLUGIN_EXIT;

@@ -70,14 +70,16 @@ our ($SAVE_STATE, $DEBUG, $CONFIG, %OPTIONS);
 $SAVE_STATE = 1;
 $DEBUG = $ENV{SPINE_DEBUG} || 0;
 
-# Turn off buffering
-if ($DEBUG)
-{
-    select STDERR;
-    $| = 1;
-    select STDOUT;
-    $| = 1;
-}
+# Turn off buffering in debug mode.  STDOUT should already be the active
+# filehandle, but select() it anyway "just to be sure"
+select STDOUT;
+$| = 1 if $DEBUG;
+
+# select() STDERR as the default filehandle.  All of spine's output is
+# arguably debugging output, but this is mostly for the sake of preventing
+# rogue plugins from gumming up quick_template output
+select STDERR;
+$| = 1 if $DEBUG;
 
 #
 # Grab only our config file so we can load our plugins
