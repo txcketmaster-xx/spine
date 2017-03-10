@@ -14,7 +14,7 @@ set -ex
 export SERIES="precise"
 export DEBUILD_TGZ_CHECK="no"
 
-MAIN_VERSION=2.1.7
+MAIN_VERSION=2.1.8
 GITHASH=`git log --pretty=format:'%h' -n 1`
 EPOCHTIME=`date +%s`
 

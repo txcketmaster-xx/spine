@@ -47,9 +47,11 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                                                  { name => 'is_virtual',
                                                    code => \&is_virtual },
                                                  { name => 'cpu_info',
-                                                   code => \&get_cpu_info } ,
+                                                   code => \&get_cpu_info },
                                                  { name => 'hardware_platform',
-                                                   code => \&get_hardware_platform } , 
+                                                   code => \&get_hardware_platform },
+                                                 { name => 'nic_driver',
+                                                   code => \&get_nic_driver },
                                                  { name => 'current_kernel_version',
                                                    code => \&get_current_kernel_version } ]
                      }
@@ -468,6 +470,24 @@ sub get_hardware_platform
             chomp $line;
             $c->{c_hardware_platform} = $line;
             last;
+        }
+    }
+    return PLUGIN_SUCCESS;
+}
+
+sub get_nic_driver
+{
+    my $c = shift;
+
+    my @devices = glob("/sys/class/net/*");
+    foreach my $device (@devices)
+    {
+        if ( -e "$device/device/driver" )
+        {
+            my $driver = basename(readlink("$device/device/driver"));
+            $device = basename($device);
+            my $key = "c_nic_driver_" . $device;
+            $c->{$key} = $driver
         }
     }
     return PLUGIN_SUCCESS;
