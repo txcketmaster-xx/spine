@@ -97,14 +97,18 @@ sub get_wwn_id
                              inert => 1);
     foreach my $line (@output)
     {
-        my ($dev, $label, $uuid, $type) = split(' ', $line);
-        $dev =~ s|^/dev/(sd.+):$|$1|g;
+        my ($device, $label, $uuid, $type) = split(' ', $line);
+        $device =~ s|^/dev/(sd.+):$|$1|g;
         $label =~ s/^LABEL="(.*)"$/$1/g;
         $uuid =~ s/^UUID="(.+)"$/$1/g;
         $type =~ s/^TYPE="(.+)"$/$1/g;
-        my $part = $dev;
+
+        # Now break apart the device and partion number
+        my $part = $device;
+        my $dev = $device;
         $part =~ s/^sd.+(\d+)$/$1/g;
         $dev =~ s/^(sd.+)\d+$/$1/g;
+
         $c->{c_devices}->{dev}->{$dev}->{$part}->{label}=$label;
         $c->{c_devices}->{dev}->{$dev}->{$part}->{uuid}=$uuid;
         $c->{c_devices}->{dev}->{$dev}->{$part}->{type}=$type;
@@ -112,12 +116,12 @@ sub get_wwn_id
         {
             $c->{c_devices}->{label}->{$label} = [];
         }
-        push @{$c->{c_devices}->{label}->{$label}}, "$dev$part";
+        push @{$c->{c_devices}->{label}->{$label}}, "$device";
         if (! exists $c->{c_devices}->{uuid}->{$uuid})
         {
             $c->{c_devices}->{uuid}->{$uuid} = [];
         }
-        push @{$c->{c_devices}->{uuid}->{$uuid}}, "$dev$part";
+        push @{$c->{c_devices}->{uuid}->{$uuid}}, "$device";
     }
 }
 
