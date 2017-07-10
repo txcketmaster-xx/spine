@@ -25,7 +25,7 @@ package Spine::Plugin::PrintData;
 use base qw(Spine::Plugin);
 use Spine::Constants qw(:plugin);
 
-our ($VERSION, $DESCRIPTION, $MODULE, $PRINTALL, $PRINTDATA, $PRINTAUTH);
+our ($VERSION, $DESCRIPTION, $MODULE, $PRINTALL, $PRINTDATA, $PRINTAUTH, $YAML);
 
 $VERSION = sprintf("%d", q$Revision$ =~ /(\d+)/);
 $DESCRIPTION = "Features for debugging Spine data";
@@ -40,6 +40,7 @@ $MODULE = { author => 'osscode@ticketmaster.com',
                      },
             cmdline => { options => { 'printdata|spinaltap' => \$PRINTDATA,
                                       'printauth|with-auth' => \$PRINTAUTH,
+                                      'yaml' => \$YAML,
                                       'printall' => \$PRINTALL } }
           };
 
@@ -62,17 +63,30 @@ sub printdata
     require Data::Dumper;
     $Data::Dumper::Sortkeys = 1;
 
+    if ($YAML) {
+        require YAML::Syck;
+        $YAML::Syck::SortKeys = 1;
+    }
+
     if ($PRINTALL|$PRINTDATA)
     {
-        my $data = new Data::Dumper($objects, $names);
-        print $data->Dump();
+        if ($YAML) {
+            print STDOUT YAML::Syck::Dump($c);
+        } else {
+            my $data = new Data::Dumper($objects, $names);
+            print STDOUT $data->Dump();
+        }
     }
     if ($PRINTALL|$PRINTAUTH)
     {
         require Spine::Plugin::Auth;
-        my $data = new Data::Dumper([$Spine::Plugin::Auth::AUTH], \
-            ['Spine::AuthData']);
-        print $data->Dump();
+        if ($YAML) {
+            print STDOUT YAML::Syck::Dump($Spine::Plugin::Auth::AUTH);
+        } else {
+            my $data = new Data::Dumper([$Spine::Plugin::Auth::AUTH], \
+                ['Spine::AuthData']);
+            print STDOUT $data->Dump();
+        }
     }
 
     return PLUGIN_EXIT;

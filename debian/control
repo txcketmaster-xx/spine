@@ -1,0 +1,39 @@
+Source: spine
+Section: admin
+Priority: extra
+Maintainer: Metacloud Engineering <mc-engineering@cisco.com>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.2
+Homepage: http://www.metacloud.com
+
+
+Package: spine
+Architecture: any
+Depends: ${shlibs:Depends},
+ ${misc:Depends},
+ libquota-perl,
+ libnet-dns-perl,
+ libtemplate-perl,
+ libyaml-syck-perl,
+ libtext-diff-perl,
+ libnetaddr-ip-perl,
+ libwww-perl,
+ libdigest-md5-file-perl,
+ libfile-temp-perl,
+ libfile-finder-perl,
+ libxml-simple-perl,
+ liblwp-protocol-connect-perl,
+ chkconfig,
+ dialog,
+ udev,
+ util-linux
+Description: Configuration management system.
+
+
+Package: spine-publisher
+Architecture: all
+Section: admin
+Depends: libsvn-perl,
+ libconfig-simple-perl,
+ liblchown-perl
+Description: Configball publisher.

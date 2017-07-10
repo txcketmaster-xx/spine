@@ -1,7 +1,7 @@
 # -*- mode: cperl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: Exec.pm 246 2009-08-27 16:23:55Z richard $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -144,7 +144,13 @@ sub simple {
  
     # Run command
     $self->start();
-    
+   
+    # See if we are in dryrun.
+    if (exists $self->{dryrun} && $self->{dryrun})
+    {
+        return wantarray ? () : SPINE_SUCCESS;
+    }
+
     # Get results (will hang untill EOF on STDOUT)
     my @result = $self->readlines();
     
@@ -158,6 +164,9 @@ sub simple {
     
     # Anything other then zero is probably bad
     unless ($self->exitstatus() == 0) {
+        $self->{c}->error(join(' ', $self->{bin}, @{$self->{args}},
+            sprintf('returned %d:', $self->exitstatus()),
+            @result)) unless ($self->{quiet});
         return wantarray ? () : SPINE_FAILURE;
     }
     
@@ -234,13 +243,8 @@ sub lasterror {
 sub _readlines {
     my $self = shift;
     my $type = shift;
-
-    # If we are in dryrun we didn't run so just return undef.
-    # Also if we aren't ready yet, return undef.
-    if ( (exists $self->{dryrun} && $self->{dryrun}) || ! $self->{ready} ) 
-    {
-        return undef;
-    }
+      
+    return undef unless $self->{ready};
     
     my @output = $self->{$type}->getlines();
     if ($self->{$type}->error()) {

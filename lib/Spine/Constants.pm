@@ -72,5 +72,50 @@ $tmp = [qw(SPINE_NOTRUN SPINE_FAILURE SPINE_SUCCESS)];
 push @EXPORT_OK, @{$tmp};
 $EXPORT_TAGS{basic} = $tmp;
 
+use constant DEFAULT_CONFIG => {
+        spine => {
+            StateDir => '/var/spine-mgmt',
+            ConfigSource => 'ISO9660',
+            Profile => 'StandardPlugins',
+            Parser => 'pureTT',
+            SyslogIdent => 'spine-mgmt',
+            SyslogFacility => 'local3',
+            SyslogOptions => 'ndelay,pid',
+        },
+
+        DefaultPlugins => {
+            'DISCOVERY/populate' => 'DryRun SystemInfo',
+            'DISCOVERY/policy-selection' => 'DescendOrder',
+            'PARSE/complete' => 'Interpolate',
+        },
+
+        FileSystem => {
+            Path => '/software/spine/config'
+        },
+
+        ISO9660 => {
+            URL => 'http://repository/cgi-bin/rcrb.pl',
+            Destination => '/var/spine-mgmt/configballs',
+            Timeout => 5
+        },
+
+         StandardPlugins => {
+            PREPARE => 'PrintData Templates Overlay',
+            EMIT => 'Templates',
+            APPLY => 'Overlay RestartServices Finalize',
+            CLEAN => 'Overlay'
+         },
+
+        FirstRun => {
+            PREPARE => 'PrintData Templates Overlay',
+            EMIT => 'FirstRun Templates',
+            APPLY => 'Overlay Finalize',
+            CLEAN => 'Overlay',
+        }
+    };
+
+
+$tmp = [qw(DEFAULT_CONFIG)];
+push @EXPORT_OK, @{$tmp};
 
 1;

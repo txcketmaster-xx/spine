@@ -43,7 +43,7 @@ install_config: spine-mgmt.conf publisher/spine-publisher.conf.dist
 	done
 
 
-install_scripts: spine-mgmt quick_template ui publisher/spine-publisher
+install_scripts: spine-mgmt quick_template ui publisher/spine-publisher getvals
 	for I in $^; do \
 		$(INSTALL) -m 0755 $$I $(DESTDIR)$(BINDIR); \
 	done

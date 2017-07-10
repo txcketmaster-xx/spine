@@ -2,7 +2,7 @@
 # -*- mode: perl; cperl-continued-brace-offset: -4; indent-tabs-mode: nil; -*-
 # vim:shiftwidth=2:tabstop=8:expandtab:textwidth=78:softtabstop=4:ai:
 
-# $Id$
+# $Id: rcrb.pl 130 2008-08-13 05:16:27Z rkhardalian $
 
 #
 # This program is free software; you can redistribute it and/or modify
@@ -34,9 +34,8 @@ use CGI;
 use IO::Dir;
 use Storable qw(nfreeze);
 
-#my $REPOURL = 'http://repository/spine/';
 my $REPOURL = "http://$ENV{HTTP_HOST}/spine-configballs/";
-my $SRCDIR  = '/ops/shared/htdocs/spine-configballs';
+my $SRCDIR  = '/mnt/repository/spine-configballs';
 my $DEFAULT = '';
 my $FILENAME_RE = 'spine-config-?(.*)?-(\d+).(iso\.gz|cramfs)$';
 

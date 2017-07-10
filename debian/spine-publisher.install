@@ -1,0 +1,3 @@
+etc/spine-mgmt/spine-publisher.conf
+etc/init.d/spine-publisher
+usr/bin/spine-publisher

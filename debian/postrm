@@ -1,0 +1,6 @@
+#!/bin/sh
+
+case "$1" in
+    purge) rm -f /var/spine-mgmt/fstab ;;
+    *) : ;;
+esac
